@@ -1,0 +1,39 @@
+CHANGELOG:
+
+* initial conditions are now read from file
+* implemented forcing input constant in time
+* implemented lateral mixing parameterization by Bryan (1969) as used in
+  Greatbatch et al 1995
+* implemented quadratic bottom friction but left linear friction as an option
+* created header file model.h to change model physics
+* changed from linear friction to quadratic friction
+* streamfunction implemented in diagnostics module
+* H_u, H_v and H_eta introduced (linear inetrpolation of H on the three grids)
+* Nt replaced by run_length in namelist. Now Nt = int(run_length/dt) in initVars
+* r and tau_0 added to namelist
+* tau_x is only calculated on non-land u grid points to avoid infinity values
+* Bugfix: lat_v instead of lar_u was used to calculate tau_x
+* changed algorithm to calculate landmasks. Now using FORALL instead of nested
+  DO with IF
+* new modules:
+  - io --> diag_module : contains output routines for H, eta, u, v, ...
+  - timestep_module : contains the heaps scheme and initializations thereof
+  - varset_module : the main module, namelist input, allocation / initialization
+* namelist input (in varset_module.f90, model.namelist)
+* switch for periodic boundary conditions in lon-direction
+* use ip1, im1, ... everywhere
+* time index l is now a global integer variable called itt
+* some renaming
+
+TODO:
+
+* STYLE: Contains in modules vs. separate functions?
+* restarting
+* check for stability criteria
+* time dependent forcing
+
+LATER:
+
+* Documentation
+* averaging routines
+* variance routines
