@@ -1,3 +1,5 @@
+! asdf
+
 PROGRAM model
 #include "model.h"
   USE vars_module
