@@ -7,17 +7,17 @@ MODULE diag_module
   SAVE
 
   ! netCDF output Variables
-  CHARACTER(len=80), PARAMETER :: file_eta = "eta_out.nc", & ! output file names
-                                  file_u   = "u_out.nc",   &
-                                  file_v   = "v_out.nc",   &
-                                  file_h   = "H_out.nc",   &
-                                  file_Fx  = "fx_out.nc",  &
-                                  file_Fy  = "fy_out.nc",  &
-                                  file_psi = "psi_out.nc", &
-                                  varname_eta = "eta", varname_u = "u", & ! variable names
-                                  varname_v = "v", varname_h = "H", &
-                                  varname_Fx = "taux", varname_Fy = "tauy", &
-                                  varname_psi = "psi"
+  CHARACTER(len=80), PARAMETER :: file_eta = OFILEETA, & ! output file names
+                                  file_u   = OFILEU,   &
+                                  file_v   = OFILEV,   &
+                                  file_h   = OFILEH,   &
+                                  file_Fx  = OFILEFX,  &
+                                  file_Fy  = OFILEFY,  &
+                                  file_psi = OFILEPSI, &
+                                  varname_eta = OVARNAMEETA, varname_u = OVARNAMEU, & ! variable names
+                                  varname_v = OVARNAMEV, varname_h = OVARNAMEH, &
+                                  varname_Fx = OVARNAMEFX, varname_Fy = OVARNAMEFY, &
+                                  varname_psi = OVARNAMEPSI
   INTEGER                      :: ncid_eta, varid_eta,timeid_eta,       &
                                   ncid_u, varid_u, timeid_u,            &
                                   ncid_v, varid_v, timeid_v,            &
@@ -40,17 +40,19 @@ MODULE diag_module
       end if
     END SUBROUTINE check
 
-    SUBROUTINE readTimeStep(filename,varname,var,nrec)
+    SUBROUTINE readInitialCondition(filename,varname,var)
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)            :: filename,varname
+      CHARACTER(*), INTENT(in)                  :: filename,varname
       REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var
-      INTEGER, INTENT(in)                       :: nrec
-      INTEGER                                   :: ncid, varid
+      INTEGER                                   :: ncid, varid, timeid, nrec
       call check(nf90_open(filename, NF90_NOWRITE, ncid))
-      call check(nf90_inq_varid(ncid, varname, varid))          
+      call check(nf90_inquire(ncid, unlimitedDimId=timeid))
+      call check(nf90_inquire_dimension(ncid, timeid, len=nrec))
+      print *,trim(varname),nrec
+      call check(nf90_inq_varid(ncid, varname, varid))
       call check(nf90_get_var(ncid, varid, var(:,:,1), start=(/1,1,nrec/), count=(/Nx,Ny,1/)))              
       call check(nf90_close(ncid))
-    END SUBROUTINE readTimeStep
+    END SUBROUTINE readInitialCondition
 
     SUBROUTINE createDS2(fileName, varname, lat_vec, lon_vec, ncid, varid)
       IMPLICIT NONE
@@ -60,8 +62,8 @@ MODULE diag_module
       INTEGER                       :: lat_dimid, lon_dimid, &
                                        lat_varid, lon_varid
       CHARACTER(len=80), PARAMETER  :: str_name="long_name", str_unit="units", str_cal="calendar", &
-                                       lat_name="latitude", lon_name="longitude", &
-                                       lat_unit="degrees_north", lon_unit="degrees_east"
+                                       lat_name=YAXISNAME, lon_name=XAXISNAME, &
+                                       lat_unit=YUNIT, lon_unit=XUNIT
       ! create file
       call check(nf90_create(fileName, NF90_CLOBBER, ncid))
       ! create dimensions
@@ -94,9 +96,9 @@ MODULE diag_module
       INTEGER                       :: lat_dimid, lon_dimid, time_dimid, &
                                        lat_varid, lon_varid
       CHARACTER(len=80), PARAMETER  :: str_name="long_name", str_unit="units", str_cal="calendar", &
-                                       lat_name="latitude", lon_name="longitude", time_name="time", &
-                                       lat_unit="degrees_north", lon_unit="degrees_east",&
-                                       time_unit="seconds"!since 1900-01-01 00:00:00", time_cal="noleap"
+                                       lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
+                                       lat_unit=XUNIT, lon_unit=YUNIT,&
+                                       time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
       ! create file
       call check(nf90_create(fileName, NF90_CLOBBER, ncid))
       ! create dimensions

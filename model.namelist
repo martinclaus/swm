@@ -8,7 +8,7 @@
   TAU_0 = 0.1,          ! maximum sinusoidal windstress
   Nx = 201,             ! number of grid points in x-dir.
   Ny = 81,              ! number of grif points in y-dir.
-  run_length = 6e6,     ! length of run in seconds 
+  run_length = 6e4,     ! length of run in seconds 
   Nout = 100,           ! number of eq. distributed "measurements"
   dt = 60,              ! time step (s)
   lon_s = -100.,        ! min. lon. of the domain (H-grid)
@@ -20,7 +20,7 @@
   in_file_F="tau_in.nc" ! forcing input dataset
   in_varname_Fx = "TAUX"! forcing variable in x-direction (u-grid)
   in_varname_Fy = "TAUY"! forcing variable in y-direction (v-grid)
-  file_eta_init="eta_init_test.nc"
+  file_eta_init="eta_init.nc"
   varname_eta_init="ETA"
   file_u_init="u_init.nc"
   varname_u_init="U"

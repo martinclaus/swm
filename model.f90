@@ -50,13 +50,13 @@ PROGRAM model
       !END FORALL
       !F_y = 0.
       ! initial conditions of dynamic fields
-      call readTimeStep(file_eta_init,varname_eta_init,eta(:,:,N0),1)
+      call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))
       FORALL (i=1:Nx, j=1:Ny, land_eta(i,j)==1) eta(i,j,N0) = 0
-      call readTimeStep(file_u_init,varname_u_init,u(:,:,N0),1)
+      call readInitialCondition(file_u_init,varname_u_init,u(:,:,N0))
       FORALL (i=1:Nx, j=1:Ny, land_u(i,j)==1) u(i,j,N0) = 0
-      call readTimeStep(file_v_init,varname_v_init,v(:,:,N0),1)
+      call readInitialCondition(file_v_init,varname_v_init,v(:,:,N0))
       FORALL (i=1:Nx, j=1:Ny, land_v(i,j)==1) v(i,j,N0) = 0
-    END SUBROUTINE initialConditions
+   END SUBROUTINE initialConditions
 
     SUBROUTINE initDomain
       IMPLICIT NONE

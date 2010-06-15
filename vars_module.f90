@@ -45,11 +45,11 @@ MODULE vars_module
   REAL(8), DIMENSION(:), ALLOCATABLE :: lon_u, lon_v, &
                             lon_eta, lon_H       ! longitude vectors
 
-  INTEGER                      :: write_tstep            ! save every write_tstep'th step
+  INTEGER                 :: write_tstep            ! save every write_tstep'th step
 
   ! numerical parameters
-  INTEGER(1), PARAMETER     :: Ns = 2                        ! max order of scheme
-  INTEGER(1), PARAMETER     :: N0 = 1, N0p1=N0+1             ! actual step position in scheme  
+  INTEGER(1), PARAMETER   :: Ns = 2                        ! max order of scheme
+  INTEGER(1), PARAMETER   :: N0 = 1, N0p1=N0+1             ! actual step position in scheme  
 
   ! dynamic fields u, v, eta, allocated during initialization
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: u, v, eta   ! variable fields
