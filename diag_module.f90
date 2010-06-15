@@ -48,7 +48,6 @@ MODULE diag_module
       call check(nf90_open(filename, NF90_NOWRITE, ncid))
       call check(nf90_inquire(ncid, unlimitedDimId=timeid))
       call check(nf90_inquire_dimension(ncid, timeid, len=nrec))
-      print *,trim(varname),nrec
       call check(nf90_inq_varid(ncid, varname, varid))
       call check(nf90_get_var(ncid, varid, var(:,:,1), start=(/1,1,nrec/), count=(/Nx,Ny,1/)))              
       call check(nf90_close(ncid))
