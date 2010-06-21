@@ -50,12 +50,18 @@ PROGRAM model
       !END FORALL
       !F_y = 0.
       ! initial conditions of dynamic fields
-      call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))
-      FORALL (i=1:Nx, j=1:Ny, land_eta(i,j)==1) eta(i,j,N0) = 0
-      call readInitialCondition(file_u_init,varname_u_init,u(:,:,N0))
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j)==1) u(i,j,N0) = 0
-      call readInitialCondition(file_v_init,varname_v_init,v(:,:,N0))
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j)==1) v(i,j,N0) = 0
+      IF (init_cond_from_file) THEN
+        call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))
+        FORALL (i=1:Nx, j=1:Ny, land_eta(i,j)==1) eta(i,j,N0) = 0
+        call readInitialCondition(file_u_init,varname_u_init,u(:,:,N0))
+        FORALL (i=1:Nx, j=1:Ny, land_u(i,j)==1) u(i,j,N0) = 0
+        call readInitialCondition(file_v_init,varname_v_init,v(:,:,N0))
+        FORALL (i=1:Nx, j=1:Ny, land_v(i,j)==1) v(i,j,N0) = 0
+      ELSE
+        eta = 0.
+        u = 0.
+        v = 0.
+      END IF
    END SUBROUTINE initialConditions
 
     SUBROUTINE initDomain
@@ -103,9 +109,9 @@ PROGRAM model
       call check(nf90_close(Hncid))
       ! interpolate topography on all grids
       FORALL (i=1:Nx, j=1:Ny)
-        H_u(i,j) = ( H(i,j) + H(i,jp1(j)) ) / 2
-        H_v(i,j) = ( H(i,j) + H(ip1(i),j) ) / 2
-        H_eta(i,j) = ( H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j)) ) / 4
+        H_u(i,j) = ( H(i,j) + H(i,jp1(j)) ) / 2.
+        H_v(i,j) = ( H(i,j) + H(ip1(i),j) ) / 2.
+        H_eta(i,j) = ( H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j)) ) / 4.
       END FORALL
       ! create H-landmask from H
       land_H = 0

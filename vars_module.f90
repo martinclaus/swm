@@ -24,6 +24,7 @@ MODULE vars_module
                             file_eta_init="eta_init.nc", varname_eta_init="ETA", &
                             file_u_init="u_init.nc", varname_u_init="U", &
                             file_v_init="v_init.nc", varname_v_init="V"
+  LOGICAL                :: init_cond_from_file=.true.
 
   ! definition of domain, contained in model.namelist
   INTEGER, PARAMETER     :: Ndims = 3                        ! number of dimensions
@@ -85,7 +86,7 @@ SUBROUTINE initVars
     pbc_lon, & ! periodic boundary conditions in x-direction
     in_file_H, in_varname_H, & ! specification of input topography file
     in_file_F, in_varname_Fx, in_varname_Fy, & ! specification of input forcing file
-    file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init ! specification of initial condition fields, need to have time axis
+    file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
   ! read the namelist and close again  
   open(17, file = 'model.namelist')
   read(17, nml = model_nl)

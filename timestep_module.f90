@@ -71,9 +71,9 @@ SUBROUTINE initTimestep
   END FORALL
   ! calculate forcing term
   FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) &
-    F_x(i,j) = dt*F_x(i,j)/(RHO0*H_u(i,j))
+    F_x(i,j) = dt*F_x(i,j)!/(RHO0*H_u(i,j))
   FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) &
-    F_y(i,j) = dt*F_y(i,j)/(RHO0*H_v(i,j))
+    F_y(i,j) = dt*F_y(i,j)!/(RHO0*H_v(i,j))
   ! coefficients for bottom friction
   FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0)
     gamma_lin_u(i,j) = -dt*r/H_u(i,j)

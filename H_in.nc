@@ -1,1 +1,1 @@
-/data1/mclaus/data/NA_05_50m_H.nc
+/data1/mclaus/data/NA_016_50m_H.nc

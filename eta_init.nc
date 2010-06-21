@@ -1,1 +1,1 @@
-/data1/mclaus/data/NA_05_eta_init.nc
+/data1/mclaus/data/NA_016_eta_init.nc

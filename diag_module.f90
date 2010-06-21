@@ -96,7 +96,7 @@ MODULE diag_module
                                        lat_varid, lon_varid
       CHARACTER(len=80), PARAMETER  :: str_name="long_name", str_unit="units", str_cal="calendar", &
                                        lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
-                                       lat_unit=XUNIT, lon_unit=YUNIT,&
+                                       lat_unit=YUNIT, lon_unit=XUNIT,&
                                        time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
       ! create file
       call check(nf90_create(fileName, NF90_CLOBBER, ncid))
