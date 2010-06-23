@@ -6,14 +6,25 @@
 #PBS -q small
 #PBS -N swm_NA
 
+# Setting up variables
 export OMP_NUM_THREADS=8
-JOBID=$(basename $PBS_JOBID .master)
-OUTDIR="../output"
+JOBID=${PBS_JOBID%%\.*}
+OUTDIR="output/"
+
+# compiling model
 cd $PBS_O_WORKDIR
+make clean_all >/dev/null
+make model >/dev/null
+
+# Setting parameters and run model
+cat << EOF > output.namelist
+&output_nl
+  oprefix = "$OUTDIR",  ! output prefix used to specify directory
+  osuffix = "$JOBID",  ! suffix to name model run
+&end
+EOF
 cat model.namelist
 grep "^#define" model.h
 echo $HOSTNAME
-make clean_all >/dev/null
-make model >/dev/null
 time ./model
-for f in $(ls *_out.nc); do chmod a+r $f; mv $f $OUTDIR/$f$JOBID; done
+chmod a+r $OUTDIR/*$JOBID

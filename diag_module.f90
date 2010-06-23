@@ -6,8 +6,9 @@ MODULE diag_module
   IMPLICIT NONE
   SAVE
 
-  ! netCDF output Variables
-  CHARACTER(len=80), PARAMETER :: file_eta = OFILEETA, & ! output file names
+  ! netCDF output Variables, only default values given, they are overridden when maleist is read in initDiag
+  CHARACTER(len=80)            :: oprefix = "", osuffix="", & ! prefix and suffix of output filenames
+                                  file_eta = OFILEETA, & ! output file names
                                   file_u   = OFILEU,   &
                                   file_v   = OFILEV,   &
                                   file_h   = OFILEH,   &
@@ -129,19 +130,30 @@ MODULE diag_module
 
     SUBROUTINE initDiag
       IMPLICIT NONE
+      ! definition of the output namelist
+      namelist / output_nl / &
+        oprefix, & ! output prefix used to specify directory
+        osuffix, & ! suffix to name model run
+        file_eta,file_u,file_v,file_h,file_Fx,file_Fy,file_psi, & !output filenames
+        varname_eta, varname_u, varname_v, varname_h, varname_Fx, &
+        varname_Fy, varname_psi ! output variable names
+      ! read the namelist and close again
+      open(18, file = OUTPUT_NL)
+      read(18, nml = output_nl)
+      close(18)
       ! allocate and initialise diagnostic fields
       allocate(psi(1:Nx, 1:Ny))
       ! Prepare output file (don't forget to close the files at the end of the subroutine)
-      call createDS3(file_eta, varname_eta,lat_eta, lon_eta, ncid_eta, varid_eta, timeid_eta)
-      call createDS3(file_u, varname_u, lat_u, lon_u, ncid_u, varid_u, timeid_u)
-      call createDS3(file_v, varname_v, lat_v, lon_v, ncid_v, varid_v, timeid_v)
-      call createDS3(file_psi, varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
+      call createDS3(trim(oprefix)//trim(file_eta)//trim(osuffix), varname_eta,lat_eta, lon_eta, ncid_eta, varid_eta, timeid_eta)
+      call createDS3(trim(oprefix)//trim(file_u)//trim(osuffix), varname_u, lat_u, lon_u, ncid_u, varid_u, timeid_u)
+      call createDS3(trim(oprefix)//trim(file_v)//trim(osuffix), varname_v, lat_v, lon_v, ncid_v, varid_v, timeid_v)
+      call createDS3(trim(oprefix)//trim(file_psi)//trim(osuffix), varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
 #ifdef writeInput
-      call createDS2(file_h, varname_h,lat_H,lon_H,ncid_H,varid_H)
+      call createDS2(trim(oprefix)//trim(file_h)//trim(osuffix), varname_h,lat_H,lon_H,ncid_H,varid_H)
       call check(nf90_put_var(ncid_H, varid_H, H))
-      call createDS2(file_Fx,varname_Fx,lat_u,lon_u,ncid_Fx,varid_Fx)
+      call createDS2(trim(oprefix)//trim(file_Fx)//trim(osuffix),varname_Fx,lat_u,lon_u,ncid_Fx,varid_Fx)
       call check(nf90_put_var(ncid_Fx, varid_Fx, (F_x*RHO0*H_u)/dt))
-      call createDS2(file_Fy,varname_Fy,lat_v,lon_v,ncid_Fy,varid_Fy)
+      call createDS2(trim(oprefix)//trim(file_Fy)//trim(osuffix),varname_Fy,lat_v,lon_v,ncid_Fy,varid_Fy)
       call check(nf90_put_var(ncid_Fy, varid_Fy, (F_y*RHO0*H_v)/dt))
 #endif
     END SUBROUTINE initDiag

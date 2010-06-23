@@ -88,7 +88,7 @@ SUBROUTINE initVars
     in_file_F, in_varname_Fx, in_varname_Fy, & ! specification of input forcing file
     file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
   ! read the namelist and close again  
-  open(17, file = 'model.namelist')
+  open(17, file = MODEL_NL)
   read(17, nml = model_nl)
   close(17)
   ! set vars depending on Nx, Ny, run_length, dt

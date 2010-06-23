@@ -8,6 +8,10 @@ Header file for shallow water model. Meant to set different physics
 #define OMPCHUNK Nx
 #define OMPSCHEDULE GUIDED
 
+/* Namelist files */
+#define MODEL_NL "model.namelist"
+#define OUTPUT_NL "output.namelist"
+
 /* Switches for output control */ 
 !#define writeInput
 #define TAXISNAME "TIME"

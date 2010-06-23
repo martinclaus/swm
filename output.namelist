@@ -1,0 +1,18 @@
+&output_nl
+  oprefix = "output/",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+  file_eta = "eta_out.nc",! output filenames
+  file_u   = "u_out.nc",
+  file_v   = "v_out.nc",
+  file_h   = "H_out.nc",
+  file_Fx  = "fx_out.nc",
+  file_Fy  = "fy_out.nc",
+  file_psi = "psi_out.nc",
+  varname_eta = "ETA",! output variable names 
+  varname_u   = "U", 
+  varname_v   = "V", 
+  varname_h   = "H", 
+  varname_Fx  = "FX", 
+  varname_Fy  = "FY", 
+  varname_psi = "PSI"
+&end
