@@ -131,17 +131,38 @@ PROGRAM model
       land_v = 0
       FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
         land_v(i,j) = 1
-      ! read forcing
-      call check(nf90_open(in_file_F, NF90_NOWRITE, Fncid))
-      call check(nf90_inq_varid(Fncid, in_varname_Fx, FxID))          
-      call check(nf90_get_var(Fncid, FxID, F_x))              
-      call check(nf90_inq_varid(Fncid, in_varname_Fy, FyID))          
-      call check(nf90_get_var(Fncid, FyID, F_y))              
-      call check(nf90_close(Fncid))
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 1) &
-        F_x(i,j) = 0.
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 1) &
-        F_y(i,j) = 0.
+      ! read wind forcing
+      windstress: IF (in_file_TAU .NE. "") THEN
+        call check(nf90_open(in_file_TAU, NF90_NOWRITE, Fncid))
+        call check(nf90_inq_varid(Fncid, in_varname_TAU_x, FxID))          
+        call check(nf90_get_var(Fncid, FxID, TAU_x))              
+        call check(nf90_inq_varid(Fncid, in_varname_TAU_y, FyID))          
+        call check(nf90_get_var(Fncid, FyID, TAU_y))              
+        call check(nf90_close(Fncid))
+        FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 1) &
+          TAU_x(i,j) = 0.
+        FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 1) &
+          TAU_y(i,j) = 0.
+      ELSE
+         TAU_x = 0.
+         TAU_y = 0.
+      END IF windstress
+      ! read arbitrary forcing
+      forcing: IF (in_file_F1 .NE. "") THEN
+        call check(nf90_open(in_file_F1, NF90_NOWRITE, Fncid))
+        call check(nf90_inq_varid(Fncid, in_varname_F1_x, FxID))          
+        call check(nf90_get_var(Fncid, FxID, F1_x))              
+        call check(nf90_inq_varid(Fncid, in_varname_F1_y, FyID))          
+        call check(nf90_get_var(Fncid, FyID, F1_y))              
+        call check(nf90_close(Fncid))
+        FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 1) &
+          F1_x(i,j) = 0.
+        FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 1) &
+          F1_y(i,j) = 0.
+      ELSE
+         F1_x = 0.
+         F1_y = 0.
+      END IF forcing
     END SUBROUTINE initDomain
 
 END PROGRAM model

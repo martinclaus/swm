@@ -19,8 +19,9 @@ MODULE vars_module
   REAL(8)                :: Ah=1e3                           ! horizontal eddy viscosity coefficient
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
-  CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F="tau_in.nc", &
-                            in_varname_Fx="tau_x", in_varname_Fy="tau_y", &
+  CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
+                            in_varname_F1_x="FU", in_varname_F1_y="FV", &
+                            in_file_TAU="", in_varname_TAU_x="TAUX", in_varname_TAU_y="TAUY", &
                             file_eta_init="eta_init.nc", varname_eta_init="ETA", &
                             file_u_init="u_init.nc", varname_u_init="U", &
                             file_v_init="v_init.nc", varname_v_init="V"
@@ -57,8 +58,9 @@ MODULE vars_module
 
   ! constant fieds H, Forcing, friction, allocated during initialization
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: H, F_x, F_y, gamma_lin_u, &
+                                  TAU_X, TAU_Y, F1_X, F1_Y, &
                                   gamma_lin_v, gamma_sq_v, gamma_sq_u, &
-                                  H_u, H_v, H_eta                       ! constant fields
+                                  H_u, H_v, H_eta                        ! constant fields
 
   ! nearest neighbor indices, derived from domain specs                                
   INTEGER, DIMENSION(:), ALLOCATABLE :: ip1, im1, jp1, jm1                                
@@ -85,7 +87,8 @@ SUBROUTINE initVars
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
     pbc_lon, & ! periodic boundary conditions in x-direction
     in_file_H, in_varname_H, & ! specification of input topography file
-    in_file_F, in_varname_Fx, in_varname_Fy, & ! specification of input forcing file
+    in_file_TAU, in_varname_TAU_x, in_varname_TAU_y, & !  specification of input wind stress file 
+    in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
     file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
   ! read the namelist and close again  
   open(17, file = MODEL_NL)
@@ -106,6 +109,10 @@ SUBROUTINE initVars
   allocate(H_eta(1:Nx, 1:Ny))
   allocate(F_x(1:Nx, 1:Ny))
   allocate(F_y(1:Nx, 1:Ny))
+  allocate(F1_x(1:Nx, 1:Ny))
+  allocate(F1_y(1:Nx, 1:Ny))
+  allocate(TAU_x(1:Nx, 1:Ny))
+  allocate(TAU_y(1:Nx, 1:Ny))
   allocate(gamma_lin_u(1:Nx, 1:Ny))
   allocate(gamma_lin_v(1:Nx, 1:Ny))
   allocate(gamma_sq_u(1:Nx, 1:Ny))
