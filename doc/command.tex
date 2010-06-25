@@ -1,0 +1,30 @@
+%============================================================
+% Roman Characters
+%============================================================
+
+% differential d
+\newcommand{\dd}{{\rm d}}
+
+% Euler's number
+\newcommand{\rme}{{\rm e}}
+
+%============================================================
+% Misc.
+%============================================================
+
+% margins of a proper size
+\let\oldmarginpar\marginpar
+\setlength{\marginparwidth}{3cm}
+\renewcommand\marginpar[1]{%
+  \oldmarginpar[\raggedleft\footnotesize #1]%
+  {\raggedright\footnotesize #1}%
+}
+
+% average
+\newcommand{\ave}{\braket}
+
+% vectors
+\newcommand{\vect}[1]{\boldsymbol{#1}}
+
+% partial derivative
+\newcommand{\pder}[2]{\frac{\partial {#1}}{\partial {#2}}}
