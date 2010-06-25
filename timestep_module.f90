@@ -9,9 +9,7 @@ MODULE timestep_module
                                            vij_v, vijp1_v, vijm1_v, vip1j_v, vim1j_v, uip1j_v, uip1jm1_v, uij_v, uijm1_v
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: ddy_eta,lat_mixing_u, lat_mixing_v   
   REAL(8), DIMENSION(:), ALLOCATABLE  :: ddx_u, ddy_v,    &
-                                         corr_u, corr_v,  &
-                                         cosTheta_v, cosTheta_u, &
-                                         tanTheta_v, tanTheta_u    ! factors constant in time
+                                         corr_u, corr_v   ! factors constant in time
 
 END MODULE timestep_module                                         
 
@@ -28,10 +26,6 @@ SUBROUTINE initTimestep
   allocate(ddy_v(1:Ny))
   allocate(corr_u(1:Ny))
   allocate(corr_v(1:Ny))
-  allocate(cosTheta_v(1:Ny))
-  allocate(cosTheta_u(1:Ny))
-  allocate(tanTheta_v(1:Ny))
-  allocate(tanTheta_u(1:Ny))
   allocate(lat_mixing_u(1:Nx, 1:Ny, 1:9))
   allocate(lat_mixing_v(1:Nx, 1:Ny, 1:9))
   allocate(uij_u(1:Nx, 1:Ny))
@@ -59,21 +53,12 @@ SUBROUTINE initTimestep
     corr_u(j)     = dt*2*OMEGA*SIN(lat_u(j)*D2R)
     ddy_v(j)      = -(dt*G)/(dTheta*A)
     corr_v(j)     = -dt*2*OMEGA*SIN(lat_v(j)*D2R)
-    cosTheta_v(j) = COS(lat_v(j)*D2R)
-    tanTheta_v(j) = TAN(lat_v(j)*D2R)
-    cosTheta_u(j) = COS(lat_u(j)*D2R)
-    tanTheta_u(j) = TAN(lat_u(j)*D2R)
   END FORALL
   FORALL (i=1:Nx,j=1:Ny)
     ddx_eta(i,j) = H_u(i,j)*dt/(dLambda*A*COS(lat_eta(j)*D2R))
     ddy_eta(i,j,1) = H_v(i,j)*cosTheta_v(j)*dt/(dTheta*A*COS(lat_eta(j)*D2R))
     ddy_eta(i,j,2) = H_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(dTheta*A*COS(lat_eta(j)*D2R))
   END FORALL
-  ! calculate forcing term
-  FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) &
-    F_x(i,j) = dt*(TAU_x(i,j)/(RHO0*H_u(i,j))+F1_x(i,j))
-  FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) &
-    F_y(i,j) = dt*(TAU_y(i,j)/(RHO0*H_v(i,j))+F1_y(i,j))
   ! coefficients for bottom friction
   FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0)
     gamma_lin_u(i,j) = -dt*r/H_u(i,j)

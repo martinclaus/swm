@@ -22,6 +22,7 @@ MODULE vars_module
   CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
                             in_varname_F1_x="FU", in_varname_F1_y="FV", &
                             in_file_TAU="", in_varname_TAU_x="TAUX", in_varname_TAU_y="TAUY", &
+                            in_file_REY="", in_varname_REY_u2="u2", in_varname_REY_v2="v2", in_varname_REY_uv="uv",&
                             file_eta_init="eta_init.nc", varname_eta_init="ETA", &
                             file_u_init="u_init.nc", varname_u_init="U", &
                             file_v_init="v_init.nc", varname_v_init="V"
@@ -47,6 +48,9 @@ MODULE vars_module
   REAL(8), DIMENSION(:), ALLOCATABLE :: lon_u, lon_v, &
                             lon_eta, lon_H       ! longitude vectors
 
+  REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_v, cosTheta_u, &
+                                        tanTheta_v, tanTheta_u  ! cosines and tangens of longitude
+
   INTEGER                 :: write_tstep            ! save every write_tstep'th step
 
   ! numerical parameters
@@ -58,7 +62,7 @@ MODULE vars_module
 
   ! constant fieds H, Forcing, friction, allocated during initialization
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: H, F_x, F_y, gamma_lin_u, &
-                                  TAU_X, TAU_Y, F1_X, F1_Y, &
+                                  TAU_X, TAU_Y, F1_X, F1_Y, REY_u2, REY_v2, REY_uv, &
                                   gamma_lin_v, gamma_sq_v, gamma_sq_u, &
                                   H_u, H_v, H_eta                        ! constant fields
 
@@ -88,6 +92,7 @@ SUBROUTINE initVars
     pbc_lon, & ! periodic boundary conditions in x-direction
     in_file_H, in_varname_H, & ! specification of input topography file
     in_file_TAU, in_varname_TAU_x, in_varname_TAU_y, & !  specification of input wind stress file 
+    in_file_REY, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv,& ! specification of input Reynold stress file
     in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
     file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
   ! read the namelist and close again  
@@ -113,6 +118,9 @@ SUBROUTINE initVars
   allocate(F1_y(1:Nx, 1:Ny))
   allocate(TAU_x(1:Nx, 1:Ny))
   allocate(TAU_y(1:Nx, 1:Ny))
+  allocate(REY_u2(1:Nx, 1:Ny))
+  allocate(REY_v2(1:Nx, 1:Ny))
+  allocate(REY_uv(1:Nx, 1:Ny))
   allocate(gamma_lin_u(1:Nx, 1:Ny))
   allocate(gamma_lin_v(1:Nx, 1:Ny))
   allocate(gamma_sq_u(1:Nx, 1:Ny))
@@ -133,6 +141,10 @@ SUBROUTINE initVars
   allocate(lon_u(1:Nx))
   allocate(lon_v(1:Nx))
   allocate(lon_H(1:Nx))
+  allocate(cosTheta_v(1:Ny))
+  allocate(cosTheta_u(1:Ny))
+  allocate(tanTheta_v(1:Ny))
+  allocate(tanTheta_u(1:Ny))
   ! start time loop
   itt = 0
 END SUBROUTINE initVars

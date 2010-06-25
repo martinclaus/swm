@@ -23,6 +23,10 @@
   in_file_TAU = "tau_in.nc"    ! wind stress input dataset
   in_varname_TAU_x="TAUX" ! wind stress component in x-direction (u-grid)
   in_varname_TAU_y="TAUY" ! wind stress component in y-direction (v-grid)
+  in_file_REY="",	  ! Reynolds stress input dataset
+  in_varname_REY_u2="u2", ! \overbar{u'u'} (H-grid)
+  in_varname_REY_v2="v2", ! \overbar{v'v'} (H-grid)
+  in_varname_REY_uv="uv", ! \overbar{u'v'} (H-grid)
   init_cond_from_file = .true.
   file_eta_init="eta_init.nc"
   varname_eta_init="ETA"

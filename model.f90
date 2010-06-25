@@ -16,6 +16,9 @@ PROGRAM model
   ! Set initial conditions
   call initialConditions
 
+  ! read and compute forcing terms
+  call initForcing
+
   ! Prepare output file (don't forget to close the files at the end of the programm)
   call initDiag
 
@@ -67,7 +70,7 @@ PROGRAM model
     SUBROUTINE initDomain
       IMPLICIT NONE
       INTEGER :: i, j
-      INTEGER :: Hncid, Hid, Fncid, FxID, FyID
+      INTEGER :: Hncid, Hid
       ! index fields
       ! note that periodicity is already implemented in the index field
       ! but it is switched off by closing the EW / NS coast line using the
@@ -94,6 +97,13 @@ PROGRAM model
       lon_u = lon_H
       lon_v = lon_H + (lon_e-lon_s)/(2.*(Nx-1))
       lon_eta = lon_v
+      FORALL (j=1:Ny)
+        cosTheta_v(j) = COS(lat_v(j)*D2R)
+        tanTheta_v(j) = TAN(lat_v(j)*D2R)
+        cosTheta_u(j) = COS(lat_u(j)*D2R)
+        tanTheta_u(j) = TAN(lat_u(j)*D2R)
+      END FORALL
+
       ! set a default rectangular basin with coastlines according to per. boundary cond.
       H = 4000.
       H(:, 1) = 0.
@@ -131,6 +141,13 @@ PROGRAM model
       land_v = 0
       FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
         land_v(i,j) = 1
+      call initForcing
+    END SUBROUTINE initDomain
+    
+    SUBROUTINE initForcing
+      IMPLICIT NONE
+      INTEGER :: i, j
+      INTEGER :: Fncid, FxID, FyID
       ! read wind forcing
       windstress: IF (in_file_TAU .NE. "") THEN
         call check(nf90_open(in_file_TAU, NF90_NOWRITE, Fncid))
@@ -147,6 +164,26 @@ PROGRAM model
          TAU_x = 0.
          TAU_y = 0.
       END IF windstress
+      ! read Reynolds stress data
+      reynolds: IF (in_file_REY .NE. "") THEN
+        call check(nf90_open(in_file_REY, NF90_NOWRITE, Fncid))
+        call check(nf90_inq_varid(Fncid, in_varname_REY_u2, FxID))          
+        call check(nf90_get_var(Fncid, FxID, REY_u2))              
+        call check(nf90_inq_varid(Fncid, in_varname_REY_v2, FyID))          
+        call check(nf90_get_var(Fncid, FyID, REY_v2))              
+        call check(nf90_inq_varid(Fncid, in_varname_REY_uv, FyID))          
+        call check(nf90_get_var(Fncid, FyID, REY_uv))              
+        call check(nf90_close(Fncid))
+        FORALL (i=1:Nx, j=1:Ny, land_H(i,j) .eq. 1)
+          REY_u2(i,j) = 0.
+          REY_v2(i,j) = 0.
+          REY_uv(i,j) = 0.
+        END FORALL
+      ELSE
+        REY_u2 = 0.
+        REY_v2 = 0.
+        REY_uv = 0.
+      END IF reynolds
       ! read arbitrary forcing
       forcing: IF (in_file_F1 .NE. "") THEN
         call check(nf90_open(in_file_F1, NF90_NOWRITE, Fncid))
@@ -163,6 +200,28 @@ PROGRAM model
          F1_x = 0.
          F1_y = 0.
       END IF forcing
-    END SUBROUTINE initDomain
+      ! calculate forcing term
+      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) &
+        F_x(i,j) = dt*(&
+                   TAU_x(i,j)/(RHO0*H_u(i,j))& ! wind stress
+                 + F1_x(i,j)                 & ! arbitrary forcing
+                 - ((REY_u2(i,j)+REY_u2(ip1(i),j)+REY_u2(i,jp1(j))+REY_u2(ip1(i),jp1(j)))*H_eta(i,j)&
+                     -(REY_u2(im1(i),j)+REY_u2(im1(i),jp1(j))+REY_u2(i,j)+REY_u2(i,jp1(j)))*H_eta(im1(i),j))&
+                     /(8*A*dLambda*cosTheta_u(j)*H_u(i,j)) &    ! Reynolds stress term \overbar{u'u'}_x
+                 - (cosTheta_v(jp1(j))*REY_uv(i,jp1(j))*H(i,jp1(j)) - cosTheta_v(j)*REY_uv(i,j)*H(i,j)) &
+                     /(2*A*dTheta*cosTheta_u(j)*H_u(i,j)) &     ! Reynolds stress term \overbar{u'v'}_y
+                   )
+      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) &
+        F_y(i,j) = dt*( &
+                   TAU_y(i,j)/(RHO0*H_v(i,j)) & ! wind stress
+                 + F1_y(i,j)                  & ! arbitrary forcing
+                 - (REY_uv(ip1(i),j)*H(ip1(i),j) - REY_uv(i,j)*H(i,j)) &
+                     /(2*A*dLambda*cosTheta_v(j)*H_v(i,j)) & ! Reynolds stress term \overbar{u'v'}_x
+                 - (cosTheta_u(j)*H_eta(i,j)*(REY_v2(i,j)+REY_v2(ip1(i),j)+REY_v2(i,jp1(j))+REY_v2(ip1(i),jp1(j)))&
+                     -cosTheta_u(jm1(j))*H_eta(i,jm1(j))*(REY_v2(i,jm1(j))+REY_v2(ip1(i),jm1(j))+REY_v2(i,j)+REY_v2(ip1(i),j)))&
+                     /(8*A*dTheta*cosTheta_v(j)*H_v(i,j)) & ! Reynolds stress term \overbar{v'v'}_y
+                   )
+
+    END SUBROUTINE initForcing
 
 END PROGRAM model
