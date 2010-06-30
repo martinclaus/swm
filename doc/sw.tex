@@ -27,7 +27,7 @@
 %=======================================================================
 
 \section{Equations}
-
+\subsection{Basic Equations}
 In Cartesian coordinates, the system is described by
 \begin{align}
   & u_t - fv = -g \eta_x + F^x \\
@@ -41,6 +41,141 @@ longitude, and $\vartheta$ the latitude:
   & v_t + fu = -g \frac{1}{a}\pder{\eta}{\vartheta} + F^y \\
   & \eta_t + \frac{1}{a\cos\vartheta}\pder{Hu}{\lambda} + \frac{1}{a\cos\vartheta}\pder{\cos\vartheta Hv}{\vartheta} = 0
 \end{align}
+\subsection{Forcing and Damping}
+\subsubsection{Friction Term}
+
+The model can use both linear and quadratic bottom friction.
+The linear friction term is described by
+
+\begin{equation}
+  -\frac rH (u,v)
+\end{equation}
+
+Discretizied this leads to
+
+\begin{equation}
+  -\frac {\Delta tr}{H\vert^{ij}_u} u\vert^{ijl}_u
+\end{equation}
+
+in the u-equation and 
+
+\begin{equation}
+  -\frac {\Delta tr}{H\vert^{ij}_v} v\vert^{ijl}_v
+\end{equation}
+
+in the v-equation, where r is the linear bottom friction coefficient.
+The quadratic friction term is described by
+
+\begin{equation}
+  -\frac kH \sqrt{u^2+v^2}\,(u,v)
+\end{equation}
+
+Discretisation leads to
+
+\begin{equation}
+  -\frac {\Delta tk}{H\vert^{ij}_u} \sqrt{(u\vert^{ijl}_u)^2+\left(\frac{v\vert^{i,j+1,l}_v+v\vert^{ijl}_v+v\vert^{i-1,j+1,l}_v+v\vert^{i-1,j,l}_v}4\right)^2}u\vert^{ijl}_u
+\end{equation}
+
+in the u-equation and 
+
+\begin{equation}
+  -\frac {\Delta tk}{H\vert^{ij}_v} \sqrt{\left(\frac{u\vert^{i+1,j,l+1}_u+u\vert^{i+1,j-1,l+1}_u+u\vert^{i,j,l+1}_u+u\vert^{i,j-1,l+1}_u}4\right)^2+(v\vert^{ijl}_v)^2}v\vert^{ijl}_v
+\end{equation}
+
+in the v-equation, where k is the empirical quadratic bottom friction coefficient.
+
+\subsubsection{Lateral Mixing of Momentum}
+
+The lateral mixing of momentum is described by
+\begin{equation}
+  +A_hf^\lambda
+\end{equation}
+
+in the u-equation and 
+
+\begin{equation}
+  +A_hf^\theta
+\end{equation}
+
+in the v-equation, where $A_h$ is the horizontal eddy viscosity. Following Bryan (1969) the lateral mixing of momentum is
+parameterized in spherical coordinates with consideration of conservation of
+momentum by
+
+\begin{equation}\begin{split}
+  f^\lambda=&\frac1{a^2\cos^2\theta
+    H}\pdertwo{uH}{\lambda}+\frac1{a^2\cos\theta H}\pder{}{\theta}\left(\cos\theta\pder{uH}{\theta}\right)\\
+  &+\frac1{a^2H}\left((1-\tan^2\theta)uH-\frac{2\tan\theta}{\cos\theta}\pder{vH}{\lambda}\right)
+\end{split}\end{equation}
+\begin{equation}\begin{split}
+  f^\theta=&\frac1{a^2\cos^2\theta
+    H}\pdertwo{vH}{\lambda}+\frac1{a^2\cos\theta H}\pder{}{\theta}\left(\cos\theta\pder{vH}{\theta}\right)\\
+  &+\frac1{a^2H}\left((1-\tan^2\theta)vH-\frac{2\tan\theta}{\cos\theta}\pder{uH}{\lambda}\right)
+\end{split}\end{equation}
+
+Discretisation leads to
+
+\begin{equation}
+  \begin{split}
+    \dthree{f^\lambda}uijl =&
+    \frac1{2\Delta\lambda a^2\done{\cos^2\theta}uj\dtwo{H}uij}(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}u{i-1}jl\dtwo{H}u{i-1}j)\\
+    &-\frac{\done{\tan\theta}uj}{2\Delta\theta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}-\dthree{u}ui{j-1}l\dtwo{H}ui{j-1})\\
+    &+\frac1{2\Delta\theta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1})\\
+    &+\frac{1-\done{\tan^2\theta}uj}{a^2\dtwo{H}uij}\dthree{u}uijl\dtwo{H}uij\\
+    &-\frac{\done{\tan\theta}uj}{a^2\done{\cos\theta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}+\dthree{v}vijl\dtwo{H}vij\right)\\
+    &+\frac{\done{\tan\theta}uj}{a^2\done{\cos\theta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}v{i-1}{j+1}l\dtwo{H}v{i-1}{j+1}+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\right)
+  \end{split}
+\end{equation}
+
+and
+
+\begin{equation}
+  \begin{split}
+    \dthree{f^\theta}vijl =&
+    \frac1{2\Delta\lambda a^2\done{\cos^2\theta}vj\dtwo{H}vij}(\dthree{v}v{i+1}jl\dtwo{H}v{i+1}j-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j)\\
+    &-\frac{\done{\tan\theta}vj}{2\Delta\theta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
+    &+\frac1{2\Delta\theta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
+    &+\frac{1-\done{\tan^2\theta}vj}{a^2\dtwo{H}vij}\dthree{v}vijl\dtwo{H}vij\\
+    &-\frac{\done{\tan\theta}vj}{a^2\done{\cos\theta}vj\Delta\lambda\dtwo{H}vij}\left(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j+\dthree{u}u{i+1}{j-1}l\dtwo{H}u{i+1}{j-1}\right)\\
+    &+\frac{\done{\tan\theta}vj}{a^2\done{\cos\theta}vj\Delta\lambda\dtwo{H}vij}\left(\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\right)
+  \end{split}
+\end{equation}
+Note that $\done{u}ul$ is used in the v-equation instead of $\done{u}u{l+1}$.
+
+\subsubsection{Reynolds Stress Forcing}
+Reynolds stresses  derived from observations can be used to force the
+model. These stresses are known at the surface and are supposed to decrease
+linearly with depth to zero. So the forcing terms in the u- and v-equation can
+be written as
+\begin{equation}
+  \begin{split}
+    F_u&=-\frac1H\int_{-H}^0\pder{}{x}\left[\rey{u}{u}\left(\frac{z+H}H\right)\right]\dd
+    z -
+    \frac1H\int_{-H}^0\pder{}{y}\left[\rey{u}{v}\left(\frac{z+H}H\right)\right]\dd
+    z\\
+    &=-\frac1{2Ha\cos\theta}\pder{}{\lambda}\left(\rey{u}{u}H\right)-\frac1{2Ha\cos\theta}\pder{}{\theta}\left(\cos\theta\rey{u}{v}H\right)
+  \end{split}
+\end{equation}
+And analog
+\begin{equation}
+  \begin{split}
+    F_v&=-\frac1{2Ha\cos\theta}\pder{}{\lambda}\left(\rey{u}{v}H\right)-\frac1{2Ha\cos\theta}\pder{}{\theta}\left(\cos\theta\rey{v}{v}H\right)
+  \end{split}
+\end{equation}
+Discretization\footnote{Note that there is still an implicit four point
+  averaging from the H-grid to the $\eta$-grid since all stress terms and topography are
+  provided on the H-grid} leads to
+\begin{equation}
+  \begin{split}
+    \dtwo{F_u}uij=&-\frac1{2\dtwo{H}uija\done{\cos\theta}uj}\left(\frac{\dtwo{\rey{u}{u}}{\eta}ij\dtwo{H}{\eta}ij-\dtwo{\rey{u}{u}}{\eta}{i-1}j\dtwo{H}{\eta}{i-1}j}{\Delta\lambda}\right.\\
+&\left.-\frac{\done{\cos\theta}H{j+1}\dtwo{\rey{u}{v}}Hi{j+1}\dtwo{H}Hi{j+1}-\done{\cos\theta}Hj\dtwo{\rey{u}{v}}Hij\dtwo{H}Hij)}{\Delta\theta}\right)
+  \end{split}
+\end{equation}
+\begin{equation}
+  \begin{split}
+    \dtwo{F_v}vij=&-\frac1{2\dtwo{H}vija\done{\cos\theta}vj}\left(\frac{\done{\cos\theta}{\eta}j\dtwo{\rey{v}{v}}{\eta}ij\dtwo{H}{\eta}ij-\done{\cos\theta}{\eta}{j-1}\dtwo{\rey{v}{v}}{\eta}i{j-1}\dtwo{H}{\eta}i{j-1}}{\Delta\theta}\right.\\
+&\left.-\frac{\dtwo{\rey{u}{v}}H{i+1}j\dtwo{H}H{i+1}j-\dtwo{\rey{u}{v}}Hij\dtwo{H}Hij)}{\Delta\lambda}\right)
+  \end{split}
+\end{equation}
 
 %=======================================================================
 
