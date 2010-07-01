@@ -205,21 +205,29 @@ PROGRAM model
         F_x(i,j) = dt*(&
                    TAU_x(i,j)/(RHO0*H_u(i,j))& ! wind stress
                  + F1_x(i,j)                 & ! arbitrary forcing
+#ifndef wo_u2_x_u
                  - ((REY_u2(i,j)+REY_u2(ip1(i),j)+REY_u2(i,jp1(j))+REY_u2(ip1(i),jp1(j)))*H_eta(i,j)&
                      -(REY_u2(im1(i),j)+REY_u2(im1(i),jp1(j))+REY_u2(i,j)+REY_u2(i,jp1(j)))*H_eta(im1(i),j))&
                      /(8*A*dLambda*cosTheta_u(j)*H_u(i,j)) &    ! Reynolds stress term \overbar{u'u'}_x
+#endif
+#ifndef wo_uv_y_u
                  - (cosTheta_v(jp1(j))*REY_uv(i,jp1(j))*H(i,jp1(j)) - cosTheta_v(j)*REY_uv(i,j)*H(i,j)) &
                      /(2*A*dTheta*cosTheta_u(j)*H_u(i,j)) &     ! Reynolds stress term \overbar{u'v'}_y
+#endif
                    )
       FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) &
         F_y(i,j) = dt*( &
                    TAU_y(i,j)/(RHO0*H_v(i,j)) & ! wind stress
                  + F1_y(i,j)                  & ! arbitrary forcing
+#ifndef wo_uv_x_v
                  - (REY_uv(ip1(i),j)*H(ip1(i),j) - REY_uv(i,j)*H(i,j)) &
                      /(2*A*dLambda*cosTheta_v(j)*H_v(i,j)) & ! Reynolds stress term \overbar{u'v'}_x
+#endif
+#ifndef wo_v2_y_v
                  - (cosTheta_u(j)*H_eta(i,j)*(REY_v2(i,j)+REY_v2(ip1(i),j)+REY_v2(i,jp1(j))+REY_v2(ip1(i),jp1(j)))&
                      -cosTheta_u(jm1(j))*H_eta(i,jm1(j))*(REY_v2(i,jm1(j))+REY_v2(ip1(i),jm1(j))+REY_v2(i,j)+REY_v2(ip1(i),j)))&
                      /(8*A*dTheta*cosTheta_v(j)*H_v(i,j)) & ! Reynolds stress term \overbar{v'v'}_y
+#endif
                    )
 
     END SUBROUTINE initForcing

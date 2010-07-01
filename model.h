@@ -41,4 +41,10 @@ Header file for shallow water model. Meant to set different physics
 #define LATERAL_MIXING
 !#define oldmixing
 
+/* Switches for Reynolds stress terms*/
+!#define wo_u2_x_u
+!#define wo_uv_y_u
+!#define wo_uv_x_v
+!#define wo_v2_y_v
+
 #endif
