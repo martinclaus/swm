@@ -1,5 +1,6 @@
 PROGRAM model
 #include "model.h"
+#include "io.h"
   USE vars_module
   USE diag_module
   IMPLICIT NONE
@@ -44,14 +45,6 @@ PROGRAM model
     SUBROUTINE initialConditions
       IMPLICIT NONE
       INTEGER :: i, j
-      ! Initial condition for eta (Gaussian Hill centered at 0E,0N with an amplitude of 1 m and sigma of 100e3 m)
-      !FORALL (i=1:Nx, j=1:Ny, land_eta(i,j)==0) &
-      !   eta(i,j,N0) = 1*EXP(-0.5*(A*ACOS(COS(D2R*lat_eta(j))*COS(D2R*lon_eta(i)))/1e5)**2)
-      ! Zonal surface windstress for the Stommel model
-      !FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0)
-      !    F_x(i,j) = dt*tau_0*SIN(PI*(lat_u(j)-0.5*(lat_e+lat_s))/(lat_e-lat_s))/(RHO0*H_u(i,j))
-      !END FORALL
-      !F_y = 0.
       ! initial conditions of dynamic fields
       IF (init_cond_from_file) THEN
         call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))

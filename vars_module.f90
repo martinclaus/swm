@@ -79,7 +79,7 @@ MODULE vars_module
 END MODULE vars_module
 
 SUBROUTINE initVars
-#include "model.h"
+#include "io.h"
   USE vars_module
   IMPLICIT NONE
   ! definition of the namelist

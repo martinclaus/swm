@@ -1,5 +1,5 @@
 MODULE diag_module
-#include "model.h"
+#include "io.h"
 
   USE netcdf
   USE vars_module
