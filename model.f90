@@ -134,7 +134,6 @@ PROGRAM model
       land_v = 0
       FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
         land_v(i,j) = 1
-      call initForcing
     END SUBROUTINE initDomain
     
     SUBROUTINE initForcing
