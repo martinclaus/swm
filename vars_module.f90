@@ -14,9 +14,10 @@ MODULE vars_module
   REAL(8), PARAMETER     :: PI = 3.14159265358979323846      ! copied from math.h
   REAL(8), PARAMETER     :: D2R = PI/180.                    ! factor to convert degree in radian
   REAL(8)                :: TAU_0=1                          ! Maximum windstress
-  REAL(8)                :: r=2e-3                           ! linear friction parameter
+  REAL(8)                :: r=2e-3                           ! linear friction parameter (m/s)
   REAL(8)                :: k=2e-1                           ! quadratic friction parameter
   REAL(8)                :: Ah=1e3                           ! horizontal eddy viscosity coefficient
+  REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
   CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
@@ -85,7 +86,7 @@ SUBROUTINE initVars
   ! definition of the namelist
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
-    r,k,Ah, TAU_0, & ! friction and forcing parameter
+    r,k,Ah,gamma_new,TAU_0, & ! friction and forcing parameter
     Nx, Ny, run_length, Nout, & ! domain size, length of run, number of written time steps
     dt, & ! time step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs

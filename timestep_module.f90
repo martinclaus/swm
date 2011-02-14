@@ -3,6 +3,7 @@ MODULE timestep_module
   SAVE
 
   ! constant coefficients (specific for time stepping scheme)
+  REAL(8)				:: etaij_eta
   REAL(8), DIMENSION(:,:), ALLOCATABLE  :: ddx_eta, &
                                            uij_u, uijp1_u, uijm1_u, uip1j_u, uim1j_u, vijp1_u, vij_u, vim1jp1_u, vim1j_u, &
                                            vij_v, vijp1_v, vijm1_v, vip1j_v, vim1j_v, uip1j_v, uip1jm1_v, uij_v, uijm1_v
@@ -112,6 +113,11 @@ SUBROUTINE initTimestep
   lat_mixing_v = dt*Ah*lat_mixing_v
 
 ! building final time independent coefficients
+  etaij_eta = ( 1 &
+#ifdef NEWTONIAN_COOLING
+	      - dt*gamma_new &
+#endif
+	    )
   uij_u = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
             + gamma_lin_u &
@@ -175,7 +181,7 @@ SUBROUTINE Timestep
   YSPACE1: DO j=1,Ny   ! loop over y dimension
     XSPACE1: DO i=1,Nx ! loop over x dimension
       IF (land_eta(i,j) == 1) cycle XSPACE1 !skip this grid point, because it is land
-      eta(i,j,N0p1) = eta(i,j,N0)&                                              ! eta^l
+      eta(i,j,N0p1) = etaij_eta*eta(i,j,N0)&                                       ! (1-dt*gamma_new)*eta^l
                       -ddx_eta(ip1(i),j)*u(ip1(i),j,N0) + ddx_eta(i,j)*u(i,j,N0) & ! -dt*(Hu^l)_x
                       -ddy_eta(i,j,2)*v(i,jp1(j),N0) + ddy_eta(i,j,1)*v(i,j,N0)    ! -dt(Hv^l)_y
     ENDDO XSPACE1

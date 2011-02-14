@@ -4,6 +4,7 @@
   RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
   r = 1e-2,             ! linear bottom friction parameter
   k = 5e-2,             ! quadratic bottom friction parameter
+  gamma_new = 2.314e-8  ! Newtonian cooling parameter (1/s)
   Ah = 1e4,             ! horizontal eddy viscosity (m^2/s)
   TAU_0 = 0.1,          ! maximum sinusoidal windstress
   Nx = 1009,            ! number of grid points in x-dir.

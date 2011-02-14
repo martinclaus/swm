@@ -11,7 +11,8 @@ Header file for shallow water model. Meant to set different physics
 /* Switches for physics*/
 !#define LINEAR_BOTTOM_FRICTION
 #define QUADRATIC_BOTTOM_FRICTION
-#define LATERAL_MIXING
+!#define LATERAL_MIXING
+!#define NEWTONIAN_COOLING
 !#define oldmixing
 
 /* Switches for Reynolds stress terms*/
