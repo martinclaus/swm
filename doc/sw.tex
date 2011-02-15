@@ -36,14 +36,14 @@ In Cartesian coordinates, the system is described by
   \label{eq:basic_v}
   & v_t + fu = -g \eta_y + F_v \\
   \label{eq:basic_eta}
-  & \eta_t + (Hu)_x + (Hv)_y = 0
+  & \eta_t + (Hu)_x + (Hv)_y = F_\eta
 \end{align}
 Spherical coordinates with $a$ being the radius of the earth, $\lambda$ the 
 longitude, and $\vartheta$ the latitude:
 \begin{align}
   & u_t - fv = -g \frac{1}{a\cos\vartheta}\pder{\eta}{\lambda} + F_u \\
   & v_t + fu = -g \frac{1}{a}\pder{\eta}{\vartheta} + F_v \\
-  & \eta_t + \frac{1}{a\cos\vartheta}\pder{Hu}{\lambda} + \frac{1}{a\cos\vartheta}\pder{\cos\vartheta Hv}{\vartheta} = 0
+  & \eta_t + \frac{1}{a\cos\vartheta}\pder{Hu}{\lambda} + \frac{1}{a\cos\vartheta}\pder{\cos\vartheta Hv}{\vartheta} = F_\eta
 \end{align}
 \subsection{Forcing and Damping}
 The forcing and damping terms $F_u$ in (\ref{eq:basic_u}) and $F_v$ in (\ref{eq:basic_v}) represent one or the sum of some of the following terms.
@@ -195,6 +195,16 @@ Discretization\footnote{There is an implicit four point
   \end{split}
 \end{equation}
 
+\subsubsection{Newtonian Cooling}
+The $F_\eta$ represents a Newtonian cooling term parameterized by
+\begin{equation}
+	F_\eta = -\gamma\eta
+\end{equation}
+Discretization leads to
+\begin{equation}
+	\dtwo{F_\eta}\eta{i}{j}=-\gamma\dtwo{\eta_\eta}\eta{i}{j}
+\end{equation}
+
 %=======================================================================
 
 \section{Grid}
@@ -252,7 +262,7 @@ Use Heaps (1972) which basically amounts to\footnote{Note that the superscrip
 of $v$ in the second equation is mean to be an $l$ while all the others are meant
 to be $l+1$. In each line, you use the newest information that is available ...}
 \begin{align}
-  \eta^{l+1} & = \eta^l - \Delta t (Hu^l)_x - \Delta t (Hv^l)_y \\
+  \eta^{l+1} & = \eta^l - \Delta t (Hu^l)_x - \Delta t (Hv^l)_y + \Delta t F_\eta\\
   u^{l+1} & = u^l + \Delta t f v^l - \Delta t g \eta^{l+1}_x + \Delta t F_u\\
   v^{l+1} & = v^l - \Delta t f u^{l+1} - \Delta t g \eta^{l+1}_y + \Delta t F_v
 \end{align}
@@ -262,10 +272,10 @@ averaging from the $H$-grid to the $u$- and $v$-grids as well as an implicit
 four point averaging in the Coriolis term.} glory:
 \begin{equation}
   \begin{split}
-    \eta|_\eta^{i,j,l+1} & = \eta|_\eta^{ijl} \\
-    & \quad - \frac{\Delta t}{a\cos\vartheta|_\eta^{j}\Delta\lambda}
+    \eta|_\eta^{i,j,l+1}  =& \eta|_\eta^{ijl}  + \Delta t \dtwo{F_\eta}{\eta}ij \\
+    & - \frac{\Delta t}{a\cos\vartheta|_\eta^{j}\Delta\lambda}
       \Biggl(H|_u^{i+1,j} u|_u^{i+1,j,l} - H|_u^{ij}u|_u^{ijl}\Biggr) \\
-    & \quad - \frac{\Delta t}{a\cos\vartheta|_\eta^{j}\Delta\vartheta}  
+    & - \frac{\Delta t}{a\cos\vartheta|_\eta^{j}\Delta\vartheta}  
       \Biggl(H|_v^{i,j+1}\cos\vartheta|_v^{j+1}v|_v^{i,j+1,l} - H|_v^{ij}\cos\vartheta|_v^{j}v|_v^{ijl}\Biggr)
   \end{split}
 \end{equation}
@@ -311,13 +321,13 @@ as short a time steps as $0.6$ seconds.
 \section{Estimation of computational effort}
 
 In the end, we might want to simulate an almost global model 
-(say $\lambda=0\ldots360^o$, $\vartheta=-89\ldots89^o$) with a resolution 
-of up to $1/10^o$ for more than one year of model time. There are 
+(say $\lambda=0\ldots360^\circ$, $\vartheta=-89\ldots89^\circ$) with a resolution 
+of up to $1/10^\circ$ for more than one year of model time. There are 
 $360*178*100\approx 6.5\cdot10^6$ grid points and for each grid point we need $O(20)$ 
 multiplications and additions. The time step is $\approx 0.6s$ and one year of model time
 has $\approx 3.15\cdot 10^7s$. Altogether, we need $N\approx 6.7\cdot 10^{15}$ operations which
 on a machine with $8GFLOPS$ can be done in $8.5\cdot 10^5s\approx 10d$. For a smaller domain, which
-only extends to $85^o$ in latitude, only about $2d$ are necessary.
+only extends to $85^\circ$ in latitude, only about $2d$ are necessary.
 
 %=======================================================================
 
@@ -326,9 +336,9 @@ only extends to $85^o$ in latitude, only about $2d$ are necessary.
 Domain:
 \begin{equation}
   \begin{split}
-    \lambda & = -20^o \ldots 20^o \\
-    \vartheta & = -20^o \ldots 20^o \\
-    \Delta \lambda & = \Delta \vartheta = 0.4^o \\
+    \lambda & = -20^\circ \ldots 20^\circ \\
+    \vartheta & = -20^\circ \ldots 20^\circ \\
+    \Delta \lambda & = \Delta \vartheta = 0.4^\circ \\
     H & = 1000m = const. \\
     \Rightarrow \Delta t & = 422 s \\
   \end{split}
