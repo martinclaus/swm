@@ -110,6 +110,9 @@ PROGRAM model
       call check(nf90_inq_varid(Hncid, in_varname_H, Hid))          
       call check(nf90_get_var(Hncid, Hid, H))              
       call check(nf90_close(Hncid))
+      ! Do not allow negative topography
+      FORALL (i=1:Nx, j=1:Ny, H(i,j) .le. 0.) &
+        H(i,j) = 0.
       ! interpolate topography on all grids
       FORALL (i=1:Nx, j=1:Ny)
         H_u(i,j) = ( H(i,j) + H(i,jp1(j)) ) / 2.
@@ -118,7 +121,7 @@ PROGRAM model
       END FORALL
       ! create H-landmask from H
       land_H = 0
-      FORALL (i=1:Nx, j=1:Ny, H(i, j) .eq. 0.) &
+      FORALL (i=1:Nx, j=1:Ny, H(i, j) .eq. 0) &
         land_H(i, j) = 1
       ! generation of the eta landmask
       land_eta = 0

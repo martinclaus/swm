@@ -170,10 +170,7 @@ SUBROUTINE Timestep
   USE timestep_module
   IMPLICIT NONE
   INTEGER :: i, j 
-!  INTEGER :: CHUNK
   REAL(8) :: v_u, u_v
-  ! OpenMP chunksize
-!  CHUNK=OMPCHUNK
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i,j)&
