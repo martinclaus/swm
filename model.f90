@@ -123,6 +123,8 @@ PROGRAM model
       land_H = 0
       FORALL (i=1:Nx, j=1:Ny, H(i, j) .eq. 0) &
         land_H(i, j) = 1
+      ! create ocean mask on H grid
+      ocean_H = 1 - land_H
       ! generation of the eta landmask
       land_eta = 0
       FORALL (i=1:Nx, j=1:Ny-1, H_eta(i,j) .eq. 0) &

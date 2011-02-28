@@ -70,9 +70,10 @@ MODULE vars_module
   ! nearest neighbor indices, derived from domain specs                                
   INTEGER, DIMENSION(:), ALLOCATABLE :: ip1, im1, jp1, jm1                                
 
-  ! land mask, allocated/created during initialization
+  ! land/ocean mask, allocated/created during initialization
   INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_H, land_u,  & ! landmasks
-                                  land_v, land_eta 
+                                  land_v, land_eta, ocean_H
+
 
   ! runtime variables
   INTEGER :: itt ! time step
@@ -130,6 +131,7 @@ SUBROUTINE initVars
   allocate(land_u(1:Nx, 1:Ny))
   allocate(land_v(1:Nx, 1:Ny))
   allocate(land_eta(1:Nx, 1:Ny))
+  allocate(ocean_H(1:Nx, 1:Ny))
   allocate(ip1(1:Nx))
   allocate(im1(1:Nx))
   allocate(jp1(1:Ny))

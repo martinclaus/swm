@@ -73,24 +73,26 @@ SUBROUTINE initTimestep
   END FORALL
   ! coefficients for lateral mixing
   FORALL (i=1:Nx, j=1:Ny)
-    lat_mixing_u(i,j,1) = -1/(dLambda*(A*cosTheta_u(j))**2)-1/(dTheta*A**2)+(1-tanTheta_u(j)**2)/(A**2)
-    lat_mixing_v(i,j,1) = -1/(dLambda*(A*cosTheta_v(j))**2)-1/(dTheta*A**2)+(1-tanTheta_v(j)**2)/(A**2)
-    lat_mixing_u(i,j,2) = (1-tanTheta_u(j))/(2*dTheta*A**2)
+    lat_mixing_u(i,j,1) = - 1/(dLambda*(A*cosTheta_u(j))**2) + ((ocean_H(i,jp1(j))-ocean_H(i,j))*tanTheta_u(j))/(2*dTheta*A**2)&
+                          - (ocean_H(i,jp1(j))+ocean_H(i,j))/(2*dTheta*A**2) + (1-tanTheta_u(j)**2)/(A**2)
+    lat_mixing_v(i,j,1) = -(ocean_H(ip1(i),j)+ocean_H(i,j))/(2*dLambda*(A*cosTheta_v(j))**2) &
+                          - 1/(dTheta*A**2) + (1-tanTheta_v(j)**2)/(A**2)
+    lat_mixing_u(i,j,2) = ocean_H(i,jp1(j))*(1-tanTheta_u(j))/(2*dTheta*A**2)
     lat_mixing_v(i,j,2) = (1-tanTheta_v(j))/(2*dTheta*A**2)
-    lat_mixing_u(i,j,3) = (1+tanTheta_u(j))/(2*dTheta*A**2)
+    lat_mixing_u(i,j,3) = ocean_H(i,j)*(1+tanTheta_u(j))/(2*dTheta*A**2)
     lat_mixing_v(i,j,3) = (1+tanTheta_v(j))/(2*dTheta*A**2)
     lat_mixing_u(i,j,4) = 1/(2*dLambda*(A**2)*(cosTheta_u(j)**2))
-    lat_mixing_v(i,j,4) = 1/(2*dLambda*(A**2)*(cosTheta_v(j)**2))
+    lat_mixing_v(i,j,4) = ocean_H(ip1(i),j)/(2*dLambda*(A**2)*(cosTheta_v(j)**2))
     lat_mixing_u(i,j,5) = lat_mixing_u(i,j,4)
-    lat_mixing_v(i,j,5) = lat_mixing_v(i,j,4)
-    lat_mixing_u(i,j,6) = -tanTheta_u(j)/(dLambda*cosTheta_u(j)*A**2)
+    lat_mixing_v(i,j,5) = ocean_H(i,j)/(2*dLambda*(A**2)*(cosTheta_v(j)**2))
+    lat_mixing_u(i,j,6) = -(ocean_H(i,jp1(j)))*tanTheta_u(j)/(dLambda*cosTheta_u(j)*A**2)
     lat_mixing_v(i,j,6) = -tanTheta_v(j)/(dLambda*cosTheta_v(j)*A**2)
-    lat_mixing_u(i,j,7) = lat_mixing_u(i,j,6)
+    lat_mixing_u(i,j,7) = -(ocean_H(i,j))*tanTheta_u(j)/(dLambda*cosTheta_u(j)*A**2)
     lat_mixing_v(i,j,7) = lat_mixing_v(i,j,6)
     lat_mixing_u(i,j,8) = -lat_mixing_u(i,j,6)
     lat_mixing_v(i,j,8) = -lat_mixing_v(i,j,6)
-    lat_mixing_u(i,j,9) = lat_mixing_u(i,j,8)
-    lat_mixing_v(i,j,9) = lat_mixing_v(i,j,8)
+    lat_mixing_u(i,j,9) = lat_mixing_u(i,j,7)
+    lat_mixing_v(i,j,9) = lat_mixing_v(i,j,7)
   END FORALL
 #ifndef oldmixing
   FORALL (i=1:Nx, j=1:Ny)
