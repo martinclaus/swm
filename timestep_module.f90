@@ -3,10 +3,10 @@ MODULE timestep_module
   SAVE
 
   ! constant coefficients (specific for time stepping scheme)
-  REAL(8)				:: etaij_eta
   REAL(8), DIMENSION(:,:), ALLOCATABLE  :: ddx_eta, &
                                            uij_u, uijp1_u, uijm1_u, uip1j_u, uim1j_u, vijp1_u, vij_u, vim1jp1_u, vim1j_u, &
-                                           vij_v, vijp1_v, vijm1_v, vip1j_v, vim1j_v, uip1j_v, uip1jm1_v, uij_v, uijm1_v
+                                           vij_v, vijp1_v, vijm1_v, vip1j_v, vim1j_v, uip1j_v, uip1jm1_v, uij_v, uijm1_v, &
+                                           impl_u, impl_v, impl_eta
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: ddy_eta,lat_mixing_u, lat_mixing_v   
   REAL(8), DIMENSION(:), ALLOCATABLE  :: ddx_u, ddy_v,    &
                                          corr_u, corr_v   ! factors constant in time
@@ -46,6 +46,9 @@ SUBROUTINE initTimestep
   allocate(uip1jm1_v(1:Nx, 1:Ny))
   allocate(uij_v(1:Nx, 1:Ny))
   allocate(uijm1_v(1:Nx, 1:Ny))
+  allocate(impl_u(1:Nx, 1:Ny))
+  allocate(impl_v(1:Nx, 1:Ny))
+  allocate(impl_eta(1:Nx, 1:Ny))
 
 ! factors of derivatives in spherical coordinates and coriolis terms
   FORALL (j=1:Ny)
@@ -61,12 +64,12 @@ SUBROUTINE initTimestep
   END FORALL
   ! coefficients for bottom friction
   FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0)
-    gamma_lin_u(i,j) = -dt*r/H_u(i,j)
-    gamma_sq_u(i,j) = -dt*k/H_u(i,j)
+    gamma_lin_u(i,j) = dt*r/H_u(i,j)
+    gamma_sq_u(i,j) = dt*k/H_u(i,j)
   END FORALL
   FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) 
-    gamma_lin_v(i,j) = -dt*r/H_v(i,j)
-    gamma_sq_v(i,j) = -dt*k/H_v(i,j)
+    gamma_lin_v(i,j) = dt*r/H_v(i,j)
+    gamma_sq_v(i,j) = dt*k/H_v(i,j)
   END FORALL
   ! coefficients for lateral mixing
   FORALL (i=1:Nx, j=1:Ny)
@@ -113,16 +116,22 @@ SUBROUTINE initTimestep
   lat_mixing_v = dt*Ah*lat_mixing_v
 
 ! building final time independent coefficients
-  etaij_eta = ( 1 &
-#ifdef NEWTONIAN_COOLING
-	      - dt*gamma_new &
-#endif
-	    )
-  uij_u = ( 1 &
+  impl_u = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_u &
+            + gamma_lin_u
 #endif
            )
+  impl_v = ( 1 &
+#ifdef LINEAR_BOTTOM_FRICTION
+            + gamma_lin_v
+#endif
+           )
+  impl_eta = ( 1 &
+#ifdef NEWTONIAN_COOLING
+            + dt*gamma_new
+#endif
+           )
+  uij_u   = 1 
   uijp1_u = 0 
   uijm1_u = 0 
   uip1j_u = 0 
@@ -133,11 +142,7 @@ SUBROUTINE initTimestep
     vim1jp1_u(i,:) = corr_u/4.
     vim1j_u(i,:)   = corr_u/4.
   END FORALL
-  vij_v = ( 1 &
-#ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_v &
-#endif
-          )
+  vij_v   = 1
   vijp1_v = 0 
   vijm1_v = 0 
   vip1j_v = 0 
@@ -178,9 +183,10 @@ SUBROUTINE Timestep
   YSPACE1: DO j=1,Ny   ! loop over y dimension
     XSPACE1: DO i=1,Nx ! loop over x dimension
       IF (land_eta(i,j) == 1) cycle XSPACE1 !skip this grid point, because it is land
-      eta(i,j,N0p1) = etaij_eta*eta(i,j,N0)&                                       ! (1-dt*gamma_new)*eta^l
-                      -ddx_eta(ip1(i),j)*u(ip1(i),j,N0) + ddx_eta(i,j)*u(i,j,N0) & ! -dt*(Hu^l)_x
-                      -ddy_eta(i,j,2)*v(i,jp1(j),N0) + ddy_eta(i,j,1)*v(i,j,N0)    ! -dt(Hv^l)_y
+      eta(i,j,N0p1) = (eta(i,j,N0) &                                                ! eta^l
+                      - ddx_eta(ip1(i),j)*u(ip1(i),j,N0) + ddx_eta(i,j)*u(i,j,N0) & ! -dt*(Hu^l)_x
+                      - ddy_eta(i,j,2)*v(i,jp1(j),N0) + ddy_eta(i,j,1)*v(i,j,N0)) & ! -dt(Hv^l)_y
+                      / impl_eta                                                    ! / (1+dt*gamma_new)
     ENDDO XSPACE1
   ENDDO YSPACE1
 !$OMP END DO
@@ -192,23 +198,23 @@ SUBROUTINE Timestep
 #ifdef QUADRATIC_BOTTOM_FRICTION
       v_u           = (v(im1(i),jp1(j),N0)+v(im1(i),j,N0)+v(i,j,N0)+v(i,jp1(j),N0))/4. ! averaging v on u grid
 #endif
-      u(i,j,N0p1)   = ( uij_u(i,j)*u(i,j,N0)                         &
-                      + ddx_u(j)*(eta(i,j,N0p1)-eta(im1(i),j,N0p1))  &
-                      + vijp1_u(i,j)*v(i,jp1(j),N0) &
-                      + vij_u(i,j)*v(i,j,N0) &
-                      + vim1jp1_u(i,j)*v(im1(i),jp1(j),N0) &
-                      + vim1j_u(i,j)*v(im1(i),j,N0) &                      
+      u(i,j,N0p1)   = ( uij_u(i,j)*u(i,j,N0)                               &
+                      + ddx_u(j)*(eta(i,j,N0p1)-eta(im1(i),j,N0p1))        &
+                      + vijp1_u(i,j)*v(i,jp1(j),N0)                        &
+                      + vij_u(i,j)*v(i,j,N0)                               &
+                      + vim1jp1_u(i,j)*v(im1(i),jp1(j),N0)                 &
+                      + vim1j_u(i,j)*v(im1(i),j,N0)                        &                      
 #ifdef QUADRATIC_BOTTOM_FRICTION
-                      + gamma_sq_u(i,j)*SQRT(u(i,j,N0)**2+v_u**2)*u(i,j,N0)   & ! quadratic bottom friction
+                      - gamma_sq_u(i,j)*SQRT(u(i,j,N0)**2+v_u**2)*u(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                      + uijp1_u(i,j)*u(i,jp1(j),N0) &
-                      + uijm1_u(i,j)*u(i,jm1(j),N0) &
-                      + uip1j_u(i,j)*u(ip1(i),j,N0) &
-                      + uim1j_u(i,j)*u(im1(i),j,N0) &
+                      + uijp1_u(i,j)*u(i,jp1(j),N0)                        &
+                      + uijm1_u(i,j)*u(i,jm1(j),N0)                        &
+                      + uip1j_u(i,j)*u(ip1(i),j,N0)                        &
+                      + uim1j_u(i,j)*u(im1(i),j,N0)                        &
 #endif
-                      + F_x(i,j)                                         & ! Forcing
-                      )
+                      + F_x(i,j)                                           & ! Forcing
+                      ) / impl_u                                             ! implicit linear friction
     ENDDO XSPACE2
   ENDDO YSPACE2
 !$OMP END DO
@@ -218,24 +224,24 @@ SUBROUTINE Timestep
     XSPACE3: DO i=1,Nx ! loop over x dimension
       IF (land_v(i,j) == 1) cycle XSPACE3 !skip this grid point, because it is land
       u_v             = (u(i,jm1(j),N0p1)+u(i,j,N0p1)+u(ip1(i),jm1(j),N0p1)+u(ip1(i),j,N0p1))/4. ! averaging u on v grid
-      v(i,j,N0p1)     = ( vij_v(i,j)*v(i,j,N0)                           &
-                      + corr_v(j)*(u_v)                                  &
-                      + ddy_v(j)*(eta(i,j,N0p1)-eta(i,jm1(j),N0p1))      &
+      v(i,j,N0p1)     = ( vij_v(i,j)*v(i,j,N0)                             &
+                      + corr_v(j)*(u_v)                                    &
+                      + ddy_v(j)*(eta(i,j,N0p1)-eta(i,jm1(j),N0p1))        &
 #ifdef QUADRATIC_BOTTOM_FRICTION
-                      + gamma_sq_v(i,j)*SQRT(v(i,j,N0)**2+u_v**2)*v(i,j,N0) & ! quadratic bottom friction
+                      - gamma_sq_v(i,j)*SQRT(v(i,j,N0)**2+u_v**2)*v(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                      +vijp1_v(i,j)*v(i,jp1(j),N0)&
-                      +vijm1_v(i,j)*v(i,jm1(j),N0) &
-                      +vip1j_v(i,j)*v(ip1(i),j,N0) &
-                      +vim1j_v(i,j)*v(im1(i),j,N0) &
-                      +lat_mixing_v(i,j,6)*u(ip1(i),j,N0) &
-                      +lat_mixing_v(i,j,7)*u(ip1(i),jm1(j),N0) &
-                      +lat_mixing_v(i,j,8)*u(i,j,N0) &
-                      +lat_mixing_v(i,j,9)*u(i,jm1(j),N0) & ! lateral mixing of momentum
+                      +vijp1_v(i,j)*v(i,jp1(j),N0)                         &
+                      +vijm1_v(i,j)*v(i,jm1(j),N0)                         &
+                      +vip1j_v(i,j)*v(ip1(i),j,N0)                         &
+                      +vim1j_v(i,j)*v(im1(i),j,N0)                         &
+                      +lat_mixing_v(i,j,6)*u(ip1(i),j,N0)                  &
+                      +lat_mixing_v(i,j,7)*u(ip1(i),jm1(j),N0)             &
+                      +lat_mixing_v(i,j,8)*u(i,j,N0)                       &
+                      +lat_mixing_v(i,j,9)*u(i,jm1(j),N0)                  & ! lateral mixing of momentum
 #endif
-                      + F_y(i,j)                                         & ! forcing
-                      ) 
+                      + F_y(i,j)                                           & ! forcing
+                      ) / impl_v                                             ! implicit linear friction
     ENDDO XSPACE3
   ENDDO YSPACE3
 !$OMP END DO
