@@ -118,17 +118,17 @@ SUBROUTINE initTimestep
 ! building final time independent coefficients
   impl_u = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_u
+            + gamma_lin_u &
 #endif
            )
   impl_v = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_v
+            + gamma_lin_v &
 #endif
            )
   impl_eta = ( 1 &
 #ifdef NEWTONIAN_COOLING
-            + dt*gamma_new
+            + dt*gamma_new &
 #endif
            )
   uij_u   = 1 
@@ -186,7 +186,7 @@ SUBROUTINE Timestep
       eta(i,j,N0p1) = (eta(i,j,N0) &                                                ! eta^l
                       - ddx_eta(ip1(i),j)*u(ip1(i),j,N0) + ddx_eta(i,j)*u(i,j,N0) & ! -dt*(Hu^l)_x
                       - ddy_eta(i,j,2)*v(i,jp1(j),N0) + ddy_eta(i,j,1)*v(i,j,N0)) & ! -dt(Hv^l)_y
-                      / impl_eta                                                    ! / (1+dt*gamma_new)
+                      / impl_eta(i,j)                                               ! / (1+dt*gamma_new)
     ENDDO XSPACE1
   ENDDO YSPACE1
 !$OMP END DO
@@ -214,7 +214,7 @@ SUBROUTINE Timestep
                       + uim1j_u(i,j)*u(im1(i),j,N0)                        &
 #endif
                       + F_x(i,j)                                           & ! Forcing
-                      ) / impl_u                                             ! implicit linear friction
+                      ) / impl_u(i,j)                                        ! implicit linear friction
     ENDDO XSPACE2
   ENDDO YSPACE2
 !$OMP END DO
@@ -241,7 +241,7 @@ SUBROUTINE Timestep
                       +lat_mixing_v(i,j,9)*u(i,jm1(j),N0)                  & ! lateral mixing of momentum
 #endif
                       + F_y(i,j)                                           & ! forcing
-                      ) / impl_v                                             ! implicit linear friction
+                      ) / impl_v(i,j)                                        ! implicit linear friction
     ENDDO XSPACE3
   ENDDO YSPACE3
 !$OMP END DO
