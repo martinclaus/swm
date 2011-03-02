@@ -47,65 +47,46 @@ longitude, and $\vartheta$ the latitude:
 \end{align}
 \subsection{Forcing and Damping}
 The forcing and damping terms $F_u$ in (\ref{eq:basic_u}) and $F_v$ in (\ref{eq:basic_v}) represent one or the sum of some of the following terms.
-\subsubsection{Bottom Friction Term}
 
+\subsubsection{Bottom Friction Term}
 The model can use both linear and quadratic bottom friction.
 The linear friction term is described by
-
 \begin{equation}
- F = -\frac rH (u,v)
+ \pder{(u,v)}{t} = X -\frac rH (u,v)
 \end{equation}
-
-Discretizied this leads to
-
+The discretized form following an implicit scheme is
 \begin{equation}
-  \dtwo{F_u}uij = -\frac r{H\vert^{ij}_u} u\vert^{ijl}_u
+  \dthree{u}uij{l+1} = \frac{\dthree{u}uijl + X_u}{1+\frac{\Delta t r}{\dtwo{H}uij}}
 \end{equation}
-
-in the u-equation and 
-
 \begin{equation}
-  \dtwo{F_v}vij = -\frac r{H\vert^{ij}_v} v\vert^{ijl}_v
+  \dthree{v}vij{l+1} = \frac{\dthree{v}vijl + X_v}{1+\frac{\Delta t r}{\dtwo{H}vij}}
 \end{equation}
+where r is the linear bottom friction coefficient and $X_u$ and $X_v$ represents the residual terms of the momentum equation. We use an implicit scheme
+to gain unconditional numerical stability of the linear friction term.
 
-in the v-equation, where r is the linear bottom friction coefficient.
 The quadratic friction term is described by
-
 \begin{equation}
   F = -\frac kH \sqrt{u^2+v^2}\,(u,v)
 \end{equation}
-
-Discretisation leads to
-
+Discretization using an explicit scheme leads to
 \begin{equation}
   \dtwo{F_u}uij = -\frac k{H\vert^{ij}_u} \sqrt{(u\vert^{ijl}_u)^2+\left(\frac{v\vert^{i,j+1,l}_v+v\vert^{ijl}_v+v\vert^{i-1,j+1,l}_v+v\vert^{i-1,j,l}_v}4\right)^2}u\vert^{ijl}_u
 \end{equation}
-
-in the u-equation and 
-
 \begin{equation}
   \dtwo{F_v}vij = -\frac k{H\vert^{ij}_v} \sqrt{\left(\frac{u\vert^{i+1,j,l+1}_u+u\vert^{i+1,j-1,l+1}_u+u\vert^{i,j,l+1}_u+u\vert^{i,j-1,l+1}_u}4\right)^2+(v\vert^{ijl}_v)^2}v\vert^{ijl}_v
 \end{equation}
-
-in the v-equation, where k is the empirical quadratic bottom friction coefficient.
+where k is the empirical quadratic bottom friction coefficient.
 
 \subsubsection{Lateral Mixing of Momentum}
-
 The lateral mixing of momentum is described by
 \begin{equation}
   F_u=A_hf^\lambda
 \end{equation}
-
-in the u-equation and 
-
 \begin{equation}
   F_v=A_hf^\vartheta
 \end{equation}
-
-in the v-equation, where $A_h$ is the horizontal eddy viscosity. Following Bryan (1969) the lateral mixing of momentum is
-parameterized in spherical coordinates with consideration of conservation of
-momentum by
-
+where $A_h$ is the horizontal eddy viscosity. Following Bryan (1969) the lateral mixing of momentum is
+parameterized in spherical coordinates with consideration of conservation of momentum by
 \begin{equation}\begin{split}
   f^\lambda=&\frac1{a^2\cos^2\vartheta
     H}\pdertwo{uH}{\lambda}+\frac1{a^2\cos\vartheta H}\pder{}{\vartheta}\left(\cos\vartheta\pder{uH}{\vartheta}\right)\\
@@ -116,27 +97,22 @@ momentum by
     H}\pdertwo{vH}{\lambda}+\frac1{a^2\cos\vartheta H}\pder{}{\vartheta}\left(\cos\vartheta\pder{vH}{\vartheta}\right)\\
   &+\frac1{a^2H}\left((1-\tan^2\vartheta)vH-\frac{2\tan\vartheta}{\cos\vartheta}\pder{uH}{\lambda}\right)
 \end{split}\end{equation}
-
-Discretisation leads to
-
+Discretization and consideration of the free-slip boundary condition (see \ref{subs:free-slip}) leads to
 \begin{equation}
   \begin{split}
     \dthree{f^\lambda}uijl =&
     \frac1{2\Delta\lambda a^2\done{\cos^2\vartheta}uj\dtwo{H}uij}(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}u{i-1}jl\dtwo{H}u{i-1}j)\\
-    &-\frac{\done{\tan\vartheta}uj}{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}-\dthree{u}ui{j-1}l\dtwo{H}ui{j-1})\\
-    &+\frac1{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1})\\
+    &-\frac{\done{\tan\vartheta}uj}{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}\mathfrak{o}^{i,j+1}-\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\mathfrak{o}^{i,j}-(\mathfrak{o}^{i,j+1}-\mathfrak{o}^{i,j})\dthree{u}{u}{i}{j}{l}\dtwo{H}{u}{i}{j})\\
+    &+\frac1{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}\mathfrak{o}^{i,j+1}-(\mathfrak{o}^{i,j+1}+\mathfrak{o}^{i,j})\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\mathfrak{o}^{i,j})\\
     &+\frac{1-\done{\tan^2\vartheta}uj}{a^2\dtwo{H}uij}\dthree{u}uijl\dtwo{H}uij\\
-    &-\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}+\dthree{v}vijl\dtwo{H}vij\right)\\
-    &+\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}v{i-1}{j+1}l\dtwo{H}v{i-1}{j+1}+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\right)
+    &-\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}\mathfrak{o}^{i,j+1}+\dthree{v}vijl\dtwo{H}vij\mathfrak{o}^{i,j}\right)\\
+    &+\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}v{i-1}{j+1}l\dtwo{H}v{i-1}{j+1}\mathfrak{o}^{i,j+1}+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\mathfrak{o}^{i,j}\right)
   \end{split}
 \end{equation}
-
-and
-
 \begin{equation}
   \begin{split}
     \dthree{f^\vartheta}vijl =&
-    \frac1{2\Delta\lambda a^2\done{\cos^2\vartheta}vj\dtwo{H}vij}(\dthree{v}v{i+1}jl\dtwo{H}v{i+1}j-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j)\\
+    \frac1{2\Delta\lambda a^2\done{\cos^2\vartheta}vj\dtwo{H}vij}(\dthree{v}v{i+1}jl\dtwo{H}v{i+1}j\mathfrak{o}^{i+1,j}-(\mathfrak{o}^{i+1,j}+\mathfrak{o}^{i,j})\dthree{v}vijl\dtwo{H}vij+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\mathfrak{o}^{i,j})\\
     &-\frac{\done{\tan\vartheta}vj}{2\Delta\vartheta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
     &+\frac1{2\Delta\vartheta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
     &+\frac{1-\done{\tan^2\vartheta}vj}{a^2\dtwo{H}vij}\dthree{v}vijl\dtwo{H}vij\\
@@ -144,8 +120,12 @@ and
     &+\frac{\done{\tan\vartheta}vj}{a^2\done{\cos\vartheta}vj\Delta\lambda\dtwo{H}vij}\left(\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\right)
   \end{split}
 \end{equation}
+where $\mathfrak{o}$ is the ocean mask defined on the H-grid.
+\begin{equation}
+  \mathfrak{o}^{i,j} = \left\{ \begin{array}{rcl} 0 & \mbox{if} & \dtwo{H}{H}{i}{j}=0 \\
+				1 & \mbox{else} & \end{array} \right.
+\end{equation}
 Note that $\done{u}ul$ is used in the v-equation instead of $\done{u}u{l+1}$.
-
 
 \subsubsection{Surface Stress Forcing}
 Wind stress $\tau_s$ can be used to force the model. The forcing term in the u- and v-equation can be written as
@@ -196,22 +176,20 @@ Discretization\footnote{There is an implicit four point
 \end{equation}
 
 \subsubsection{Newtonian Cooling}
-The $F_\eta$ represents a Newtonian cooling term parameterized by
+If the setup is a $1\frac12$-Layer baroclinic model, diapycnal mixing at the interface is parameterized by a Newtonian cooling term which is described by
 \begin{equation}
-	F_\eta = -\gamma\eta
+	\pder{\eta}{t} = X-\gamma\eta
 \end{equation}
-Discretization leads to
+Discretization using a implicit scheme leads to
 \begin{equation}
-	\dtwo{F_\eta}\eta{i}{j}=-\gamma\dtwo{\eta_\eta}\eta{i}{j}
+	\dthree{\eta}\eta{i}{j}{l+1} = \frac{X_\eta + \dthree{\eta}{\eta}{i}{j}{l}}{1+\Delta t\gamma}
 \end{equation}
-
+where $X$ represents the residual terms of the continuity equation (i.e. the horizontal mass flux divergence)
 %=======================================================================
 
 \section{Grid}
-
 We want the grid to be as natural as possible (i.e., no averaging in the 
 $\eta$-gradients and in the continuity equation):
-
 \begin{figure}[h]
   \begin{center}
     \includegraphics[width=0.35\textwidth]{images/grid}
@@ -219,7 +197,6 @@ $\eta$-gradients and in the continuity equation):
   \caption{Grid arrangement. We use an Arakawa C-grid with the topography
     on the free grid points.  }
 \end{figure}
-
 The fields will all carry integer indices which are to be interpreted according to
 \begin{align}
   H|_H^{ij} & = H(\Delta x \cdot i, \Delta y \cdot j) \\
@@ -240,7 +217,6 @@ two point averaging from the $H$-grid to the $u$- and $v$-grid.
 %-----------------------------------------------------------------------
 
 \subsection{Coastlines / Land mask}
-
 We'll define land to be where $H$ is zero. This implies that $u$- and $v$-grid
 points are over land if both the closest $H$-grid points are over land.
 $\eta$-grid points are over land, if all four surrounding $H$-grid points are over land.
@@ -249,16 +225,21 @@ It will probably be computationally effective to define masks for all three dyna
 %-----------------------------------------------------------------------
 
 \subsection{Periodic boundary conditions}
-
 For a global model, we'll need to implement periodic boundary conditions in the zonal
 direction.  In the meridional direction we might get away without as we won't be able 
 to extend the model domain to the poles anyway (CFL will become a problem there).
 
+\subsection{Free-slip Boundary condition}
+\label{subs:free-slip}
+The model fulfill the free-slip boundary conditions which are $u=0$ and $v=0$ if the 
+corresponding u- and v-grid points are over land, and $(uH)_y=0$ and $(vH)_x=0$ if the derivative is measured
+across a boundary, i.e. the H grid point in between the two u- or v-grid points is land. Please note that
+second boundary condition only influences the lateral mixing terms.
+
 %=======================================================================
 
 \section{Time stepping scheme}
-
-Use Heaps (1972) which basically amounts to\footnote{Note that the superscrip
+Use Heaps (1972) which basically amounts to\footnote{Note that the superscript
 of $v$ in the second equation is mean to be an $l$ while all the others are meant
 to be $l+1$. In each line, you use the newest information that is available ...}
 \begin{align}
@@ -266,7 +247,6 @@ to be $l+1$. In each line, you use the newest information that is available ...}
   u^{l+1} & = u^l + \Delta t f v^l - \Delta t g \eta^{l+1}_x + \Delta t F_u\\
   v^{l+1} & = v^l - \Delta t f u^{l+1} - \Delta t g \eta^{l+1}_y + \Delta t F_v
 \end{align}
-
 Spherical coordinates with full\footnote{There still is an implicit two point
 averaging from the $H$-grid to the $u$- and $v$-grids as well as an implicit
 four point averaging in the Coriolis term.} glory:
@@ -279,29 +259,27 @@ four point averaging in the Coriolis term.} glory:
       \Biggl(H|_v^{i,j+1}\cos\vartheta|_v^{j+1}v|_v^{i,j+1,l} - H|_v^{ij}\cos\vartheta|_v^{j}v|_v^{ijl}\Biggr)
   \end{split}
 \end{equation}
-
 \begin{equation}
   u|_u^{i,j,l+1} = u|_u^{ijl} 
     + \Delta t f v|_u^{ijl}
     - \frac{\Delta t g}{a\cos\vartheta|_u^j\Delta\lambda}
       \Biggl(\eta|_\eta^{i,j,l+1} - \eta|_\eta^{i-1,j,l+1}\Biggr) + \Delta t \dtwo{F_u}uij
 \end{equation}
-
 \begin{equation}
   v|_v^{i,j,l+1} = v|_v^{ijl} 
     - \Delta t f u|_v^{i,j,l+1} 
     - \frac{\Delta t g}{a\Delta\vartheta}
       \Biggl(\eta|_\eta^{i,j,l+1} - \eta|_\eta^{i,j-1,l+1}\Biggr) + \Delta t \dtwo{F_v}vij
 \end{equation}
-
 In the model, we'll calculate $H|_u^{ij}$ and $H|_v^{ij}$ once in the beginning and
 then use it throughout the simulation. However, for defining which grid points are 
 over land, it is still helpful to use the original $H$-grid.
+Note that the Rayleigh friction (linear bottom friction) and the Newtonian cooling
+is discretized with an implicit scheme. 
 
 %=======================================================================
 
 \section{Stability}
-
 Note that we will not consider optimization of roundoff errors at this point. We'll stick
 to SI-units and readable code as long as possible.
 
@@ -319,8 +297,7 @@ as short a time steps as $0.6$ seconds.
 %=======================================================================
 
 \section{Estimation of computational effort}
-
-In the end, we might want to simulate an almost global model 
+In the end, we might want to simulate an almost global model
 (say $\lambda=0\ldots360^\circ$, $\vartheta=-89\ldots89^\circ$) with a resolution 
 of up to $1/10^\circ$ for more than one year of model time. There are 
 $360*178*100\approx 6.5\cdot10^6$ grid points and for each grid point we need $O(20)$ 
@@ -332,7 +309,6 @@ only extends to $85^\circ$ in latitude, only about $2d$ are necessary.
 %=======================================================================
 
 \section{First test: Rectangular domain}
-
 Domain:
 \begin{equation}
   \begin{split}
@@ -345,7 +321,6 @@ Domain:
 \end{equation}
 
 Initial conditions:
-
 Adjustment should be done after $O(20 \cdot 2 \cdot 111km / \sqrt{gH}) = 
 O(4.5\cdot 10^4s) = O(100) \Delta t$.
 
