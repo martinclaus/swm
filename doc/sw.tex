@@ -101,9 +101,9 @@ Discretization and consideration of the free-slip boundary condition (see \ref{s
 \begin{equation}
   \begin{split}
     \dthree{f^\lambda}uijl =&
-    \frac1{2\Delta\lambda a^2\done{\cos^2\vartheta}uj\dtwo{H}uij}(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}u{i-1}jl\dtwo{H}u{i-1}j)\\
+    \frac1{\Delta\lambda^2 a^2\done{\cos^2\vartheta}uj\dtwo{H}uij}(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j-2\dthree{u}uijl\dtwo{H}uij+\dthree{u}u{i-1}jl\dtwo{H}u{i-1}j)\\
     &-\frac{\done{\tan\vartheta}uj}{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}\mathfrak{o}^{i,j+1}-\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\mathfrak{o}^{i,j}-(\mathfrak{o}^{i,j+1}-\mathfrak{o}^{i,j})\dthree{u}{u}{i}{j}{l}\dtwo{H}{u}{i}{j})\\
-    &+\frac1{2\Delta\vartheta a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}\mathfrak{o}^{i,j+1}-(\mathfrak{o}^{i,j+1}+\mathfrak{o}^{i,j})\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\mathfrak{o}^{i,j})\\
+    &+\frac1{\Delta\vartheta^2 a^2\dtwo{H}uij}(\dthree{u}ui{j+1}l\dtwo{H}ui{j+1}\mathfrak{o}^{i,j+1}-(\mathfrak{o}^{i,j+1}+\mathfrak{o}^{i,j})\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\mathfrak{o}^{i,j})\\
     &+\frac{1-\done{\tan^2\vartheta}uj}{a^2\dtwo{H}uij}\dthree{u}uijl\dtwo{H}uij\\
     &-\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}\mathfrak{o}^{i,j+1}+\dthree{v}vijl\dtwo{H}vij\mathfrak{o}^{i,j}\right)\\
     &+\frac{\done{\tan\vartheta}uj}{a^2\done{\cos\vartheta}uj\Delta\lambda\dtwo{H}uij}\left(\dthree{v}v{i-1}{j+1}l\dtwo{H}v{i-1}{j+1}\mathfrak{o}^{i,j+1}+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\mathfrak{o}^{i,j}\right)
@@ -112,9 +112,9 @@ Discretization and consideration of the free-slip boundary condition (see \ref{s
 \begin{equation}
   \begin{split}
     \dthree{f^\vartheta}vijl =&
-    \frac1{2\Delta\lambda a^2\done{\cos^2\vartheta}vj\dtwo{H}vij}(\dthree{v}v{i+1}jl\dtwo{H}v{i+1}j\mathfrak{o}^{i+1,j}-(\mathfrak{o}^{i+1,j}+\mathfrak{o}^{i,j})\dthree{v}vijl\dtwo{H}vij+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\mathfrak{o}^{i,j})\\
+    \frac1{\Delta\lambda^2 a^2\done{\cos^2\vartheta}vj\dtwo{H}vij}(\dthree{v}v{i+1}jl\dtwo{H}v{i+1}j\mathfrak{o}^{i+1,j}-(\mathfrak{o}^{i+1,j}+\mathfrak{o}^{i,j})\dthree{v}vijl\dtwo{H}vij+\dthree{v}v{i-1}jl\dtwo{H}v{i-1}j\mathfrak{o}^{i,j})\\
     &-\frac{\done{\tan\vartheta}vj}{2\Delta\vartheta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
-    &+\frac1{2\Delta\vartheta a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
+    &+\frac1{\Delta\vartheta^2 a^2\dtwo{H}vij}(\dthree{v}vi{j+1}l\dtwo{H}vi{j+1}-2\dthree{v}vijl\dtwo{H}vij+\dthree{v}vi{j-1}l\dtwo{H}vi{j-1})\\
     &+\frac{1-\done{\tan^2\vartheta}vj}{a^2\dtwo{H}vij}\dthree{v}vijl\dtwo{H}vij\\
     &-\frac{\done{\tan\vartheta}vj}{a^2\done{\cos\vartheta}vj\Delta\lambda\dtwo{H}vij}\left(\dthree{u}u{i+1}jl\dtwo{H}u{i+1}j+\dthree{u}u{i+1}{j-1}l\dtwo{H}u{i+1}{j-1}\right)\\
     &+\frac{\done{\tan\vartheta}vj}{a^2\done{\cos\vartheta}vj\Delta\lambda\dtwo{H}vij}\left(\dthree{u}uijl\dtwo{H}uij+\dthree{u}ui{j-1}l\dtwo{H}ui{j-1}\right)
