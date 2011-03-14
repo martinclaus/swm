@@ -24,6 +24,7 @@ MODULE diag_module
                                   ncid_v, varid_v, timeid_v,            &
                                   ncid_H, varid_H,                      &
                                   ncid_Fx, ncid_Fy, varid_Fx, varid_Fy, &
+                                  ncid_gn, varid_gn,                    &
                                   ncid_psi, varid_psi, timeid_psi   ! the ids
   INTEGER                      :: rec=1, start(NDIMS)=(/1,1,1/),   &
                                   count_arr(NDIMS) ! set later, because it depends on the domain specs
@@ -67,8 +68,8 @@ MODULE diag_module
       ! create file
       call check(nf90_create(fileName, NF90_CLOBBER, ncid))
       ! create dimensions
-      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
       call check(nf90_def_dim(ncid,lon_name,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
       ! define variables
       ! latitude vector
       call check(nf90_def_var(ncid,lat_name,NF90_DOUBLE,(/lat_dimid/),lat_varid))
@@ -102,8 +103,8 @@ MODULE diag_module
       ! create file
       call check(nf90_create(fileName, NF90_CLOBBER, ncid))
       ! create dimensions
-      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
       call check(nf90_def_dim(ncid,lon_name,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
       call check(nf90_def_dim(ncid,time_name,NF90_UNLIMITED,time_dimid))
       ! define variables
       ! latitude vector
@@ -155,6 +156,8 @@ MODULE diag_module
       call check(nf90_put_var(ncid_Fx, varid_Fx, (F_x*RHO0*H_u)/dt))
       call createDS2(trim(oprefix)//trim(file_Fy)//trim(osuffix),varname_Fy,lat_v,lon_v,ncid_Fy,varid_Fy)
       call check(nf90_put_var(ncid_Fy, varid_Fy, (F_y*RHO0*H_v)/dt))
+      call createDS2(trim(oprefix)//OFILEGAMMA_N//trim(osuffix),OVARNAMEGAMMA_N,lat_eta,lon_eta,ncid_gn,varid_gn)
+      call check(nf90_put_var(ncid_gn,varid_gn,gamma_n))
 #endif
     END SUBROUTINE initDiag
 
@@ -170,6 +173,7 @@ MODULE diag_module
       call check(nf90_close(ncid_H))
       call check(nf90_close(ncid_Fx))
       call check(nf90_close(ncid_Fy))
+      call check(nf90_close(ncid_gn))
 #endif
       call check(nf90_close(ncid_psi))
     END SUBROUTINE finishDiag

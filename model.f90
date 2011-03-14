@@ -8,7 +8,7 @@ PROGRAM model
   ! initialize the variables (namelist input, allocation etc.)
   call initVars
 
-  ! initialize the domain, indices, land masks
+  ! initialize the domain, indices, land masks, friction parameters
   call initDomain
 
   ! initializes the time stepping scheme
@@ -97,15 +97,7 @@ PROGRAM model
         tanTheta_u(j) = TAN(lat_u(j)*D2R)
       END FORALL
 
-      ! set a default rectangular basin with coastlines according to per. boundary cond.
-      H = 4000.
-      H(:, 1) = 0.
-      H(:, Ny) = 0.
-      IF (pbc_lon .eqv. .false.) THEN
-        H(1, :) = 0.
-        H(Nx, :) = 0.
-      END IF
-      ! read topography
+      ! read and process topography
       call check(nf90_open(in_file_H, NF90_NOWRITE, Hncid))
       call check(nf90_inq_varid(Hncid, in_varname_H, Hid))          
       call check(nf90_get_var(Hncid, Hid, H))              
@@ -139,6 +131,31 @@ PROGRAM model
       land_v = 0
       FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
         land_v(i,j) = 1
+
+      ! set up friction parameter fields
+      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0.)
+        gamma_lin_u(i,j) = r/H_u(i,j)
+        gamma_sq_u(i,j) = k/H_u(i,j)
+      END FORALL
+      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0.)
+        gamma_lin_v(i,j) = r/H_v(i,j)
+        gamma_sq_v(i,j) = k/H_v(i,j)
+      END FORALL
+      FORALL (i=1:Nx, j=1:Ny)
+        gamma_n(i,j) = ( gamma_new &
+#ifdef NEWTONIAN_SPONGE_N
+                       + gamma_new_sponge &
+                       * EXP((lat_eta(j)-lat_eta(Ny-1))*D2R*A*2*OMEGA*ABS(SIN(lat_eta(Ny)*D2R))&
+                         /(new_sponge_efolding*SQRT(G*maxval(H))))&
+#endif
+#ifdef NEWTONIAN_SPONGE_S
+                       + gamma_new_sponge &
+                       * EXP(-(lat_eta(j)-lat_eta(2))*D2R*A*2*OMEGA*ABS(SIN(lat_eta(2)*D2R))&
+                         /(new_sponge_efolding*SQRT(G*maxval(H))))&
+#endif
+                )
+      END FORALL
+
     END SUBROUTINE initDomain
     
     SUBROUTINE initForcing

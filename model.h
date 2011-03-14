@@ -15,6 +15,10 @@ Header file for shallow water model. Meant to set different physics
 !#define NEWTONIAN_COOLING
 !#define oldmixing
 
+/* Sponge layers */
+#define NEWTONIAN_SPONGE_N
+#define NEWTONIAN_SPONGE_S
+
 /* Switches for Reynolds stress terms*/
 !#define wo_u2_x_u
 !#define wo_uv_y_u

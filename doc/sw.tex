@@ -294,6 +294,12 @@ large $H$ time steps of much less than $10$ seconds can easily arise.
 For $H=O(10km)$, $\Delta\lambda=1/10^{o}$ and a model domain which extends up to $89N$, this results in 
 as short a time steps as $0.6$ seconds.
 
+Since western boundary currents must be resolved by the model, there are two other criteria. When using linear bottom friction the western boundary current width (WBCW) is defined by the width of the stommel layer which gives us a criteria for the friction parameter $$r>\Delta x H \beta$$
+When using later mixing WBWC is defined by the width of the munk layer $$A_h > \Delta x^3\beta$$
+
+There is also an issue with the lateral mixing term. This term exhibits instability for large values of
+$A_h$. Instability was observed in a Equatorial $1\frac12$-Layer setup with $\Delta t=3000s ; \Delta\lambda=0.1^\circ; A_h = 10^4 m^2s^{-1}$.
+The centers of growth where located at the edges of the rectangular basin, which can be a hint for further investigation.
 %=======================================================================
 
 \section{Estimation of computational effort}

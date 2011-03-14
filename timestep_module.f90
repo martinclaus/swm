@@ -62,15 +62,6 @@ SUBROUTINE initTimestep
     ddy_eta(i,j,1) = H_v(i,j)*cosTheta_v(j)*dt/(dTheta*A*COS(lat_eta(j)*D2R))
     ddy_eta(i,j,2) = H_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(dTheta*A*COS(lat_eta(j)*D2R))
   END FORALL
-  ! coefficients for bottom friction
-  FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0)
-    gamma_lin_u(i,j) = dt*r/H_u(i,j)
-    gamma_sq_u(i,j) = dt*k/H_u(i,j)
-  END FORALL
-  FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) 
-    gamma_lin_v(i,j) = dt*r/H_v(i,j)
-    gamma_sq_v(i,j) = dt*k/H_v(i,j)
-  END FORALL
   ! coefficients for lateral mixing
   FORALL (i=1:Nx, j=1:Ny)
     lat_mixing_u(i,j,1) = - 2/(dLambda*A*cosTheta_u(j))**2 + ((ocean_H(i,jp1(j))-ocean_H(i,j))*tanTheta_u(j))/(2*dTheta*A**2)&
@@ -120,17 +111,17 @@ SUBROUTINE initTimestep
 ! building final time independent coefficients
   impl_u = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_u &
+            + dt*gamma_lin_u &
 #endif
            )
   impl_v = ( 1 &
 #ifdef LINEAR_BOTTOM_FRICTION
-            + gamma_lin_v &
+            + dt*gamma_lin_v &
 #endif
            )
   impl_eta = ( 1 &
 #ifdef NEWTONIAN_COOLING
-            + dt*gamma_new &
+            + dt*gamma_n &
 #endif
            )
   uij_u   = 1 

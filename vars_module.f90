@@ -18,6 +18,8 @@ MODULE vars_module
   REAL(8)                :: k=2e-1                           ! quadratic friction parameter
   REAL(8)                :: Ah=1e3                           ! horizontal eddy viscosity coefficient
   REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
+  REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
+  REAL(8)                :: new_sponge_efolding=1             ! Newtonian cooling sponge layer e-folding scale (L_D)
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
   CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
@@ -61,10 +63,10 @@ MODULE vars_module
   ! dynamic fields u, v, eta, allocated during initialization
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: u, v, eta   ! variable fields
 
-  ! constant fieds H, Forcing, friction, allocated during initialization
+  ! constant fieds H, Forcing, damping, allocated during initialization
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: H, F_x, F_y, gamma_lin_u, &
                                   TAU_X, TAU_Y, F1_X, F1_Y, REY_u2, REY_v2, REY_uv, &
-                                  gamma_lin_v, gamma_sq_v, gamma_sq_u, &
+                                  gamma_lin_v, gamma_sq_v, gamma_sq_u, gamma_n, &
                                   H_u, H_v, H_eta                        ! constant fields
 
   ! nearest neighbor indices, derived from domain specs                                
@@ -123,10 +125,11 @@ SUBROUTINE initVars
   allocate(REY_u2(1:Nx, 1:Ny))
   allocate(REY_v2(1:Nx, 1:Ny))
   allocate(REY_uv(1:Nx, 1:Ny))
-  allocate(gamma_lin_u(1:Nx, 1:Ny))
-  allocate(gamma_lin_v(1:Nx, 1:Ny))
-  allocate(gamma_sq_u(1:Nx, 1:Ny))
-  allocate(gamma_sq_v(1:Nx, 1:Ny))
+  allocate(gamma_lin_u(1:Nx, 1:Ny)); gamma_lin_u = 0.;
+  allocate(gamma_lin_v(1:Nx, 1:Ny)); gamma_lin_v = 0.;
+  allocate(gamma_sq_u(1:Nx, 1:Ny)); gamma_sq_u = 0.;
+  allocate(gamma_sq_v(1:Nx, 1:Ny)); gamma_sq_v = 0.;
+  allocate(gamma_n(1:Nx, 1:Ny)); gamma_n = 0.;
   allocate(land_H(1:Nx, 1:Ny))
   allocate(land_u(1:Nx, 1:Ny))
   allocate(land_v(1:Nx, 1:Ny))
