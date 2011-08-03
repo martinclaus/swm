@@ -202,9 +202,10 @@ MODULE diag_module
       USE timestep_module
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi
-      INTEGER  :: i,j ! spacial coordinates 
-      FORALL (i=1:Nx, j=1:Ny) &
-        psi(i,j) = SUM(H_v(1:i,j)*v(1:i,j,N0))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:j)*u(i,1:j,N0))*A*dTheta
+      INTEGER  :: i,j ! spacial coordinates
+      psi = 0
+      FORALL (i=1:Nx, j=2:Ny) &
+        psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v(i:Nx,j,N0))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u(i,1:jm1(j),N0))*A*dTheta
     END SUBROUTINE streamfunction
 
 END MODULE diag_module
