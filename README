@@ -1,5 +1,12 @@
 CHANGELOG:
 
+* 2011-09-21:
+  - added dirty but working version of time dependent wind forcing
+  - added flag DIAG_FLUSH (io.h) which forces an open/close at every diagnostic
+    write step
+  - some verbosity in the main program to help debugging  
+
+
 * initial conditions are now read from file
 * implemented forcing input constant in time
 * implemented lateral mixing parameterization by Bryan (1969) as used in
@@ -27,10 +34,15 @@ CHANGELOG:
 
 TODO:
 
+* write a cleaner version of the time dependent foring stuff: increment of
+  forcing fields instead of explicit linear interpolation at every model time
+  step  
+* remove unused variables (e.g. the flag pbc_lon)
+* fix problems with gamma_new output in the diagnostic routines (see io.h for details)
+
 * STYLE: Contains in modules vs. separate functions?
-* restarting
+* restarting (isn't that included now?)
 * check for stability criteria
-* time dependent forcing
 
 LATER:
 
