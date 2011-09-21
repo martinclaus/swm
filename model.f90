@@ -4,30 +4,50 @@ PROGRAM model
   USE vars_module
   USE diag_module
   IMPLICIT NONE
-  
+
   ! initialize the variables (namelist input, allocation etc.)
   call initVars
+  print *, 'initVars done'
 
   ! initialize the domain, indices, land masks, friction parameters
   call initDomain
+  print *, 'initDomain done'
 
   ! initializes the time stepping scheme
   call initTimestep
+  print *, 'initTimestep done'
 
   ! Set initial conditions
   call initialConditions
+  print *, 'initialConditions done'
 
   ! read and compute forcing terms
   call initForcing
+  print *, 'initForcing done'
+
+#ifdef TDEP_FORCING
+  ! initialize time dependent forcing
+  call initTdepForcing
+  print *, 'initTdepForcing done'
+#endif
 
   ! Prepare output file (don't forget to close the files at the end of the programm)
   call initDiag
+  print *, 'initDiag done'
 
   ! write initial fields to file
   call Diag
+  print *, 'first call of Diag done'
+
+  print *, 'starting integration'
 
   ! Do the integration
   TIME: DO itt=1,Nt       ! loop over all time steps
+
+#ifdef TDEP_FORCING
+    ! update time dependent forcing
+    call updateTdepForcing
+#endif
 
     ! time step (see below)
     call Timestep
@@ -35,7 +55,17 @@ PROGRAM model
     ! write fields to file and do diagnostics
     call Diag
 
+    ! be verbose?
+    if (mod(itt, Nt / 1000)==0) then
+      print *, 'itt = ', itt, '(', 100.0*itt/Nt, '% of ', Nt, ') done'
+    end if  
+
   ENDDO TIME
+
+#ifdef TDEP_FORCING
+  ! finish time dependent forcing
+  call finishTdepForcing
+#endif
 
   ! Close opened files
   call finishDiag
@@ -157,7 +187,7 @@ PROGRAM model
       END FORALL
 
     END SUBROUTINE initDomain
-    
+
     SUBROUTINE initForcing
       IMPLICIT NONE
       INTEGER :: i, j
@@ -245,5 +275,134 @@ PROGRAM model
                    )
 
     END SUBROUTINE initForcing
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !
+    ! Time Dependent Forcing
+    !
+    ! CONVENTION: All variables start with TDF_
+    !
+    ! LINEAR INTERPOLATION for now.
+    !
+    ! NOTE01: We'll code eveything as explicit as possible. This is not efficient
+    !   w.r.t. performance but easier to debug. As soon as there is a
+    !   working version of time dependent forcing, we can improve
+    !   performance by, e.g., using increments of the forcing fields
+    !   rather than doing the whole interpolation at every time step,
+    !   etc.
+    !
+    ! NOTE02: We always assume the forcing time step to be greater than the
+    !   model time step!
+    !
+    ! NOTE03: If in doubt, center!
+    !
+    ! Variable names:
+    !   TDF_ncid : NC file ID of the time dependent forcing file
+    !   TDF_tID : NC variable ID of the time dimension
+    !   TDF_FuID : NC variable ID of the zonal forcing
+    !   TDF_FvID : NC variable ID of the meridional forcing
+    !   TDF_t  : time vector of the forcing data set (in model time as def. by dt*itt)
+    !   TDF_itt1 : time index (forcing time) of first buffer
+    !   TDF_itt2 : time index (forcing time) of second buffer
+    !   TDF_t1 : forcing time of first buffer used for the linear interpolation
+    !   TDF_t2 : forcing time of second buffer used for the linear interpolation
+    !   TDF_Fu1 : First time slice of zonal forcing user for the linear interpolation
+    !   TDF_Fv1 : First time slice of meridional forcing user for the linear interpolation
+    !   TDF_Fu2 : Second time slice of zonal forcing user for the linear interpolation
+    !   TDF_Fv2 : Second time slice of meridional forcing user for the linear interpolation
+    !   TDF_Fu0 : Time dependent zonal forcing linearly interpolated to model time
+    !   TDF_Fv0 : Time dependent meridional forcing linearly interpolated to model time
+    !
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    SUBROUTINE initTdepForcing
+
+      IMPLICIT NONE
+      INTEGER :: TDF_tDimID
+      CHARACTER(len = 80) :: tmp1 
+      INTEGER :: i, j
+
+      ! open file, get lengt of time vector, allocate get dime vector, get
+      ! other var IDs
+
+      call check(nf90_open(TDF_fname, NF90_NOWRITE, TDF_ncid))
+      call check(nf90_inq_dimid(TDF_ncid, 'TS', TDF_tDimID))
+      call check(nf90_inquire_dimension(TDF_ncid, TDF_tDimID, tmp1, TDF_tLEN))
+      allocate(TDF_t(1:TDF_tLEN))
+      call check(nf90_inq_varid(TDF_ncid, 'TS', TDF_tID))
+      call check(nf90_get_var(TDF_ncid, TDF_tID, TDF_t))
+      call check(nf90_inq_varid(TDF_ncid, 'TAUX', TDF_FuID))
+      call check(nf90_inq_varid(TDF_ncid, 'TAUY', TDF_FvID))
+
+      ! initialize iteration
+
+      TDF_itt1 = 1
+      TDF_itt2 = 2
+      TDF_t1 = TDF_t(TDF_itt1)
+      TDF_t2 = TDF_t(TDF_itt2)
+
+      ! allocate Forcing buffers
+      allocate(TDF_Fu1(1:Nx, 1:Ny))
+      allocate(TDF_Fu2(1:Nx, 1:Ny))
+      allocate(TDF_Fu0(1:Nx, 1:Ny))
+      allocate(TDF_Fv1(1:Nx, 1:Ny))
+      allocate(TDF_Fv2(1:Nx, 1:Ny))
+      allocate(TDF_Fv0(1:Nx, 1:Ny))
+
+      ! get buffers
+      call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
+      call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
+      call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
+      call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
+
+
+      ! interpolate
+      TDF_t0 = dt * (itt + 0.5)
+      TDF_Fu0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fu2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fu1
+      TDF_Fv0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fv2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fv1
+
+      ! scale bu rho0 and H
+      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) TDF_Fu0(i,j) = dt * TDF_Fu0(i,j) / (RHO0 * H_u(i,j))
+      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) TDF_Fv0(i,j) = dt * TDF_Fv0(i,j) / (RHO0 * H_v(i,j))
+
+    END SUBROUTINE initTdepForcing
+
+    SUBROUTINE updateTdepForcing
+
+      IMPLICIT NONE
+      INTEGER :: i, j
+
+      TDF_t0 = dt * (itt + 0.5)
+
+      if(TDF_t0 .ge. TDF_t2) then
+
+        TDF_itt1 = TDF_itt2
+        TDF_itt2 = TDF_itt2 + 1
+        TDF_t1 = TDF_t2
+        TDF_t2 = TDF_t(TDF_itt2)
+
+        call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
+        call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
+        call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
+        call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
+
+      end if
+
+      TDF_Fu0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fu2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fu1
+      TDF_Fv0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fv2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fv1
+
+      ! scale bu rho0 and H
+      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) TDF_Fu0(i,j) = dt * TDF_Fu0(i,j) / (RHO0 * H_u(i,j))
+      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) TDF_Fv0(i,j) = dt * TDF_Fv0(i,j) / (RHO0 * H_v(i,j))
+
+    END SUBROUTINE updateTdepForcing
+
+    SUBROUTINE finishTdepForcing
+
+      IMPLICIT NONE
+
+      call check(nf90_close(TDF_ncid))
+
+    END SUBROUTINE finishTdepForcing
 
 END PROGRAM model

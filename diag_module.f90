@@ -159,6 +159,18 @@ MODULE diag_module
       call createDS2(trim(oprefix)//OFILEGAMMA_N//trim(osuffix),OVARNAMEGAMMA_N,lat_eta,lon_eta,ncid_gn,varid_gn)
       call check(nf90_put_var(ncid_gn,varid_gn,gamma_n))
 #endif
+#ifdef DIAG_FLUSH
+      call check(nf90_close(ncid_eta))
+      call check(nf90_close(ncid_u))
+      call check(nf90_close(ncid_v))
+      call check(nf90_close(ncid_psi))
+#ifdef writeInput
+      call check(nf90_close(ncid_H))
+      call check(nf90_close(ncid_Fx))
+      call check(nf90_close(ncid_Fy))
+      call check(nf90_close(ncid_gn))
+#endif
+#endif
     END SUBROUTINE initDiag
 
     SUBROUTINE finishDiag
@@ -166,16 +178,18 @@ MODULE diag_module
       ! release memory of diagnostic fields
       deallocate(psi)
       ! Close all output files
+#ifndef DIAG_FLUSH      
       call check(nf90_close(ncid_eta))
       call check(nf90_close(ncid_u))
       call check(nf90_close(ncid_v))
+      call check(nf90_close(ncid_psi))
 #ifdef writeInput
       call check(nf90_close(ncid_H))
       call check(nf90_close(ncid_Fx))
       call check(nf90_close(ncid_Fy))
       call check(nf90_close(ncid_gn))
 #endif
-      call check(nf90_close(ncid_psi))
+#endif
     END SUBROUTINE finishDiag
 
     SUBROUTINE Diag
@@ -186,6 +200,12 @@ MODULE diag_module
         ! write output
         start(3) = rec
         count_arr = (/Nx,Ny,1/) ! find a better place to set count_arr?
+#ifdef DIAG_FLUSH
+        call check(nf90_open(trim(oprefix)//trim(file_eta)//trim(osuffix), NF90_WRITE, ncid_eta))
+        call check(nf90_open(trim(oprefix)//trim(file_u)//trim(osuffix), NF90_WRITE, ncid_u))
+        call check(nf90_open(trim(oprefix)//trim(file_v)//trim(osuffix), NF90_WRITE, ncid_v))
+        call check(nf90_open(trim(oprefix)//trim(file_psi)//trim(osuffix), NF90_WRITE, ncid_psi))
+#endif
         call check(nf90_put_var(ncid_eta, varid_eta, eta(:,:,N0), start = start, count=count_arr))
         call check(nf90_put_var(ncid_eta, timeid_eta, (itt)*dt, start=(/rec/)))
         call check(nf90_put_var(ncid_u, varid_u, u(:,:,N0), start = start, count=count_arr))
@@ -194,6 +214,12 @@ MODULE diag_module
         call check(nf90_put_var(ncid_v, timeid_v, (itt)*dt, start=(/rec/)))
         call check(nf90_put_var(ncid_psi, varid_psi, psi/1e6, start = start, count=count_arr))
         call check(nf90_put_var(ncid_psi, timeid_psi, (itt)*dt, start=(/rec/)))
+#ifdef DIAG_FLUSH      
+        call check(nf90_close(ncid_eta))
+        call check(nf90_close(ncid_u))
+        call check(nf90_close(ncid_v))
+        call check(nf90_close(ncid_psi))
+#endif      
         rec = rec + 1
       END IF
     END SUBROUTINE Diag
@@ -202,7 +228,7 @@ MODULE diag_module
       USE timestep_module
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi
-      INTEGER  :: i,j ! spacial coordinates
+      INTEGER  :: i,j ! spatial coordinates
       psi = 0
       FORALL (i=1:Nx, j=2:Ny) &
         psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v(i:Nx,j,N0))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u(i,1:jm1(j),N0))*A*dTheta

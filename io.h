@@ -1,3 +1,12 @@
+/* TO-DO
+  
+  + switching on writeInput complains about OVARNAMEGAMMA_N not being known...
+  --> Make sure that gamma_new is only written out if Newtonian cooling is used.
+  --> Add relevant file and variable names here.
+
+*/
+
+
 /*
 Header file for shallow water model. Meant to set Input/Output constants
  */
@@ -30,5 +39,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OVARNAMEFX  "TAUX"
 #define OVARNAMEFY  "TAUY"
 #define OVARNAMEPSI "PSI"
+
+/* If switched on, the diagnostics routines flush at every write_step */
+#define DIAG_FLUSH
 
 #endif

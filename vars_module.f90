@@ -39,7 +39,7 @@ MODULE vars_module
   INTEGER                :: Nout = 10                        ! number measurements
   REAL                   :: lon_s = -20.0, lon_e = 20.0,     &
                             lat_s = -20.0, lat_e = 20.0      ! domain specs, H-grid
-  LOGICAL                :: pbc_lon = .false.                ! periodic boundary condition switch
+  LOGICAL                :: pbc_lon = .false.                ! periodic boundary condition switch / OBSOLETE ??
   REAL                   :: dt = 10.                         ! stepsize in time
 
   ! grid constants, derived from domain specs during initialization
@@ -79,6 +79,21 @@ MODULE vars_module
 
   ! runtime variables
   INTEGER :: itt ! time step
+
+  ! variables related to the time dependent forcing
+  CHARACTER(len = 80) :: TDF_fname="TDF_in.nc"  ! input file name
+  INTEGER :: TDF_ncid                           ! input file ID
+  INTEGER :: TDF_tID, TDF_FuID, TDF_FvID        ! var IDs
+  INTEGER :: TDF_tLEN                           ! length of time dim
+  REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t   ! time vector
+  INTEGER :: TDF_itt1, TDF_itt2                 ! indices of the two buffers used for linear interpolation
+  REAL(8) :: TDF_t1, TDF_t2                     ! times of the two buffers used for linear interpolation
+  REAL(8) :: TDF_t0                             ! current model time + 1/2 step to which the forcing
+                                                ! is interpolated
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu1, TDF_Fu2, TDF_Fv1, TDF_Fv2
+                                                ! two buffers of forcing data
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu0, TDF_Fv0 
+                                                ! Forcing interpolated to model time (+1/2 step)
 
 END MODULE vars_module
 

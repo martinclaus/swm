@@ -207,6 +207,9 @@ SUBROUTINE Timestep
                       + uim1j_u(i,j)*u(im1(i),j,N0)                        &
 #endif
                       + F_x(i,j)                                           & ! Forcing
+#ifdef TDEP_FORCING
+                      + TDF_Fu0(i,j)                                       & ! time dep. forcing
+#endif                      
                       ) / impl_u(i,j)                                        ! implicit linear friction
     ENDDO XSPACE2
   ENDDO YSPACE2
@@ -234,6 +237,9 @@ SUBROUTINE Timestep
                       +lat_mixing_v(i,j,9)*u(i,jm1(j),N0)                  & ! lateral mixing of momentum
 #endif
                       + F_y(i,j)                                           & ! forcing
+#ifdef TDEP_FORCING
+                      + TDF_Fv0(i,j)                                       & ! time dep. forcing
+#endif                      
                       ) / impl_v(i,j)                                        ! implicit linear friction
     ENDDO XSPACE3
   ENDDO YSPACE3
