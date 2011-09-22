@@ -94,6 +94,8 @@ MODULE vars_module
                                                 ! two buffers of forcing data
   REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu0, TDF_Fv0 
                                                 ! Forcing interpolated to model time (+1/2 step)
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_dFu, TDF_dFv 
+                                                ! Forcing increment
 
 END MODULE vars_module
 

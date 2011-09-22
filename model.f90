@@ -284,17 +284,10 @@ PROGRAM model
     !
     ! LINEAR INTERPOLATION for now.
     !
-    ! NOTE01: We'll code eveything as explicit as possible. This is not efficient
-    !   w.r.t. performance but easier to debug. As soon as there is a
-    !   working version of time dependent forcing, we can improve
-    !   performance by, e.g., using increments of the forcing fields
-    !   rather than doing the whole interpolation at every time step,
-    !   etc.
-    !
-    ! NOTE02: We always assume the forcing time step to be greater than the
+    ! NOTE01: We always assume the forcing time step to be greater than the
     !   model time step!
     !
-    ! NOTE03: If in doubt, center!
+    ! NOTE01: If in doubt, center!
     !
     ! Variable names:
     !   TDF_ncid : NC file ID of the time dependent forcing file
@@ -335,11 +328,11 @@ PROGRAM model
       call check(nf90_inq_varid(TDF_ncid, 'TAUY', TDF_FvID))
 
       ! initialize iteration
-
       TDF_itt1 = 1
       TDF_itt2 = 2
       TDF_t1 = TDF_t(TDF_itt1)
       TDF_t2 = TDF_t(TDF_itt2)
+      TDF_t0 = dt * (itt + 0.5)
 
       ! allocate Forcing buffers
       allocate(TDF_Fu1(1:Nx, 1:Ny))
@@ -349,21 +342,48 @@ PROGRAM model
       allocate(TDF_Fv2(1:Nx, 1:Ny))
       allocate(TDF_Fv0(1:Nx, 1:Ny))
 
+      ! allocate forcing increments
+      allocate(TDF_dFu(1:Nx, 1:Ny))
+      allocate(TDF_dFv(1:Nx, 1:Ny))
+
       ! get buffers
       call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
       call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
       call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
       call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
 
+      ! scale with rho0, H and dt
+      forall (i=1:nx, j=1:ny, land_u(i,j) .eq. 0) TDF_Fu1(i,j) = TDF_Fu1(i,j) / (RHO0 * H_u(i,j)) * dt
+      forall (i=1:nx, j=1:ny, land_v(i,j) .eq. 0) TDF_Fv1(i,j) = TDF_Fv1(i,j) / (RHO0 * H_v(i,j)) * dt
+      forall (i=1:nx, j=1:ny, land_u(i,j) .eq. 0) TDF_Fu2(i,j) = TDF_Fu2(i,j) / (RHO0 * H_u(i,j)) * dt
+      forall (i=1:nx, j=1:ny, land_v(i,j) .eq. 0) TDF_Fv2(i,j) = TDF_Fv2(i,j) / (RHO0 * H_v(i,j)) * dt
 
-      ! interpolate
-      TDF_t0 = dt * (itt + 0.5)
-      TDF_Fu0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fu2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fu1
-      TDF_Fv0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fv2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fv1
+      ! calculate increment
+      TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * dt
+      TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
 
-      ! scale bu rho0 and H
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) TDF_Fu0(i,j) = dt * TDF_Fu0(i,j) / (RHO0 * H_u(i,j))
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) TDF_Fv0(i,j) = dt * TDF_Fv0(i,j) / (RHO0 * H_v(i,j))
+      ! interpolate to first time step
+      TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
+      TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
+
+      ! DEBUG
+      print *, ''
+      print *, 'initTdepForcing'
+      print *, 'dt = ', dt
+      print *, 'TDF_t2-TDF_t1  = ', TDF_t2 - TDF_t1
+      print *, 't = ', itt * dt
+      print *, 'TDF_t0 = ', TDF_t0
+      print *, 'TDF_Fu2 = ', TDF_Fu2(180,27)
+      print *, 'TDF_Fu1 = ', TDF_Fu1(180,27)
+      print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
+      print *, 'TDF_dFu = ', TDF_dFu(180,27)
+      print *, 'TDF_Fv2 = ', TDF_Fv2(180,27)
+      print *, 'TDF_Fv1 = ', TDF_Fv1(180,27)
+      print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
+      print *, 'TDF_dFv = ', TDF_dFv(180,27)
+      print *, 'RHO0 = ', RHO0
+      print *, 'H_u = ', H_u(180, 27)
+      print *, 'H_v = ', H_v(180, 27)
 
     END SUBROUTINE initTdepForcing
 
@@ -380,20 +400,60 @@ PROGRAM model
         TDF_itt2 = TDF_itt2 + 1
         TDF_t1 = TDF_t2
         TDF_t2 = TDF_t(TDF_itt2)
+        TDF_Fu1 = TDF_Fu2
+        TDF_Fv1 = TDF_Fv2
 
-        call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
         call check(nf90_get_var(TDF_ncid, TDF_FuID, TDF_Fu2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
-        call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv1, start=(/1, 1, TDF_itt1/), count=(/Nx, Ny, 1/)))
         call check(nf90_get_var(TDF_ncid, TDF_FvID, TDF_Fv2, start=(/1, 1, TDF_itt2/), count=(/Nx, Ny, 1/)))
 
+        ! scale with rho0, H and dt
+        forall (i=1:nx, j=1:ny, land_u(i,j) .eq. 0) TDF_Fu2(i,j) = TDF_Fu2(i,j) / (RHO0 * H_u(i,j)) * dt
+        forall (i=1:nx, j=1:ny, land_v(i,j) .eq. 0) TDF_Fv2(i,j) = TDF_Fv2(i,j) / (RHO0 * H_v(i,j)) * dt
+  
+        ! calculate increment
+        TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * dt
+        TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
+
+        ! interpolate to first time step
+        TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
+        TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
+
+        ! DEBUG
+        print *, ''
+        print *, 'updateTdepForcing -- updating buffers'
+        print *, 'dt = ', dt
+        print *, 'TDF_t2-TDF_t1  = ', TDF_t2 - TDF_t1
+        print *, 't = ', itt * dt
+        print *, 'TDF_t0 = ', TDF_t0
+        print *, 'TDF_Fu2 = ', TDF_Fu2(180,27)
+        print *, 'TDF_Fu1 = ', TDF_Fu1(180,27)
+        print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
+        print *, 'TDF_dFu = ', TDF_dFu(180,27)
+        print *, 'TDF_Fv2 = ', TDF_Fv2(180,27)
+        print *, 'TDF_Fv1 = ', TDF_Fv1(180,27)
+        print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
+        print *, 'TDF_dFv = ', TDF_dFv(180,27)
+        print *, 'RHO0 = ', RHO0
+        print *, 'H_u = ', H_u(180, 27)
+        print *, 'H_v = ', H_v(180, 27)
+      
+      else
+        
+        ! increment
+        TDF_Fu0 = TDF_Fu0 + TDF_dFu
+        TDF_Fv0 = TDF_Fv0 + TDF_dFv
+
+        print *, ''
+        print *, 'updateTdepForcing -- just incrementing'
+        print *, 't = ', itt * dt
+        print *, 'TDF_t0 = ', TDF_t0
+        print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
+        print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
+        print *, 'RHO0 = ', RHO0
+        print *, 'H_u = ', H_u(180, 27)
+        print *, 'H_v = ', H_v(180, 27)
+
       end if
-
-      TDF_Fu0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fu2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fu1
-      TDF_Fv0 = (TDF_t0 - TDF_t1) / (TDF_t2 - TDF_t1) * TDF_Fv2 + (TDF_t2 - TDF_t0) / (TDF_t2 - TDF_t1) * TDF_Fv1
-
-      ! scale bu rho0 and H
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0) TDF_Fu0(i,j) = dt * TDF_Fu0(i,j) / (RHO0 * H_u(i,j))
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0) TDF_Fv0(i,j) = dt * TDF_Fv0(i,j) / (RHO0 * H_v(i,j))
 
     END SUBROUTINE updateTdepForcing
 
