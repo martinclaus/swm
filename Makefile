@@ -17,7 +17,7 @@ all     : model clean
 model   : $(modules:%=%.o) model.o
 	gfortran $O $(CFLAGS) -o model $^ $(libnc)
 
-model.o : model.f90 diag_module.o vars_module.o
+model.o : model.f90 diag_module.o vars_module.o model.h
 	gfortran $O $(CFLAGS) -c $< $(includenc)
 
 vars_module.o : vars_module.f90
@@ -26,7 +26,7 @@ vars_module.o : vars_module.f90
 timestep_module.o : timestep_module.f90
 	gfortran $O $(CFLAGS) -c $<
 
-diag_module.o     : diag_module.f90 vars_module.o timestep_module.o
+diag_module.o     : diag_module.f90 vars_module.o timestep_module.o io.h
 	gfortran $O $(CFLAGS) -c $< $(includenc)
 
 clean_all : clean
