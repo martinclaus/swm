@@ -26,6 +26,7 @@ Header file for shallow water model. Meant to set different physics.
 #define wo_v2_y_v
 
 /* Switches for time dependent forcing */
-#define TDEP_FORCING
+!#define TDEP_FORCING
+
 
 #endif

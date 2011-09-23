@@ -36,7 +36,8 @@ MODULE vars_module
   INTEGER                :: Nx = 100, Ny = 100               ! number of grid points
   REAL(8)                :: run_length = 100000              ! length of run in seconds  
   INTEGER                :: Nt = 1e5                         ! number of time steps
-  INTEGER                :: Nout = 10                        ! number measurements
+  INTEGER                :: Nout = 10                        ! number of measurements
+  INTEGER                :: NoutChunk = 10                   ! number of measurements after which a new output file is created
   REAL                   :: lon_s = -20.0, lon_e = 20.0,     &
                             lat_s = -20.0, lat_e = 20.0      ! domain specs, H-grid
   LOGICAL                :: pbc_lon = .false.                ! periodic boundary condition switch / OBSOLETE ??
@@ -107,7 +108,7 @@ SUBROUTINE initVars
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
     r,k,Ah,gamma_new,TAU_0, & ! friction and forcing parameter
-    Nx, Ny, run_length, Nout, & ! domain size, length of run, number of written time steps
+    Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
     dt, & ! time step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
     pbc_lon, & ! periodic boundary conditions in x-direction

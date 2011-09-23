@@ -28,6 +28,8 @@ MODULE diag_module
                                   ncid_psi, varid_psi, timeid_psi   ! the ids
   INTEGER                      :: rec=1, start(NDIMS)=(/1,1,1/),   &
                                   count_arr(NDIMS) ! set later, because it depends on the domain specs
+  INTEGER                      :: fullrec=1 ! full number of records (including all chunks of output files)
+  CHARACTER(len=12)            :: fullrecstr                                
   ! diagnostic fields
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: psi
 
@@ -144,11 +146,16 @@ MODULE diag_module
       close(18)
       ! allocate and initialise diagnostic fields
       allocate(psi(1:Nx, 1:Ny))
+      WRITE (fullrecstr, '(i12.12)') fullrec 
       ! Prepare output file (don't forget to close the files at the end of the subroutine)
-      call createDS3(trim(oprefix)//trim(file_eta)//trim(osuffix), varname_eta,lat_eta, lon_eta, ncid_eta, varid_eta, timeid_eta)
-      call createDS3(trim(oprefix)//trim(file_u)//trim(osuffix), varname_u, lat_u, lon_u, ncid_u, varid_u, timeid_u)
-      call createDS3(trim(oprefix)//trim(file_v)//trim(osuffix), varname_v, lat_v, lon_v, ncid_v, varid_v, timeid_v)
-      call createDS3(trim(oprefix)//trim(file_psi)//trim(osuffix), varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
+      call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_eta)//trim(osuffix), &
+        varname_eta,lat_eta, lon_eta, ncid_eta, varid_eta, timeid_eta)
+      call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_u)//trim(osuffix), &
+        varname_u, lat_u, lon_u, ncid_u, varid_u, timeid_u)
+      call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_v)//trim(osuffix), &
+        varname_v, lat_v, lon_v, ncid_v, varid_v, timeid_v)
+      call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_psi)//trim(osuffix), &
+        varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
 #ifdef writeInput
       call createDS2(trim(oprefix)//trim(file_h)//trim(osuffix), varname_h,lat_H,lon_H,ncid_H,varid_H)
       call check(nf90_put_var(ncid_H, varid_H, H))
@@ -195,16 +202,42 @@ MODULE diag_module
     SUBROUTINE Diag
       IMPLICIT NONE
       IF (mod(itt, write_tstep)==0) then
+        IF (rec .gt. NoutChunk) then
+          ! close files and create new set of output files
+          WRITE (fullrecstr, '(i12.12)') fullrec
+          print *, fullrecstr
+#ifndef DIAG_FLUSH
+          call check(nf90_close(ncid_eta))
+          call check(nf90_close(ncid_u))
+          call check(nf90_close(ncid_v))
+          call check(nf90_close(ncid_psi))
+#endif          
+          call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_eta)//trim(osuffix), &
+            varname_eta,lat_eta, lon_eta, ncid_eta, varid_eta, timeid_eta)
+          call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_u)//trim(osuffix), &
+            varname_u, lat_u, lon_u, ncid_u, varid_u, timeid_u)
+          call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_v)//trim(osuffix), &
+            varname_v, lat_v, lon_v, ncid_v, varid_v, timeid_v)
+          call createDS3(trim(oprefix)//fullrecstr//'_'//trim(file_psi)//trim(osuffix), &
+            varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
+#ifdef DIAG_FLUSH          
+          call check(nf90_close(ncid_eta))
+          call check(nf90_close(ncid_u))
+          call check(nf90_close(ncid_v))
+          call check(nf90_close(ncid_psi))
+#endif          
+          rec = 1  
+        END IF
         ! calculate streamfunction
         call streamfunction(psi)
         ! write output
         start(3) = rec
         count_arr = (/Nx,Ny,1/) ! find a better place to set count_arr?
 #ifdef DIAG_FLUSH
-        call check(nf90_open(trim(oprefix)//trim(file_eta)//trim(osuffix), NF90_WRITE, ncid_eta))
-        call check(nf90_open(trim(oprefix)//trim(file_u)//trim(osuffix), NF90_WRITE, ncid_u))
-        call check(nf90_open(trim(oprefix)//trim(file_v)//trim(osuffix), NF90_WRITE, ncid_v))
-        call check(nf90_open(trim(oprefix)//trim(file_psi)//trim(osuffix), NF90_WRITE, ncid_psi))
+        call check(nf90_open(trim(oprefix)//fullrecstr//'_'//trim(file_eta)//trim(osuffix), NF90_WRITE, ncid_eta))
+        call check(nf90_open(trim(oprefix)//fullrecstr//'_'//trim(file_u)//trim(osuffix), NF90_WRITE, ncid_u))
+        call check(nf90_open(trim(oprefix)//fullrecstr//'_'//trim(file_v)//trim(osuffix), NF90_WRITE, ncid_v))
+        call check(nf90_open(trim(oprefix)//fullrecstr//'_'//trim(file_psi)//trim(osuffix), NF90_WRITE, ncid_psi))
 #endif
         call check(nf90_put_var(ncid_eta, varid_eta, eta(:,:,N0), start = start, count=count_arr))
         call check(nf90_put_var(ncid_eta, timeid_eta, (itt)*dt, start=(/rec/)))
@@ -221,6 +254,7 @@ MODULE diag_module
         call check(nf90_close(ncid_psi))
 #endif      
         rec = rec + 1
+        fullrec = fullrec + 1
       END IF
     END SUBROUTINE Diag
 

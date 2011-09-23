@@ -9,9 +9,10 @@
   TAU_0 = 0.1,          ! maximum sinusoidal windstress
   Nx = 360,             ! number of grid points in x-dir.
   Ny = 53,              ! number of grif points in y-dir.
-  run_length = 3.1536e8,! (10 years) length of run in seconds
-  Nout = 730,           ! number of eq. distributed "measurements"
-  dt = 20,              ! time step (s)
+  run_length = 1.387584e9,! (44 years) length of run in seconds
+  Nout = 1605,          ! number of eq. distributed "measurements"
+  NoutChunk = 10,       ! max lsize of output files
+  dt = 100,             ! time step (s)
   lon_s = -180.,        ! min. lon. of the domain (H-grid)
   lon_e = 179.          ! max. lon. of the domain (H-grid),
   lat_s = -81.          ! min. lat. of the domain (H-grid),
