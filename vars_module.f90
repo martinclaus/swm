@@ -41,7 +41,7 @@ MODULE vars_module
   REAL                   :: lon_s = -20.0, lon_e = 20.0,     &
                             lat_s = -20.0, lat_e = 20.0      ! domain specs, H-grid
   LOGICAL                :: pbc_lon = .false.                ! periodic boundary condition switch / OBSOLETE ??
-  REAL                   :: dt = 10.                         ! stepsize in time
+  REAL(8)                :: dt = 10.                         ! stepsize in time
 
   ! grid constants, derived from domain specs during initialization
   REAL                   :: dLambda, dTheta
@@ -79,7 +79,7 @@ MODULE vars_module
 
 
   ! runtime variables
-  INTEGER :: itt ! time step
+  INTEGER(16) :: itt ! time step
 
   ! variables related to the time dependent forcing
   CHARACTER(len = 80) :: TDF_fname="TDF_in.nc"  ! input file name

@@ -205,7 +205,6 @@ MODULE diag_module
         IF (rec .gt. NoutChunk) then
           ! close files and create new set of output files
           WRITE (fullrecstr, '(i12.12)') fullrec
-          print *, fullrecstr
 #ifndef DIAG_FLUSH
           call check(nf90_close(ncid_eta))
           call check(nf90_close(ncid_u))

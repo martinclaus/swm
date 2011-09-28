@@ -55,8 +55,8 @@ PROGRAM model
     ! write fields to file and do diagnostics
     call Diag
 
-    ! be verbose?
-    if (mod(itt, Nt / 1000)==0) then
+    ! be verbose 
+    if (mod(itt, Nt / 100)==0) then
       print *, 'itt = ', itt, '(', 100.0*itt/Nt, '% of ', Nt, ') done'
     end if  
 
@@ -366,25 +366,6 @@ PROGRAM model
       TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
       TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
 
-      ! DEBUG
-      print *, ''
-      print *, 'initTdepForcing'
-      print *, 'dt = ', dt
-      print *, 'TDF_t2-TDF_t1  = ', TDF_t2 - TDF_t1
-      print *, 't = ', itt * dt
-      print *, 'TDF_t0 = ', TDF_t0
-      print *, 'TDF_Fu2 = ', TDF_Fu2(180,27)
-      print *, 'TDF_Fu1 = ', TDF_Fu1(180,27)
-      print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
-      print *, 'TDF_dFu = ', TDF_dFu(180,27)
-      print *, 'TDF_Fv2 = ', TDF_Fv2(180,27)
-      print *, 'TDF_Fv1 = ', TDF_Fv1(180,27)
-      print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
-      print *, 'TDF_dFv = ', TDF_dFv(180,27)
-      print *, 'RHO0 = ', RHO0
-      print *, 'H_u = ', H_u(180, 27)
-      print *, 'H_v = ', H_v(180, 27)
-
     END SUBROUTINE initTdepForcing
 
     SUBROUTINE updateTdepForcing
@@ -418,40 +399,11 @@ PROGRAM model
         TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
         TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
 
-        ! DEBUG
-        print *, ''
-        print *, 'updateTdepForcing -- updating buffers'
-        print *, 'dt = ', dt
-        print *, 'TDF_t2-TDF_t1  = ', TDF_t2 - TDF_t1
-        print *, 't = ', itt * dt
-        print *, 'TDF_t0 = ', TDF_t0
-        print *, 'TDF_Fu2 = ', TDF_Fu2(180,27)
-        print *, 'TDF_Fu1 = ', TDF_Fu1(180,27)
-        print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
-        print *, 'TDF_dFu = ', TDF_dFu(180,27)
-        print *, 'TDF_Fv2 = ', TDF_Fv2(180,27)
-        print *, 'TDF_Fv1 = ', TDF_Fv1(180,27)
-        print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
-        print *, 'TDF_dFv = ', TDF_dFv(180,27)
-        print *, 'RHO0 = ', RHO0
-        print *, 'H_u = ', H_u(180, 27)
-        print *, 'H_v = ', H_v(180, 27)
-      
       else
         
         ! increment
         TDF_Fu0 = TDF_Fu0 + TDF_dFu
         TDF_Fv0 = TDF_Fv0 + TDF_dFv
-
-        print *, ''
-        print *, 'updateTdepForcing -- just incrementing'
-        print *, 't = ', itt * dt
-        print *, 'TDF_t0 = ', TDF_t0
-        print *, 'TDF_Fu0 = ', TDF_Fu0(180,27)
-        print *, 'TDF_Fv0 = ', TDF_Fv0(180,27)
-        print *, 'RHO0 = ', RHO0
-        print *, 'H_u = ', H_u(180, 27)
-        print *, 'H_v = ', H_v(180, 27)
 
       end if
 
