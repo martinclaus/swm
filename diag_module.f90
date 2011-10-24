@@ -29,7 +29,7 @@ MODULE diag_module
   INTEGER                      :: rec=1, start(NDIMS)=(/1,1,1/),   &
                                   count_arr(NDIMS) ! set later, because it depends on the domain specs
   INTEGER                      :: fullrec=1 ! full number of records (including all chunks of output files)
-  CHARACTER(len=12)            :: fullrecstr                                
+  CHARACTER(len=12)            :: fullrecstr
   ! diagnostic fields
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: psi
 
@@ -141,9 +141,9 @@ MODULE diag_module
         varname_eta, varname_u, varname_v, varname_h, varname_Fx, &
         varname_Fy, varname_psi ! output variable names
       ! read the namelist and close again
-      open(18, file = OUTPUT_NL)
-      read(18, nml = output_nl)
-      close(18)
+      open(UNIT_OUTPUT_NL, file = OUTPUT_NL)
+      read(UNIT_OUTPUT_NL, nml = output_nl)
+      close(UNIT_OUTPUT_NL)
       ! allocate and initialise diagnostic fields
       allocate(psi(1:Nx, 1:Ny))
       WRITE (fullrecstr, '(i12.12)') fullrec 

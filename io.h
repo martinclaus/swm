@@ -16,6 +16,13 @@ Header file for shallow water model. Meant to set Input/Output constants
 /* Namelist files */
 #define MODEL_NL "model.namelist"
 #define OUTPUT_NL "output.namelist"
+#define TRACER_NL "tracer.namelist"
+
+/* Namlist unit identifier */
+#define UNIT_MODEL_NL 17
+#define UNIT_OUTPUT_NL 18
+#define UNIT_TRACER_NL 19
+
 
 /* Switches for output control */ 
 !#define writeInput

@@ -75,7 +75,7 @@ MODULE vars_module
 
   ! land/ocean mask, allocated/created during initialization
   INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_H, land_u,  & ! landmasks
-                                  land_v, land_eta, ocean_H
+                                  land_v, land_eta, ocean_H, ocean_u, ocean_v
 
 
   ! runtime variables
@@ -118,9 +118,9 @@ SUBROUTINE initVars
     in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
     file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
   ! read the namelist and close again  
-  open(17, file = MODEL_NL)
-  read(17, nml = model_nl)
-  close(17)
+  open(UNIT_MODEL_NL, file = MODEL_NL)
+  read(UNIT_MODEL_NL, nml = model_nl)
+  close(UNIT_MODEL_NL)
   ! set vars depending on Nx, Ny, run_length, dt
   dLambda = D2R * (lon_e-lon_s)/(Nx-1)
   dTheta = D2R * (lat_e-lat_s)/(Ny-1)
@@ -153,6 +153,8 @@ SUBROUTINE initVars
   allocate(land_v(1:Nx, 1:Ny))
   allocate(land_eta(1:Nx, 1:Ny))
   allocate(ocean_H(1:Nx, 1:Ny))
+  allocate(ocean_u(1:Nx, 1:Ny))
+  allocate(ocean_v(1:Nx, 1:Ny))
   allocate(ip1(1:Nx))
   allocate(im1(1:Nx))
   allocate(jp1(1:Ny))

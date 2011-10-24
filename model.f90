@@ -157,10 +157,14 @@ PROGRAM model
       FORALL (i=1:Nx,j=1:Ny-1, H_u(i,j) .eq. 0) &
         land_u(i,j) = 1
       land_u(:, Ny) = 1 ! northern "coastline"
+      ! create ocean mask on H grid
+      ocean_u = 1 - land_u
       ! generation of the v-landmask
       land_v = 0
       FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
         land_v(i,j) = 1
+      ! create ocean mask on H grid
+      ocean_v = 1 - land_v
 
       ! set up friction parameter fields
       FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0.)
