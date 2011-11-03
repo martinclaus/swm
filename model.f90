@@ -4,7 +4,7 @@ PROGRAM model
   USE vars_module
   USE diag_module
   IMPLICIT NONE
-
+  
   ! initialize the variables (namelist input, allocation etc.)
   call initVars
   print *, 'initVars done'
@@ -69,6 +69,9 @@ PROGRAM model
 
   ! Close opened files
   call finishDiag
+  
+  ! Normal programm termination
+  STOP 0
 
   CONTAINS
 
@@ -78,11 +81,11 @@ PROGRAM model
       ! initial conditions of dynamic fields
       IF (init_cond_from_file) THEN
         call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))
-        FORALL (i=1:Nx, j=1:Ny, land_eta(i,j)==1) eta(i,j,N0) = 0
         call readInitialCondition(file_u_init,varname_u_init,u(:,:,N0))
-        FORALL (i=1:Nx, j=1:Ny, land_u(i,j)==1) u(i,j,N0) = 0
         call readInitialCondition(file_v_init,varname_v_init,v(:,:,N0))
-        FORALL (i=1:Nx, j=1:Ny, land_v(i,j)==1) v(i,j,N0) = 0
+        eta(:,:,N0) = ocean_eta * eta(:,:,N0)
+        u(:,:,N0)   = ocean_u * u(:,:,N0)
+        v(:,:,N0)   = ocean_v * v(:,:,N0)
       ELSE
         eta = 0.
         u = 0.
@@ -134,38 +137,38 @@ PROGRAM model
       call check(nf90_close(Hncid))
       ! Do not allow negative topography
       FORALL (i=1:Nx, j=1:Ny, H(i,j) .le. 0.) &
-        H(i,j) = 0.
+        H(i,j) = 0._8
+
+      ! close NS boundary (should be done anyway in input H field)
+!      H(1,:)  = 0._8
+!      H(Nx,:) = 0._8
+      H(:,1)  = 0._8
+      H(:,Ny) = 0._8
+      
       ! interpolate topography on all grids
       FORALL (i=1:Nx, j=1:Ny)
-        H_u(i,j) = ( H(i,j) + H(i,jp1(j)) ) / 2.
-        H_v(i,j) = ( H(i,j) + H(ip1(i),j) ) / 2.
-        H_eta(i,j) = ( H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j)) ) / 4.
+        H_u(i,j) = ( H(i,j) + H(i,jp1(j)) ) / 2._8
+        H_v(i,j) = ( H(i,j) + H(ip1(i),j) ) / 2._8
+        H_eta(i,j) = ( H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j)) ) / 4._8
       END FORALL
-      ! create H-landmask from H
-      land_H = 0
-      FORALL (i=1:Nx, j=1:Ny, H(i, j) .eq. 0) &
-        land_H(i, j) = 1
-      ! create ocean mask on H grid
-      ocean_H = 1 - land_H
-      ! generation of the eta landmask
-      land_eta = 0
-      FORALL (i=1:Nx, j=1:Ny-1, H_eta(i,j) .eq. 0) &
-        land_eta(i,j) = 1
-      land_eta(:, Ny) = 1 ! northern "coastline"
+      
+      ! create landmasks
+      land_H = 0_1
+      WHERE(H .EQ. 0._8) land_H = 1_1
+      land_eta = 0_1
+      WHERE(H_eta .EQ. 0._8) land_eta = 1_1
       ! generation of the u-landmask
-      land_u = 0
-      FORALL (i=1:Nx,j=1:Ny-1, H_u(i,j) .eq. 0) &
-        land_u(i,j) = 1
-      land_u(:, Ny) = 1 ! northern "coastline"
-      ! create ocean mask on H grid
-      ocean_u = 1 - land_u
+      land_u = 0_1
+      WHERE(H_u .EQ. 0._8) land_u = 1_1
       ! generation of the v-landmask
-      land_v = 0
-      FORALL (i=1:Nx, j=1:Ny, H_v(i,j) .eq. 0) &
-        land_v(i,j) = 1
-      ! create ocean mask on H grid
-      ocean_v = 1 - land_v
-
+      land_v = 0_1
+      WHERE(H_v .EQ. 0._8) land_v = 1_1
+      ! create ocean masks
+      ocean_v = 1_1 - land_v
+      ocean_u = 1_1 - land_u
+      ocean_H = 1_1 - land_H
+      ocean_eta = 1_1 - land_eta
+ 
       ! set up friction parameter fields
       FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0.)
         gamma_lin_u(i,j) = r/H_u(i,j)
