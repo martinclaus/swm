@@ -75,11 +75,11 @@ MODULE vars_module
 
   ! land/ocean mask, allocated/created during initialization
   INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_H, land_u,  & ! landmasks
-                                  land_v, land_eta, ocean_H, ocean_u, ocean_v
+                                  land_v, land_eta, ocean_H, ocean_u, ocean_v, ocean_eta
 
 
   ! runtime variables
-  INTEGER(16) :: itt ! time step
+  INTEGER(8) :: itt ! time step
 
   ! variables related to the time dependent forcing
   CHARACTER(len = 80) :: TDF_fname="TDF_in.nc"  ! input file name
@@ -155,6 +155,7 @@ SUBROUTINE initVars
   allocate(ocean_H(1:Nx, 1:Ny))
   allocate(ocean_u(1:Nx, 1:Ny))
   allocate(ocean_v(1:Nx, 1:Ny))
+  allocate(ocean_eta(1:Nx, 1:Ny))
   allocate(ip1(1:Nx))
   allocate(im1(1:Nx))
   allocate(jp1(1:Ny))
