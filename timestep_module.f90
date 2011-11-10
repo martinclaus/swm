@@ -51,6 +51,7 @@ SUBROUTINE initTimestep
   allocate(impl_eta(1:Nx, 1:Ny))
 
 ! factors of derivatives in spherical coordinates and coriolis terms
+  !TODO: replace all cosines, sines and tangens calls by their vectors computed in initDomain
   FORALL (j=1:Ny)
     ddx_u(j)      = -(dt*G)/(dLambda*A*COS(lat_u(j)*D2R))
     corr_u(j)     = dt*2*OMEGA*SIN(lat_u(j)*D2R)
