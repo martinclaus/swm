@@ -3,7 +3,11 @@ Header file for elliptic solver.
  */
 
 /* use openMP parallelisation */
-!#define ELSOLV_SOR_PARALLEL
+#define ELSOLV_SOR_PARALLEL
+
+#ifdef ELSOLV_SOR_PARALLEL
+#include "model.h"
+#endif
 
 /* define function names and module name*/
 #define MODULE_ELSOLV ElSolv_SOR

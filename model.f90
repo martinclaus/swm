@@ -2,7 +2,11 @@ PROGRAM model
 #include "model.h"
 #include "io.h"
   USE vars_module
+  USE calc_lib
   USE diag_module
+#ifdef TRACER
+  USE tracer_module
+#endif
   IMPLICIT NONE
   
   ! initialize the variables (namelist input, allocation etc.)
@@ -12,6 +16,14 @@ PROGRAM model
   ! initialize the domain, indices, land masks, friction parameters
   call initDomain
   print *, 'initDomain done'
+
+  ! initialise io module (read output suffix and prefix from namelist)
+  call initIO
+  print *, 'initIO done'
+  
+  ! initialise Calc library
+  call initCalcLib
+  print *, 'initCalcLib done'
 
   ! initializes the time stepping scheme
   call initTimestep
@@ -35,6 +47,12 @@ PROGRAM model
   call initDiag
   print *, 'initDiag done'
 
+  ! Initialise tracer field, timestepping coefficients and compute 2nd initial condition
+#ifdef TRACER
+  call TRC_initTracer
+  print *, 'initTracer done'
+#endif
+
   ! write initial fields to file
   call Diag
   print *, 'first call of Diag done'
@@ -49,26 +67,45 @@ PROGRAM model
     call updateTdepForcing
 #endif
 
-    ! time step (see below)
+    ! time step SWM (see below)
     call Timestep
+    
+#ifdef TRACER
+    ! time step tracer
+    CALL TRC_tracerStep
+#endif
+
+    ! shift timesteps
+    eta(:,:,N0) = eta(:,:,N0p1)
+    u(:,:,N0)   = u(:,:,N0p1)
+    v(:,:,N0)   = v(:,:,N0p1)
+#ifdef TRACER
+    CALL TRC_advance
+#endif
 
     ! write fields to file and do diagnostics
     call Diag
 
     ! be verbose 
-    if (mod(itt, Nt / 100)==0) then
-      print *, 'itt = ', itt, '(', 100.0*itt/Nt, '% of ', Nt, ') done'
-    end if  
+!    if (mod(REAL(itt), Nt / 100.) .LT. 1.) then
+!      print *, 'itt = ', itt, '(', 100.0*itt/Nt, '% of ', Nt, ') done'
+!    end if  
 
-  ENDDO TIME
+  END DO TIME
 
 #ifdef TDEP_FORCING
   ! finish time dependent forcing
   call finishTdepForcing
 #endif
 
+#ifdef TRACER
+  call TRC_finishTracer
+#endif
+
   ! Close opened files
   call finishDiag
+  
+  call finishCalcLib
   
   ! Normal programm termination
   STOP 0
@@ -97,6 +134,7 @@ PROGRAM model
       IMPLICIT NONE
       INTEGER :: i, j
       INTEGER :: Hncid, Hid
+      REAL(8) :: c1,c2 ! constants for sponge Layers
       ! index fields
       ! note that periodicity is already implemented in the index field
       ! but it is switched off by closing the EW / NS coast line using the
@@ -136,8 +174,7 @@ PROGRAM model
       call check(nf90_get_var(Hncid, Hid, H))              
       call check(nf90_close(Hncid))
       ! Do not allow negative topography
-      FORALL (i=1:Nx, j=1:Ny, H(i,j) .le. 0.) &
-        H(i,j) = 0._8
+      WHERE(H .LE. 0.) H = 0._8
 
       ! close NS boundary (should be done anyway in input H field)
 !      H(1,:)  = 0._8
@@ -178,21 +215,25 @@ PROGRAM model
         gamma_lin_v(i,j) = r/H_v(i,j)
         gamma_sq_v(i,j) = k/H_v(i,j)
       END FORALL
+#ifdef NEWTONIAN_SPONGE_N
+      c1 = D2R*A*2*OMEGA*ABS(SIN(lat_eta(Ny)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
+#endif
+#ifdef NEWTONIAN_SPONGE_S
+      c2 = D2R*A*2*OMEGA*ABS(SIN(lat_eta(2)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
+#endif
+       
       FORALL (i=1:Nx, j=1:Ny)
         gamma_n(i,j) = ( gamma_new &
 #ifdef NEWTONIAN_SPONGE_N
                        + gamma_new_sponge &
-                       * EXP((lat_eta(j)-lat_eta(Ny-1))*D2R*A*2*OMEGA*ABS(SIN(lat_eta(Ny)*D2R))&
-                         /(new_sponge_efolding*SQRT(G*maxval(H))))&
+                       * EXP((lat_eta(j)-lat_eta(Ny-1))*c1)&
 #endif
 #ifdef NEWTONIAN_SPONGE_S
                        + gamma_new_sponge &
-                       * EXP(-(lat_eta(j)-lat_eta(2))*D2R*A*2*OMEGA*ABS(SIN(lat_eta(2)*D2R))&
-                         /(new_sponge_efolding*SQRT(G*maxval(H))))&
+                       * EXP(-(lat_eta(j)-lat_eta(2))*c2)&
 #endif
                 )
       END FORALL
-
     END SUBROUTINE initDomain
 
     SUBROUTINE initForcing

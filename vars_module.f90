@@ -19,7 +19,8 @@ MODULE vars_module
   REAL(8)                :: Ah=1e3                           ! horizontal eddy viscosity coefficient
   REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
   REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
-  REAL(8)                :: new_sponge_efolding=1             ! Newtonian cooling sponge layer e-folding scale (L_D)
+  REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale (L_D)
+  REAL(8)                :: freq_wind=0                      ! frequency of oscillating wind forcing
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
   CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
@@ -107,7 +108,7 @@ SUBROUTINE initVars
   ! definition of the namelist
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
-    r,k,Ah,gamma_new,TAU_0, & ! friction and forcing parameter
+    r,k,Ah,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
     Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
     dt, & ! time step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
@@ -125,7 +126,7 @@ SUBROUTINE initVars
   dLambda = D2R * (lon_e-lon_s)/(Nx-1)
   dTheta = D2R * (lat_e-lat_s)/(Ny-1)
   Nt = INT(run_length / dt) 
-  write_tstep = INT(Nt / Nout)
+  write_tstep = MAX(INT(Nt / Nout),1)
   ! allocate vars depending on Nx, Ny
   allocate(u(1:Nx, 1:Ny, 1:Ns))
   allocate(v(1:Nx, 1:Ny, 1:Ns))

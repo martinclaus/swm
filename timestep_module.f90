@@ -207,7 +207,10 @@ SUBROUTINE Timestep
                       + uip1j_u(i,j)*u(ip1(i),j,N0)                        &
                       + uim1j_u(i,j)*u(im1(i),j,N0)                        &
 #endif
-                      + F_x(i,j)                                           & ! Forcing
+                      + F_x(i,j)                                           &
+#ifdef PERIODIC_FORCING
+                         *SIN(freq_wind*itt*dt)                            & ! Forcing
+#endif
 #ifdef TDEP_FORCING
                       + TDF_Fu0(i,j)                                       & ! time dep. forcing
 #endif                      
@@ -245,11 +248,5 @@ SUBROUTINE Timestep
     ENDDO XSPACE3
   ENDDO YSPACE3
 !$OMP END DO
-! shift timesteps
-!$OMP WORKSHARE
-  eta(:,:,N0) = eta(:,:,N0p1)
-  u(:,:,N0)   = u(:,:,N0p1)
-  v(:,:,N0)   = v(:,:,N0p1)
-!$OMP END WORKSHARE
 !$OMP END PARALLEL
 END SUBROUTINE Timestep
