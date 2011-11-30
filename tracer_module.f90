@@ -44,6 +44,7 @@ MODULE tracer_module
     !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #include "tracer_module.h"
+  USE io_module, ONLY : fileHandle
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -59,7 +60,7 @@ MODULE tracer_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_LF, & ! coefficient matrix for leapfrog scheme
                                                      TRC_Coef_EF    ! coefficient matrix for Euler Forward scheme
   REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_u_nd, TRC_v_nd ! non-divergent flow field
-  CHARACTER(len=80)                               :: TRC_file_C0="", TRC_file_relax
+  TYPE(fileHandle)                                :: TRC_FH_C0, TRC_FH_relax, TRC_FH_init
 
   CONTAINS
 
@@ -68,7 +69,8 @@ MODULE tracer_module
       USE vars_module, ONLY : Nx,Ny,u,v,N0
       USE calc_lib, ONLY : computeNonDivergentFlowField
       IMPLICIT NONE
-      INTEGER       :: alloc_error
+      INTEGER           :: alloc_error
+      CHARACTER(CHARLEN):: TRC_file_C0, TRC_file_relax, TRC_file_init
 
       ! definition of the namelist
       NAMELIST / tracer_nl / &
@@ -78,6 +80,10 @@ MODULE tracer_module
       OPEN(UNIT_TRACER_NL, file = MODEL_NL)
       READ(UNIT_TRACER_NL, nml = tracer_nl)
       CLOSE(UNIT_TRACER_NL)
+      !TODO: replace magic strings for var names
+      TRC_FH_C0     = fileHandle(TRC_file_C0,"C0")
+      TRC_FH_relax  = fileHandle(TRC_file_relax,"RELAX")
+      TRC_FH_init   = fileHandle(TRC_file_C0,"C")
       ALLOCATE(TRC_C1(1:Nx,1:Ny,1:TRC_NLEVEL_SCHEME), TRC_C1_0(1:Nx,1:Ny), TRC_C1_relax(1:Nx,1:Ny), &
         TRC_u_nd(1:Nx,1:Ny), TRC_v_nd(1:Nx,1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
@@ -122,10 +128,9 @@ MODULE tracer_module
       USE io_module, ONLY : readInitialCondition
       USE vars_module, ONLY : ocean_eta
       IMPLICIT NONE
-      !TODO: replace magic strings for var names
-      CALL readInitialCondition(TRC_file_C0,"C",TRC_C1)
-      CALL readInitialCondition(TRC_file_C0,"C0",TRC_C1_0)
-      CALL readInitialCondition(TRC_file_relax,"RELAX",TRC_C1_relax)
+      CALL readInitialCondition(TRC_FH_init,TRC_C1)
+      CALL readInitialCondition(TRC_FH_C0,TRC_C1_0)
+      CALL readInitialCondition(TRC_FH_relax,TRC_C1_relax)
       ! apply ocean mask of eta grid to tracer relaxation field and first initial condition
       TRC_C1_0 = ocean_eta * TRC_C1_0
       TRC_C1(:,:,TRC_N0) = TRC_C1_0

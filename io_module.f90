@@ -3,18 +3,32 @@ MODULE io_module
   USE netcdf
   IMPLICIT NONE
   SAVE
+  
+  TYPE, PUBLIC :: fileHandle
+    CHARACTER(len=CHARLEN):: filename="", varname=""
+    INTEGER, PRIVATE      :: ncid=0, varid=0, timedid=0, timevid=0, nrec=0
+    LOGICAL, PRIVATE      :: isOpen = .FALSE.
+  END TYPE fileHandle
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  CHARACTER(len=80)            :: oprefix = "", osuffix="" ! prefix and suffix of output filenames
-  CHARACTER(len=12)            :: fullrecstr
+  CHARACTER(CHARLEN)            :: oprefix = "", osuffix="" ! prefix and suffix of output filenames
+  CHARACTER(FULLREC_STRLEN)     :: fullrecstr=""
   
   INTERFACE createDS
-    MODULE PROCEDURE createDS2, createDS3
+    MODULE PROCEDURE createDS2, createDS3old, createDS3handle
   END INTERFACE createDS
   
   INTERFACE putVar
-    MODULE PROCEDURE putVarTimeSlice, putVar2D
+    MODULE PROCEDURE putVar3Dold, putVar3Dhandle, putVar2D
   END INTERFACE
+  
+  INTERFACE openDS
+    MODULE PROCEDURE openDSHandle, openDSold
+  END INTERFACE openDS
+  
+  INTERFACE closeDS
+    MODULE PROCEDURE closeDSold, closeDShandle
+  END INTERFACE closeDS
   
   CONTAINS
     SUBROUTINE initIO
@@ -35,29 +49,26 @@ MODULE io_module
       end if
     END SUBROUTINE check
 
-    SUBROUTINE readInitialCondition(filename,varname,var)
+    SUBROUTINE readInitialCondition(FH,var)
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
-      CHARACTER(*), INTENT(in)                  :: filename,varname
+      TYPE(fileHandle), INTENT(inout)           :: FH
       REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var
-      INTEGER                                   :: ncid, varid, timeid, nrec
-      call check(nf90_open(filename, NF90_NOWRITE, ncid))
-      call check(nf90_inquire(ncid, unlimitedDimId=timeid))
-      call check(nf90_inquire_dimension(ncid, timeid, len=nrec))
-      call check(nf90_inq_varid(ncid, varname, varid))
-      call check(nf90_get_var(ncid, varid, var(:,:,1), start=(/1,1,nrec/), count=(/Nx,Ny,1/)))              
-      call check(nf90_close(ncid))
+      IF ( .NOT. FH%isOpen ) call openDS(FH)
+      call check(nf90_get_var(FH%ncid, FH%varid, var(:,:,1), start=(/1,1,FH%nrec/), count=(/Nx,Ny,1/)))              
+      call closeDS(FH)
     END SUBROUTINE readInitialCondition
+
 
     SUBROUTINE createDS2(fileNameStem, varname, lat_vec, lon_vec, ncid, varid)
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)      :: fileNameStem, varname
+      CHARACTER(*), INTENT(in)      :: fileNameStem, varname
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
       INTEGER, INTENT(out)              :: ncid, varid
       INTEGER                       :: lat_dimid, lon_dimid, &
                                        lat_varid, lon_varid
-      CHARACTER(len=80), PARAMETER  :: str_name="long_name", str_unit="units", str_cal="calendar", &
+      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
                                        lat_name=YAXISNAME, lon_name=XAXISNAME, &
                                        lat_unit=YUNIT, lon_unit=XUNIT
       ! create file
@@ -83,15 +94,60 @@ MODULE io_module
       call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
     END SUBROUTINE createDS2
 
-    SUBROUTINE createDS3(fileNameStem, varname,lat_vec, lon_vec, ncid, varid, time_varid)
+    SUBROUTINE createDS3handle(FH,lat_vec, lon_vec)
       USE vars_module, ONLY : Nx, Ny
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)      :: fileNameStem, varname
+      TYPE(fileHandle), INTENT(inout)   :: FH
+      REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
+      INTEGER                       :: lat_dimid, lon_dimid, &
+                                       lat_varid, lon_varid
+      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
+                                       lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
+                                       lat_unit=YUNIT, lon_unit=XUNIT,&
+                                       time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
+      FH%filename = getFname(FH%filename)
+      ! create file
+      call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid))
+      ! create dimensions
+      call check(nf90_def_dim(FH%ncid,lon_name,Nx,lon_dimid)) 
+      call check(nf90_def_dim(FH%ncid,lat_name,Ny,lat_dimid))
+      call check(nf90_def_dim(FH%ncid,time_name,NF90_UNLIMITED,FH%timedid))
+      ! define variables
+      ! latitude vector
+      call check(nf90_def_var(FH%ncid,lat_name,NF90_DOUBLE,(/lat_dimid/),lat_varid))
+      call check(nf90_put_att(FH%ncid,lat_varid, str_unit, lat_unit))
+      call check(nf90_put_att(FH%ncid,lat_varid, str_name, lat_name))
+      ! longitude vector
+      call check(nf90_def_var(FH%ncid,lon_name,NF90_DOUBLE,(/lon_dimid/),lon_varid))
+      call check(nf90_put_att(FH%ncid,lon_varid, str_unit, lon_unit))
+      call check(nf90_put_att(FH%ncid,lon_varid, str_name, lon_name))
+      ! time vector
+      call check(nf90_def_var(FH%ncid,time_name,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
+      call check(nf90_put_att(FH%ncid,FH%timevid, str_unit, time_unit))
+      call check(nf90_put_att(FH%ncid,FH%timevid, str_name, time_name))
+      !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
+      ! variable field
+      call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
+      ! end define mode
+      call check(nf90_enddef(FH%ncid))
+      ! write domain variables
+      call check(nf90_put_var(FH%ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
+      call check(nf90_put_var(FH%ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
+      FH%isOpen = .TRUE.
+#ifdef DIAG_FLUSH
+      call closeDS(FH)
+#endif
+    END SUBROUTINE createDS3handle
+
+    SUBROUTINE createDS3old(fileNameStem, varname,lat_vec, lon_vec, ncid, varid, time_varid)
+      USE vars_module, ONLY : Nx, Ny
+      IMPLICIT NONE
+      CHARACTER(*), INTENT(in)      :: fileNameStem, varname
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
       INTEGER, INTENT(out)              :: ncid, varid, time_varid
       INTEGER                       :: lat_dimid, lon_dimid, time_dimid, &
                                        lat_varid, lon_varid
-      CHARACTER(len=80), PARAMETER  :: str_name="long_name", str_unit="units", str_cal="calendar", &
+      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
                                        lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
                                        lat_unit=YUNIT, lon_unit=XUNIT,&
                                        time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
@@ -122,29 +178,62 @@ MODULE io_module
       ! write domain variables
       call check(nf90_put_var(ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
       call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
-    END SUBROUTINE createDS3
+    END SUBROUTINE createDS3old
 
-    SUBROUTINE openDS(fileNameStem,ncid)
+    SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)  :: fileNameStem
+      TYPE(fileHandle), INTENT(inout)  :: FH
+      IF ( FH%isOpen ) RETURN
+      CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid))
+      CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid))
+      CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid))
+      CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
+      FH%isOpen = .TRUE.
+    END SUBROUTINE openDSHandle
+
+    SUBROUTINE openDSold(fileNameStem,ncid)
+      IMPLICIT NONE
+      CHARACTER(*), INTENT(in)      :: fileNameStem
       INTEGER, INTENT(out)          :: ncid
       CALL check(nf90_open(getFname(fileNameStem), NF90_WRITE, ncid))
-    END SUBROUTINE
+    END SUBROUTINE openDSold
 
-    SUBROUTINE closeDS(ncid)
+    SUBROUTINE closeDShandle(FH)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout) :: FH
+      IF ( .NOT. FH%isOpen ) RETURN
+      CALL check(nf90_close(FH%ncid))
+      FH%isOpen = .FALSE.
+    END SUBROUTINE closeDShandle
+
+    SUBROUTINE closeDSold(ncid)
       IMPLICIT NONE
       INTEGER, INTENT(in) :: ncid
       CALL check(nf90_close(ncid))
-    END SUBROUTINE closeDS
+    END SUBROUTINE closeDSold
     
-    SUBROUTINE putVarTimeSlice(ncid,varid,timevid,varData,rec,time)
+    SUBROUTINE putVar3Dhandle(FH,varData,rec,time)
+      USE vars_module, ONLY : Nx,Ny
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout)     :: FH
+      INTEGER, INTENT(in)                 :: rec
+      REAL(8), INTENT(in)                 :: varData(Nx,Ny), time
+      IF ( .NOT. FH%isOpen ) call openDS(FH)
+      CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
+      CALL check(nf90_put_var(FH%ncid, FH%timevid,time,start=(/rec/)))
+#ifdef DIAG_FLUSH
+      call closeDS(FH)
+#endif
+    END SUBROUTINE putVar3Dhandle
+
+    SUBROUTINE putVar3Dold (ncid,varid,timevid,varData,rec,time)
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       INTEGER, INTENT(in)     :: ncid,varid,timevid, rec
       REAL(8), INTENT(in)     :: varData(Nx,Ny), time
       CALL check(nf90_put_var(ncid, varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
       CALL check(nf90_put_var(ncid, timevid,time,start=(/rec/)))
-    END SUBROUTINE putVarTimeSlice
+    END SUBROUTINE putVar3Dold
     
     SUBROUTINE putVar2D(ncid,varid,varData)
       USE vars_module, ONLY : Nx,Ny
@@ -152,11 +241,11 @@ MODULE io_module
       INTEGER, INTENT(in)     :: ncid,varid
       REAL(8), INTENT(in)     :: varData(Nx,Ny)
       CALL check(nf90_put_var(ncid, varid, varData))
-    END SUBROUTINE
+    END SUBROUTINE putVar2D
     
-    CHARACTER(len=80) FUNCTION getFname (fname)
+    CHARACTER(CHARLEN) FUNCTION getFname (fname)
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)   :: fname
+      CHARACTER(*), INTENT(in)   :: fname
       getFname = trim(trim(oprefix)//fullrecstr//'_'//trim(fname)//trim(osuffix))
       RETURN
     END FUNCTION getFname

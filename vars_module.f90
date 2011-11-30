@@ -1,4 +1,5 @@
 MODULE vars_module
+#include "io.h"
   
   ! note that here, only default values are given
   ! they are overridden when the namelist is read in initVars
@@ -23,7 +24,7 @@ MODULE vars_module
   REAL(8)                :: freq_wind=0                      ! frequency of oscillating wind forcing
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
-  CHARACTER(len=80)      :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
+  CHARACTER(CHARLEN)     :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
                             in_varname_F1_x="FU", in_varname_F1_y="FV", &
                             in_file_TAU="", in_varname_TAU_x="TAUX", in_varname_TAU_y="TAUY", &
                             in_file_REY="", in_varname_REY_u2="u2", in_varname_REY_v2="v2", in_varname_REY_uv="uv",&
@@ -83,7 +84,7 @@ MODULE vars_module
   INTEGER(8) :: itt ! time step
 
   ! variables related to the time dependent forcing
-  CHARACTER(len = 80) :: TDF_fname="TDF_in.nc"  ! input file name
+  CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"  ! input file name
   INTEGER :: TDF_ncid                           ! input file ID
   INTEGER :: TDF_tID, TDF_FuID, TDF_FvID        ! var IDs
   INTEGER :: TDF_tLEN                           ! length of time dim

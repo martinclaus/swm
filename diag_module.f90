@@ -8,7 +8,7 @@ MODULE diag_module
   SAVE
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  CHARACTER(len=80)            :: file_eta = OFILEETA, & ! output file names
+  CHARACTER(CHARLEN)            :: file_eta = OFILEETA, & ! output file names
                                   file_u   = OFILEU,   &
                                   file_v   = OFILEV,   &
                                   file_h   = OFILEH,   &

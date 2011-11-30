@@ -4,6 +4,10 @@ Header file for shallow water model. Meant to set Input/Output constants
 #ifndef FILE_IO_SEEN
 #define FILE_IO_SEEN
 
+/* Maximal length of Character arrays */
+#define CHARLEN 80
+#define FULLREC_STRLEN 12
+
 /* Namelist files */
 #define MODEL_NL "model.namelist"
 #define OUTPUT_NL "output.namelist"
@@ -13,6 +17,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_MODEL_NL 17
 #define UNIT_OUTPUT_NL 18
 #define UNIT_TRACER_NL 19
+#define UNIT_DYNFROMFILE_NL 20
 
 
 /* Switches for output control */ 

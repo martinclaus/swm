@@ -115,11 +115,15 @@ PROGRAM model
     SUBROUTINE initialConditions
       IMPLICIT NONE
       INTEGER :: i, j
+      TYPE(fileHandle) :: FH
       ! initial conditions of dynamic fields
       IF (init_cond_from_file) THEN
-        call readInitialCondition(file_eta_init,varname_eta_init,eta(:,:,N0))
-        call readInitialCondition(file_u_init,varname_u_init,u(:,:,N0))
-        call readInitialCondition(file_v_init,varname_v_init,v(:,:,N0))
+        FH = fileHandle(file_eta_init,varname_eta_init)
+        call readInitialCondition(FH,eta(:,:,N0))
+        FH = fileHandle(file_u_init,varname_u_init)
+        call readInitialCondition(FH,u(:,:,N0))
+        FH = fileHandle(file_v_init,varname_v_init)
+        call readInitialCondition(FH,v(:,:,N0))
         eta(:,:,N0) = ocean_eta * eta(:,:,N0)
         u(:,:,N0)   = ocean_u * u(:,:,N0)
         v(:,:,N0)   = ocean_v * v(:,:,N0)

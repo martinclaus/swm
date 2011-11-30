@@ -30,6 +30,6 @@ Header file for shallow water model. Meant to set different physics.
 !#define TDEP_FORCING
 
 /* Switch for tracer module */
-!#define TRACER
+#define TRACER
 
 #endif
