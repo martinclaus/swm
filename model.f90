@@ -76,9 +76,7 @@ PROGRAM model
 #endif
 
     ! shift timesteps
-    eta(:,:,N0) = eta(:,:,N0p1)
-    u(:,:,N0)   = u(:,:,N0p1)
-    v(:,:,N0)   = v(:,:,N0p1)
+    CALL advanceTimestep
 #ifdef TRACER
     CALL TRC_advance
 #endif

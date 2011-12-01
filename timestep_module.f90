@@ -250,3 +250,11 @@ SUBROUTINE Timestep
 !$OMP END DO
 !$OMP END PARALLEL
 END SUBROUTINE Timestep
+
+SUBROUTINE advanceTimestep
+  USE vars_module, ONLY : u,v,eta,N0,N0p1
+  IMPLICIT NONE
+  eta(:,:,N0) = eta(:,:,N0p1)
+  u(:,:,N0)   = u(:,:,N0p1)
+  v(:,:,N0)   = v(:,:,N0p1)
+END SUBROUTINE advanceTimestep
