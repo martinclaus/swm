@@ -30,6 +30,10 @@ MODULE io_module
     MODULE PROCEDURE closeDSold, closeDShandle
   END INTERFACE closeDS
   
+  INTERFACE getVar
+    MODULE PROCEDURE getVar3Dhandle
+  END INTERFACE getVar
+  
   CONTAINS
     SUBROUTINE initIO
       namelist / output_nl / &
@@ -54,9 +58,7 @@ MODULE io_module
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)           :: FH
       REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var
-      IF ( .NOT. FH%isOpen ) call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var(:,:,1), start=(/1,1,FH%nrec/), count=(/Nx,Ny,1/)))              
-      call closeDS(FH)
+      call getVar(FH,var,FH%nrec,1)
     END SUBROUTINE readInitialCondition
 
 
@@ -243,7 +245,38 @@ MODULE io_module
       CALL check(nf90_put_var(ncid, varid, varData))
     END SUBROUTINE putVar2D
     
-    CHARACTER(CHARLEN) FUNCTION getFname (fname)
+    SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen)
+      USE vars_module, ONLY : Nx, Ny
+      TYPE(fileHandle), INTENT(inout)             :: FH
+      INTEGER, INTENT(in)                         :: tstart, tlen
+      REAL(8), DIMENSION(Nx,Ny,tlen), INTENT(out) :: var
+      LOGICAL                                     :: wasOpen
+      wasOpen = FH%isOpen
+      call openDS(FH)
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)))              
+      IF ( .NOT. wasOpen ) call closeDS(FH)
+    END SUBROUTINE getVar3Dhandle
+    
+    SUBROUTINE touch(FH)
+      TYPE(fileHandle), INTENT(inout)    :: FH
+      call openDS(FH)
+      call closeDS(FH)
+    END SUBROUTINE touch
+    
+    INTEGER FUNCTION getNrec(FH)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout) :: FH
+      IF (FH%nrec.EQ.0) THEN
+        call openDS(FH)
+        getNrec = FH%nrec
+        call closeDS(FH)
+      ELSE
+        getNrec = FH%nrec
+      END IF
+      RETURN
+    END FUNCTION getNrec
+    
+    CHARACTER(CHARLEN) FUNCTION getFname(fname)
       IMPLICIT NONE
       CHARACTER(*), INTENT(in)   :: fname
       getFname = trim(trim(oprefix)//fullrecstr//'_'//trim(fname)//trim(osuffix))
