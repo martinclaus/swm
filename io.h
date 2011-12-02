@@ -8,6 +8,13 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define CHARLEN 80
 #define FULLREC_STRLEN 12
 
+/* Default values for fileHandle Type */
+#define DEF_NCID  -99999
+#define DEF_VARID -99999
+#define DEF_TIMEDID -99999
+#define DEF_TIMEVID -99999
+#define DEF_NREC -99999
+
 /* Namelist files */
 #define MODEL_NL "model.namelist"
 #define OUTPUT_NL "output.namelist"

@@ -6,7 +6,11 @@ MODULE io_module
   
   TYPE, PUBLIC :: fileHandle
     CHARACTER(len=CHARLEN):: filename="", varname=""
-    INTEGER, PRIVATE      :: ncid=0, varid=0, timedid=0, timevid=0, nrec=0
+    INTEGER, PRIVATE      :: ncid=DEF_NCID, &
+                             varid=DEF_VARID, &
+                             timedid=DEF_TIMEDID, &
+                             timevid=DEF_TIMEVID, &
+                             nrec=DEF_NREC
     LOGICAL, PRIVATE      :: isOpen = .FALSE.
   END TYPE fileHandle
 
@@ -58,7 +62,7 @@ MODULE io_module
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)           :: FH
       REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var
-      call getVar(FH,var,FH%nrec,1)
+      call getVar(FH,var,getNrec(FH),1)
     END SUBROUTINE readInitialCondition
 
 
@@ -110,6 +114,7 @@ MODULE io_module
       FH%filename = getFname(FH%filename)
       ! create file
       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid))
+      FH%isOpen = .TRUE.
       ! create dimensions
       call check(nf90_def_dim(FH%ncid,lon_name,Nx,lon_dimid)) 
       call check(nf90_def_dim(FH%ncid,lat_name,Ny,lat_dimid))
@@ -135,7 +140,7 @@ MODULE io_module
       ! write domain variables
       call check(nf90_put_var(FH%ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
       call check(nf90_put_var(FH%ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
-      FH%isOpen = .TRUE.
+      FH%nrec = 0
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
@@ -220,12 +225,12 @@ MODULE io_module
       TYPE(fileHandle), INTENT(inout)     :: FH
       INTEGER, INTENT(in)                 :: rec
       REAL(8), INTENT(in)                 :: varData(Nx,Ny), time
-      IF ( .NOT. FH%isOpen ) call openDS(FH)
+      LOGICAL                             :: wasOpen
+      wasOpen = FH%isOpen
+      IF ( .NOT. wasOpen ) call openDS(FH)
       CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
       CALL check(nf90_put_var(FH%ncid, FH%timevid,time,start=(/rec/)))
-#ifdef DIAG_FLUSH
-      call closeDS(FH)
-#endif
+      IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVar3Dhandle
 
     SUBROUTINE putVar3Dold (ncid,varid,timevid,varData,rec,time)
@@ -259,14 +264,16 @@ MODULE io_module
     
     SUBROUTINE touch(FH)
       TYPE(fileHandle), INTENT(inout)    :: FH
-      call openDS(FH)
-      call closeDS(FH)
+      IF ( .NOT. FH%isOpen) THEN
+        call openDS(FH)
+        call closeDS(FH)
+      END IF
     END SUBROUTINE touch
     
     INTEGER FUNCTION getNrec(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH
-      IF (FH%nrec.EQ.0) touch(FH)
+      IF ( FH%nrec .EQ. DEF_NREC ) CALL touch(FH)
       getNrec = FH%nrec
       RETURN
     END FUNCTION getNrec
