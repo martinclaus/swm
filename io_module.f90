@@ -266,13 +266,8 @@ MODULE io_module
     INTEGER FUNCTION getNrec(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH
-      IF (FH%nrec.EQ.0) THEN
-        call openDS(FH)
-        getNrec = FH%nrec
-        call closeDS(FH)
-      ELSE
-        getNrec = FH%nrec
-      END IF
+      IF (FH%nrec.EQ.0) touch(FH)
+      getNrec = FH%nrec
       RETURN
     END FUNCTION getNrec
     
