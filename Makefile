@@ -15,7 +15,7 @@ else
   $(info Elliptic solver used by calc_lib module: none) 
 endif
 
-modules = vars_module diag_module timestep_module tracer_module io_module calc_lib $(cl_elsolv)
+modules = vars_module diag_module timestep_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv)
 
 .PHONY: all clean_all clean
 
@@ -48,6 +48,9 @@ tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o ca
 
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
 	$(CFORTAN) $O $(CFLAGS) $(defClElSolv) -c $<
+
+dynFromFile_module.o : dynFromFile_module.f90 io_module.o vars_module.o
+	$(CFORTAN) $O $(CFLAGS) -c $<
 
 clean_all : clean
 	@rm -fv model

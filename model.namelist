@@ -10,8 +10,8 @@
   Ah = 250,               ! horizontal eddy viscosity (m^2/s)
   Nx = 501,               ! number of grid points in x-dir.
   Ny = 201,               ! number of grif points in y-dir.
-  run_length = 2.223899e5, !2.223899e9,     ! length of run in seconds
-  Nout = 10,             ! number of eq. distributed "measurements"
+  run_length = 2.223899e6, !2.223899e9,     ! length of run in seconds
+  Nout = 100,             ! number of eq. distributed "measurements"
   NoutChunk = 1001,     ! max lsize of output files
   dt = 2.223899e4,      ! time step (s)
   lon_s = 0.,           ! min. lon. of the domain (H-grid)
@@ -37,6 +37,12 @@
   varname_u_init="U"
   file_v_init="v_init_swm.nc"
   varname_v_init="V"
+&end
+&dynFromFile
+  FileName_u="u_in.nc",
+  FileName_v="v_in.nc",
+  FileName_eta="eta_in.nc", ! Filenames of input files of dynamical variables
+  DFF_Nt_chunksize=57 ! Number of timesteps to read at once
 &end
 &tracer_nl
   TRC_C1_A = 1e2     ! horizontal tracer diffusivity

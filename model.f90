@@ -3,6 +3,9 @@ PROGRAM model
 #include "io.h"
   USE vars_module
   USE calc_lib
+#ifdef DYNFROMFILE
+  USE dynFromFile_module
+#endif
   USE diag_module
 #ifdef TRACER
   USE tracer_module
@@ -25,14 +28,22 @@ PROGRAM model
   call initCalcLib
   print *, 'initCalcLib done'
 
-  ! initializes the time stepping scheme
-  call initTimestep
-  print *, 'initTimestep done'
-
   ! Set initial conditions
   call initialConditions
   print *, 'initialConditions done'
 
+#ifdef SWM
+  ! initializes the time stepping scheme
+  call initTimestep
+  print *, 'initTimestep done'
+#endif
+
+#ifdef DYNFROMFILE
+  ! initialise dynFromFile module (read namelist and first chunk from file, override initial conditions from initialConditions)
+  call DFF_initDynFromFile
+  print *, 'DFF_initDynFromFile done'
+#endif
+  
   ! read and compute forcing terms
   call initForcing
   print *, 'initForcing done'
@@ -67,8 +78,14 @@ PROGRAM model
     call updateTdepForcing
 #endif
 
+#ifdef DYNFROMFILE
+    call DFF_timestep
+#endif
+
+#ifdef SWM
     ! time step SWM (see below)
     call Timestep
+#endif
     
 #ifdef TRACER
     ! time step tracer
@@ -76,7 +93,12 @@ PROGRAM model
 #endif
 
     ! shift timesteps
+#ifdef DYNFROMFILE
+  call DFF_advance
+#endif
+#ifdef SWM
     CALL advanceTimestep
+#endif
 #ifdef TRACER
     CALL TRC_advance
 #endif
@@ -104,6 +126,10 @@ PROGRAM model
   call finishDiag
   
   call finishCalcLib
+
+#ifdef DYNFROMFILE
+  call DFF_finishDynFromFile
+#endif
   
   ! Normal programm termination
   STOP 0

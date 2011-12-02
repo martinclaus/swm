@@ -26,10 +26,16 @@ Header file for shallow water model. Meant to set different physics.
 !#define wo_uv_x_v
 !#define wo_v2_y_v
 
+/* Switch for Shallow Water Model */
+!#define SWM
+
+/* Switch to load dynamical variables from file (instead of using SWM) */
+#define DYNFROMFILE
+
 /* Switches for time dependent forcing */
 !#define TDEP_FORCING
 
 /* Switch for tracer module */
-#define TRACER
+!#define TRACER
 
 #endif
