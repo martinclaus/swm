@@ -90,15 +90,19 @@ MODULE dynFromFile_module
     
     SUBROUTINE DFF_timestep
       USE vars_module, ONLY : itt
+      USE io_module, ONLY : getNrec
       IMPLICIT NONE
       IF (DFF_chunk_counter.EQ.DFF_Nt_chunksize) THEN
         DFF_file_rec_u = DFF_file_rec_u+DFF_Nt_chunksize-1
         DFF_file_rec_v = DFF_file_rec_v+DFF_Nt_chunksize-1
         DFF_file_rec_eta = DFF_file_rec_eta+DFF_Nt_chunksize-1
-        PRINT *,DFF_file_rec_u,DFF_file_rec_v,DFF_file_rec_eta
-        CALL DFF_readFromFile(DFF_FH_u,DFF_u,DFF_file_rec_u,DFF_Nt_chunksize)
-        CALL DFF_readFromFile(DFF_FH_v,DFF_v,DFF_file_rec_v,DFF_Nt_chunksize)
-        CALL DFF_readFromFile(DFF_FH_eta,DFF_eta,DFF_file_rec_eta,DFF_Nt_chunksize)
+!        PRINT *,DFF_file_rec_u,DFF_file_rec_v,DFF_file_rec_eta
+        IF (getNrec(DFF_FH_u).NE.DFF_Nt_chunksize-1 .OR. itt.EQ.0) &
+          CALL DFF_readFromFile(DFF_FH_u,DFF_u,DFF_file_rec_u,DFF_Nt_chunksize)
+        IF (getNrec(DFF_FH_v).NE.DFF_Nt_chunksize-1 .OR. itt.EQ.0) &
+          CALL DFF_readFromFile(DFF_FH_v,DFF_v,DFF_file_rec_v,DFF_Nt_chunksize)
+        IF (getNrec(DFF_FH_eta).NE.DFF_Nt_chunksize-1 .OR. itt.EQ.0) &
+          CALL DFF_readFromFile(DFF_FH_eta,DFF_eta,DFF_file_rec_eta,DFF_Nt_chunksize)
         DFF_chunk_counter = 1
       END IF
     END SUBROUTINE DFF_timestep
