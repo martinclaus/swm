@@ -128,12 +128,12 @@ MODULE tracer_module
       USE io_module, ONLY : readInitialCondition
       USE vars_module, ONLY : ocean_eta
       IMPLICIT NONE
-      CALL readInitialCondition(TRC_FH_init,TRC_C1)
+      CALL readInitialCondition(TRC_FH_init,TRC_C1(:,:,TRC_N0))
       CALL readInitialCondition(TRC_FH_C0,TRC_C1_0)
       CALL readInitialCondition(TRC_FH_relax,TRC_C1_relax)
       ! apply ocean mask of eta grid to tracer relaxation field and first initial condition
-      TRC_C1_0 = ocean_eta * TRC_C1
-      TRC_C1(:,:,TRC_N0) = TRC_C1
+      TRC_C1_0 = ocean_eta * TRC_C1_0
+      TRC_C1(:,:,TRC_N0) = ocean_eta * TRC_C1(:,:,TRC_N0)
     END SUBROUTINE TRC_readInitialConditions
 
     SUBROUTINE TRC_tracerStep
