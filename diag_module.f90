@@ -59,17 +59,17 @@ MODULE diag_module
       call createDS(file_psi,varname_psi, lat_H, lon_H, ncid_psi, varid_psi, timeid_psi)
 #ifdef writeInput
       call createDS(file_h,varname_h,lat_H,lon_H,ncid_H,varid_H)
-      call putVar(ncid_H, varid_H, H))
+      call putVar(ncid_H, varid_H, H)
       call closeDS(ncid_H)
       call createDS(file_Fx,varname_Fx,lat_u,lon_u,ncid_Fx,varid_Fx)
-      call putVar(ncid_Fx, varid_Fx, (F_x*RHO0*H_u)/dt))
+      call putVar(ncid_Fx, varid_Fx, (F_x*RHO0*H_u)/dt)
       call closeDS(ncid_Fx)
       call createDS(file_Fy,varname_Fy,lat_v,lon_v,ncid_Fy,varid_Fy)
       call putVar(ncid_Fy, varid_Fy, (F_y*RHO0*H_v)/dt)
       call closeDS(ncid_Fy)
 #ifdef NEWTONIAN_COOLING
       call createDS(OFILEGAMMA_N,OVARNAMEGAMMA_N,lat_eta,lon_eta,ncid_gn,varid_gn)
-      call putVar(ncid_gn,varid_gn,gamma_n))
+      call putVar(ncid_gn,varid_gn,gamma_n)
       call closeDS(ncid_gn)
 #endif
 #endif
