@@ -153,7 +153,6 @@ MODULE tracer_module
     SUBROUTINE TRC_tracerStepEulerForward
     ! calculating new tracer field using a forward in time scheme
     ! meant to calculate second initial condition to reduce computational mode
-    ! TODO
       USE vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
       IMPLICIT NONE
       INTEGER       :: i,j

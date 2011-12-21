@@ -44,21 +44,25 @@ MODULE calc_lib
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
       REAL(8)                               :: epsilon
       
-      ! compute divergence of velocity field
-      call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)
       u_corr = 0._8
       v_corr = 0._8
+      epsilon = 1e-4 ! TODO: replace magic number
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
-      epsilon = 1e-4
+      ! compute divergence of velocity field
+      call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)
+      ! Solve elliptic PDE
       call CALC_LIB_ELLIPTIC_SOLVER_MAIN((-1)*div_u,chi,epsilon,itt.EQ.1)
+      ! compute non-rotational flow
       call computeGradient(chi,u_corr,v_corr, ocean_eta, ocean_u, ocean_v)
 #endif
       u_nd = u_in + u_corr
       v_nd = v_in + v_corr
+#ifdef CALC_LIB_ELLIPTIC_SOLVER
       WRITE (*,'(A25,e20.15)') "Initial divergence:", sqrt(sum(div_u**2))
       call computeDivergence(u_nd,v_nd,res_div, ocean_u, ocean_v, ocean_eta)
       WRITE (*,'(A25,e20.15)') "Residual divergence:", sqrt(sum(res_div**2))
       WRITE (*,'(A25,e20.15)') "Ratio:", sqrt(sum(res_div**2))/sqrt(sum(div_u**2))
+#endif
     END SUBROUTINE computeNonDivergentFlowField
 
     SUBROUTINE computeDivergence(CD_u,CD_v,div_u,mask_u,mask_v,mask_div)
