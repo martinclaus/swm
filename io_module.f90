@@ -227,7 +227,7 @@ MODULE io_module
       REAL(8), INTENT(in)                 :: varData(Nx,Ny), time
       LOGICAL                             :: wasOpen
       wasOpen = FH%isOpen
-      IF ( .NOT. wasOpen ) call openDS(FH)
+      call openDS(FH)
       CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
       CALL check(nf90_put_var(FH%ncid, FH%timevid,time,start=(/rec/)))
       IF ( .NOT. wasOpen ) call closeDS(FH)
