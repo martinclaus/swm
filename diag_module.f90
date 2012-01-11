@@ -107,7 +107,7 @@ MODULE diag_module
 #ifdef TRACER
       USE tracer_module
 #endif
-      USE calc_lib, ONLY : streamfunction
+      USE calc_lib, ONLY : computeStreamfunction
       IMPLICIT NONE
 
       IF (mod(itt, write_tstep)==0) then
@@ -142,7 +142,7 @@ MODULE diag_module
           rec = 1  
         END IF
         ! calculate streamfunction
-        call streamfunction(psi)
+        call computeStreamfunction(psi)
         ! write output
 #ifdef DIAG_FLUSH
         call openDS(file_eta, ncid_eta)

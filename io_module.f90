@@ -270,6 +270,15 @@ MODULE io_module
       END IF
     END SUBROUTINE touch
     
+    SUBROUTINE initFH(fileName,varname,FH)
+      CHARACTER(CHARLEN), intent(in)  :: fileName,varname
+      TYPE(fileHandle), intent(out)   :: FH
+      IF (LEN_TRIM(fileName) .NE. 0) THEN
+        FH = fileHandle(fileName,varname)
+        call touch(FH)
+      END IF
+    END SUBROUTINE initFH
+    
     INTEGER FUNCTION getNrec(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH
@@ -284,4 +293,11 @@ MODULE io_module
       getFname = trim(trim(oprefix)//fullrecstr//'_'//trim(fname)//trim(osuffix))
       RETURN
     END FUNCTION getFname
+    
+    LOGICAL FUNCTION isSetFH(FH)
+      IMPLICIT NONE
+      TYPE(fileHandle), intent(in)  :: FH
+      isSetFH = (LEN_TRIM(FH%filename) .NE. 0)
+      RETURN
+    END FUNCTION isSetFH
 END MODULE io_module

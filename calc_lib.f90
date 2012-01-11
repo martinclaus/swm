@@ -101,14 +101,111 @@ MODULE calc_lib
       END DO
     END SUBROUTINE computeGradient
 
-    SUBROUTINE streamfunction(psi)
+    SUBROUTINE computeStreamfunction(psi)
       USE vars_module, ONLY : Nx,Ny,N0,jm1,H_v,v,A,cosTheta_v,dLambda,H_u,u,A,dTheta
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi
       INTEGER  :: i,j ! spatial coordinates
-      psi = 0
+      psi = 0.
       FORALL (i=1:Nx, j=2:Ny) &
         psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v(i:Nx,j,N0))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u(i,1:jm1(j),N0))*A*dTheta
-    END SUBROUTINE streamfunction
+    END SUBROUTINE computeStreamfunction
+    
+    SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)
+    ! (u,v) = (u_in,v_in)+(-psi_y,psi_x)/H
+    ! TODO: compute eta from streamfunction (if neccessary at all?)
+      USE vars_module, ONLY : ip1,jp1,ocean_u,ocean_H,ocean_v,H_u,H_v,A,dTheta,dLambda,cosTheta_v
+      IMPLICIT NONE
+      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi
+      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u,evSF_v,evSF_eta
+      INTEGER   :: i,i_bound(2),j,j_bound(2),l,l_bound(2)
+      i_bound(1) = LBOUND(evSF_psi,1)
+      i_bound(2) = UBOUND(evSF_psi,1)
+      j_bound(1) = LBOUND(evSF_psi,2)
+      j_bound(2) = UBOUND(evSF_psi,2)
+      l_bound(1) = LBOUND(evSF_psi,3)
+      l_bound(2) = UBOUND(evSF_psi,3)
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound(1)) COLLAPSE(2) 
+      YSPACE1: DO j=j_bound(1),j_bound(2)
+        XSPACE1: DO i=i_bound(1),i_bound(2)
+          IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE1
+          TSPACE1: DO l=l_bound(1),l_bound(2)
+            evSF_u(i,j,l) = -(ocean_H(i,jp1(j))*evSF_psi(i,jp1(j),l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
+                /(A*H_u(i,j)*dTheta)
+          ENDDO TSPACE1
+        ENDDO XSPACE1
+      ENDDO YSPACE1
+!$OMP END DO
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound(1)) COLLAPSE(2) 
+      YSPACE2: DO j=j_bound(1),j_bound(2)
+        XSPACE2: DO i=i_bound(1),i_bound(2)
+          IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE2
+          TSPACE2: DO l=l_bound(1),l_bound(2)
+            evSF_v(i,j,l) = (ocean_H(ip1(i),j)*evSF_psi(ip1(i),j,l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
+                /(A*cosTheta_v(j)*H_v(i,j)*dLambda)
+          ENDDO TSPACE2
+        ENDDO XSPACE2
+      ENDDO YSPACE2
+!$OMP END DO
+!$OMP END PARALLEL
+    END SUBROUTINE evaluateStreamfunction
+
+    FUNCTION evSF_zonal(evSF_psi)
+      USE vars_module, ONLY : jp1,ocean_u,ocean_H,H_u,A,dTheta
+      IMPLICIT NONE
+      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi
+      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_zonal
+      INTEGER   :: i,i_bound,j,j_bound,l,l_bound
+      i_bound = UBOUND(evSF_psi,1)
+      j_bound = UBOUND(evSF_psi,2)
+      l_bound = UBOUND(evSF_psi,3)
+      evSF_zonal = 0.
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2) 
+      YSPACE: DO j=1,j_bound
+        XSPACE: DO i=1,i_bound
+          IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE
+          TSPACE: DO l=1,l_bound
+            evSF_zonal(i,j,l) =  -(ocean_H(i,jp1(j))*evSF_psi(i,jp1(j),l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
+                /(A*H_u(i,j)*dTheta)
+          ENDDO TSPACE
+        ENDDO XSPACE
+      ENDDO YSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+    END FUNCTION evSF_zonal
+
+    FUNCTION evSF_meridional(evSF_psi)  
+      USE vars_module, ONLY : ip1,ocean_H,ocean_v,H_v,A,dLambda,cosTheta_v
+      IMPLICIT NONE
+      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi
+      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_meridional
+      INTEGER   :: i,i_bound,j,j_bound,l,l_bound
+      i_bound = UBOUND(evSF_psi,1)
+      j_bound = UBOUND(evSF_psi,2)
+      l_bound = UBOUND(evSF_psi,3)
+      evSF_meridional = 0.
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2) 
+      YSPACE: DO j=1,j_bound
+        XSPACE: DO i=1,i_bound
+          IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE
+          TSPACE: DO l=1,l_bound
+            evSF_meridional(i,j,l) = (ocean_H(ip1(i),j)*evSF_psi(ip1(i),j,l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
+                /(A*cosTheta_v(j)*H_v(i,j)*dLambda)
+          ENDDO TSPACE
+        ENDDO XSPACE
+      ENDDO YSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+    END FUNCTION evSF_meridional
 
 END MODULE calc_lib
