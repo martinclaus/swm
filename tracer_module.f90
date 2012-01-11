@@ -3,7 +3,7 @@ MODULE tracer_module
     !
     ! Tracer model integrating advection-diffusion equation
     !
-    !                C_t + del(u*C) = D*del^2C - relax*(C-C0)
+    !                C_t + del(u*C) = D*del^2C - consumption*C - relax*(C-C0)
     !
     ! Scheme used to solve this equation is centered in time and space, but
     ! uses time-step l-1 for the Laplacian operator in the diffusion term.
@@ -56,7 +56,8 @@ MODULE tracer_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_C1  ! Tracer field
   REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0, & ! field to which the tracer should be relaxed (also initial value for tracer at the moment)
                                                      TRC_C1_relax ! local relaxation timescale
-  REAL(8)                                         :: TRC_C1_A = 1. ! Diffusivity
+  REAL(8)                                         :: TRC_C1_A = 1., &! Diffusivity
+                                                     TRC_C1_cons=0. ! Consumption rate of tracer
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_LF, & ! coefficient matrix for leapfrog scheme
                                                      TRC_Coef_EF    ! coefficient matrix for Euler Forward scheme
   REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_u_nd, TRC_v_nd ! non-divergent flow field
@@ -75,7 +76,8 @@ MODULE tracer_module
       ! definition of the namelist
       NAMELIST / tracer_nl / &
         TRC_C1_A,&   ! Diffusivity [m^2/s]
-        TRC_file_C0, TRC_file_relax
+        TRC_file_C0, TRC_file_relax, &
+        TRC_C1_cons ! Consumption rate of tracer
       ! read the namelist and close again  
       OPEN(UNIT_TRACER_NL, file = MODEL_NL)
       READ(UNIT_TRACER_NL, nml = tracer_nl)
@@ -141,7 +143,7 @@ MODULE tracer_module
       USE vars_module, ONLY : u,v,N0
       IMPLICIT NONE
       CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
-      CALL TRC_checkLeapfrogStability(TRC_u_nd,TRC_v_nd)
+!      CALL TRC_checkLeapfrogStability(TRC_u_nd,TRC_v_nd)
       CALL TRC_tracerStepLeapfrog
     END SUBROUTINE TRC_tracerStep
     
@@ -234,7 +236,8 @@ MODULE tracer_module
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
       REAL(8)                               :: a_sq, b, c
       
-      a_sq = dt**2 * (MAXVAL(u)/(MINVAL(cosTheta_u)*A*dLambda) + MAXVAL(v)/(A*dTheta))**2 / (1._8+2._8*dt*MINVAL(TRC_C1_relax))
+      a_sq = dt**2 * (MAXVAL(u)/(MINVAL(cosTheta_u)*A*dLambda) + MAXVAL(v)/(A*dTheta))**2 / &
+        (1._8+2._8*dt*(TRC_C1_cons+MINVAL(TRC_C1_relax)))
       b = 8._8 * dt * TRC_C1_A * (1._8/(MINVAL(cosTheta_u)*A*dLambda)**2 + 1._8/(A*dTheta)**2)
       
       IF (1._8 - b - a_sq .LE. 0._8) THEN
@@ -258,23 +261,34 @@ MODULE tracer_module
       END IF
       TRC_Coef_LF = 0.
       FORALL (i=1:Nx, j=1:Ny, ocean_eta(i,j) .EQ. 1)
-        TRC_Coef_LF(i,j,1)  = -ocean_u(ip1(i),j)*dt/(dLambda*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,2)  =  ocean_u(i,j)*dt/(dLambda*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,3)  = -ocean_v(i,jp1(j))*dt*cosTheta_v(jp1(j))/(dTheta*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,4)  =  ocean_v(i,j)*dt*cosTheta_v(j)/(dTheta*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,5)  = -ocean_u(ip1(i),j)*dt/(dLambda*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,6)  = ocean_u(i,j)*dt/(dLambda*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,7)  = -ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(dTheta*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,8)  = ocean_v(i,j)*cosTheta_v(j)*dt/(dTheta*A*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,9)  = 2.*ocean_u(ip1(i),j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,10) = 2.*ocean_u(i,j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2/(1.+2.*dt*TRC_C1_relax(i,j))
+        TRC_Coef_LF(i,j,1)  = -ocean_u(ip1(i),j)*dt/(dLambda*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,2)  =  ocean_u(i,j)*dt/(dLambda*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,3)  = -ocean_v(i,jp1(j))*dt*cosTheta_v(jp1(j))/(dTheta*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,4)  =  ocean_v(i,j)*dt*cosTheta_v(j)/(dTheta*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,5)  = -ocean_u(ip1(i),j)*dt/(dLambda*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,6)  = ocean_u(i,j)*dt/(dLambda*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,7)  = -ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(dTheta*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,8)  = ocean_v(i,j)*cosTheta_v(j)*dt/(dTheta*A*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,9)  = 2.*ocean_u(ip1(i),j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,10) = 2.*ocean_u(i,j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
         TRC_Coef_LF(i,j,11) = 2.*ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt*TRC_C1_A &
-              /(dTheta**2*A**2*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,12) = 2.*ocean_v(i,j)*cosTheta_v(j)*dt*TRC_C1_A/(dTheta**2*A**2*cosTheta_u(j))/(1.+2.*dt*TRC_C1_relax(i,j))
+              /(dTheta**2*A**2*cosTheta_u(j))/(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,12) = 2.*ocean_v(i,j)*cosTheta_v(j)*dt*TRC_C1_A/(dTheta**2*A**2*cosTheta_u(j))&
+              /(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
         TRC_Coef_LF(i,j,13) = (1. + 2.*dt*TRC_C1_A*(-ocean_u(ip1(i),j)-ocean_u(i,j))/(dLambda*A*cosTheta_u(j))**2 &
               + 2.*dt*TRC_C1_A*(-ocean_v(i,jp1(j))*cosTheta_v(jp1(j))-ocean_v(i,j)*cosTheta_v(j)) &
-              /(dTheta**2*A**2*cosTheta_u(j)))/(1.+2.*dt*TRC_C1_relax(i,j))
-        TRC_Coef_LF(i,j,14) = 2*dt*TRC_C1_relax(i,j)*TRC_C1_0(i,j)/(1.+2.*dt*TRC_C1_relax(i,j))
+              /(dTheta**2*A**2*cosTheta_u(j)))/(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_LF(i,j,14) = 2*dt*TRC_C1_relax(i,j)*TRC_C1_0(i,j)/(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
       END FORALL
     END SUBROUTINE TRC_initLFScheme
     
@@ -291,23 +305,34 @@ MODULE tracer_module
       END IF
       TRC_Coef_EF = 0.
       FORALL (i=1:Nx, j=1:Ny, ocean_eta(i,j) .EQ. 1)
-        TRC_Coef_EF(i,j,1)  = -ocean_u(ip1(i),j)*dt/(2.*A*dLambda*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,2)  = ocean_u(i,j)*dt/(2.*A*dLambda*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,3)  = -ocean_v(i,jp1(j))*dt*cosTheta_v(jp1(j))/(2.*dTheta*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,4)  = ocean_v(i,j)*dt*cosTheta_v(j)/(2.*dTheta*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,5)  = -ocean_u(ip1(i),j)*dt/(2.*dLambda*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,6)  = ocean_u(i,j)*dt/(2.*dLambda*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,7)  = -ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(2.*dTheta*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,8)  = ocean_v(i,j)*cosTheta_v(j)*dt/(2.*dTheta*A*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,9)  = ocean_u(ip1(i),j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,10) = ocean_u(i,j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2/(1.+dt*TRC_C1_relax(i,j))
+        TRC_Coef_EF(i,j,1)  = -ocean_u(ip1(i),j)*dt/(2.*A*dLambda*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,2)  = ocean_u(i,j)*dt/(2.*A*dLambda*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,3)  = -ocean_v(i,jp1(j))*dt*cosTheta_v(jp1(j))/(2.*dTheta*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,4)  = ocean_v(i,j)*dt*cosTheta_v(j)/(2.*dTheta*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,5)  = -ocean_u(ip1(i),j)*dt/(2.*dLambda*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,6)  = ocean_u(i,j)*dt/(2.*dLambda*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,7)  = -ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt/(2.*dTheta*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,8)  = ocean_v(i,j)*cosTheta_v(j)*dt/(2.*dTheta*A*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,9)  = ocean_u(ip1(i),j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,10) = ocean_u(i,j)*dt*TRC_C1_A/(dLambda*A*cosTheta_u(j))**2&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
         TRC_Coef_EF(i,j,11) = ocean_v(i,jp1(j))*cosTheta_v(jp1(j))*dt*TRC_C1_A &
-              /(dTheta**2*A**2*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,12) = ocean_v(i,j)*cosTheta_v(j)*dt*TRC_C1_A/(dTheta**2*A**2*cosTheta_u(j))/(1.+dt*TRC_C1_relax(i,j))
+              /(dTheta**2*A**2*cosTheta_u(j))/(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,12) = ocean_v(i,j)*cosTheta_v(j)*dt*TRC_C1_A/(dTheta**2*A**2*cosTheta_u(j))&
+              /(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
         TRC_Coef_EF(i,j,13) = (1. - dt*TRC_C1_A*(ocean_u(ip1(i),j)+ocean_u(i,j))/(dLambda*A*cosTheta_u(j))**2 &
               - dt*TRC_C1_A*(ocean_v(i,jp1(j))*cosTheta_v(jp1(j))+ocean_v(i,j)*cosTheta_v(j))&
-              /(dTheta**2*A**2*cosTheta_u(j)))/(1.+dt*TRC_C1_relax(i,j))
-        TRC_Coef_EF(i,j,14) = dt*TRC_C1_relax(i,j)*TRC_C1_0(i,j)/(1.+dt*TRC_C1_relax(i,j))
+              /(dTheta**2*A**2*cosTheta_u(j)))/(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
+        TRC_Coef_EF(i,j,14) = dt*TRC_C1_relax(i,j)*TRC_C1_0(i,j)/(1.+dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
       END FORALL
     END SUBROUTINE TRC_initEFScheme
     
