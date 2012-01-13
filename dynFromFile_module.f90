@@ -35,7 +35,7 @@ MODULE dynFromFile_module
   INTEGER                         :: DFF_Nt_chunksize=1000, &    ! Number of timesteps to load into memory
                                      DFF_file_rec_u=1, DFF_file_rec_v=1,DFF_file_rec_eta=1,DFF_file_rec_psi=1, & ! time index in file of present chunk start 
                                      DFF_chunk_counter=0  ! Number of passed time steps of present chunk
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: DFF_eta, DFF_u, DFF_v, DFF_psi
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: DFF_eta, DFF_u, DFF_v, DFF_u_psi, DFF_v_psi
   
   CONTAINS
     SUBROUTINE DFF_initDynFromFile
@@ -94,13 +94,20 @@ MODULE dynFromFile_module
 !        PRINT *,"DEBUG: ETA allocated"
       END IF
       IF (isSetFH(DFF_FH_psi)) THEN
-        ALLOCATE(DFF_psi(Nx,Ny,DFF_Nt_chunksize),stat=alloc_error)
+        ALLOCATE(DFF_u_psi(Nx,Ny,DFF_Nt_chunksize),stat=alloc_error)
         IF (alloc_error .ne. 0) THEN
           WRITE(*,*) "Allocation error in DFF_initDynFromFile"
           STOP 1
         END IF
-        DFF_psi = 0.
-!        PRINT *,"DEBUG: PSI allocated"
+        DFF_u_psi = 0.
+!        PRINT *,"DEBUG: U_PSI allocated"
+        ALLOCATE(DFF_v_psi(Nx,Ny,DFF_Nt_chunksize),stat=alloc_error)
+        IF (alloc_error .ne. 0) THEN
+          WRITE(*,*) "Allocation error in DFF_initDynFromFile"
+          STOP 1
+        END IF
+        DFF_v_psi = 0.
+!        PRINT *,"DEBUG: V_PSI allocated"
       END IF
       ! read first chunk
       CALL DFF_timestep
@@ -117,7 +124,9 @@ MODULE dynFromFile_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
       IF (ALLOCATED(DFF_v)) DEALLOCATE(DFF_v,stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
-      IF (ALLOCATED(DFF_psi)) DEALLOCATE(DFF_psi,stat=alloc_error)
+      IF (ALLOCATED(DFF_u_psi)) DEALLOCATE(DFF_u_psi,stat=alloc_error)
+      IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
+      IF (ALLOCATED(DFF_v_psi)) DEALLOCATE(DFF_v_psi,stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE DFF_finishDynFromFile
     
@@ -128,7 +137,7 @@ MODULE dynFromFile_module
         CALL tstepDynVar(DFF_FH_u,DFF_file_rec_u,DFF_u)
         CALL tstepDynVar(DFF_FH_v,DFF_file_rec_v,DFF_v)
         CALL tstepDynVar(DFF_FH_eta,DFF_file_rec_eta,DFF_eta)
-        CALL tstepDynVar(DFF_FH_psi,DFF_file_rec_psi,DFF_psi)
+        CALL tstepPsiVar(DFF_FH_psi,DFF_file_rec_psi)
         DFF_chunk_counter = 1
       END IF
     END SUBROUTINE DFF_timestep
@@ -145,8 +154,8 @@ MODULE dynFromFile_module
       IF (isSetFH(DFF_FH_u))   u = DFF_u(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
       IF (isSetFH(DFF_FH_v))   v = DFF_v(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
       IF (isSetFH(DFF_FH_psi)) THEN
-        u = u_isSet*u + evSF_zonal(DFF_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1))
-        v = v_isSet*v + evSF_meridional(DFF_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1))
+        u = u_isSet*u + DFF_u_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
+        v = v_isSet*v + DFF_v_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
       END IF
       DFF_chunk_counter = DFF_chunk_counter + 1
     END SUBROUTINE DFF_advance
@@ -195,5 +204,31 @@ MODULE dynFromFile_module
         CALL DFF_readFromFile(FH,dynVar,file_rec,DFF_Nt_chunksize)
       END IF
     END SUBROUTINE tstepDynVar
+    
+    SUBROUTINE tstepPsiVar(FH,file_rec)
+      USE vars_module, ONLY : itt, Nx, Ny
+      USE io_module, ONLY : getNrec, isSetFH
+      USE calc_lib, ONLY : evSF_zonal, evSF_meridional
+      IMPLICIT NONE
+      TYPE(fileHandle), intent(inout)         :: FH
+      INTEGER, intent(inout)                  :: file_rec
+      REAL(8), dimension(:,:,:), allocatable  :: psi
+      INTEGER                                 :: alloc_error
+      IF (.NOT. isSetFH(FH)) RETURN
+      file_rec = file_rec + DFF_Nt_chunksize-1
+      IF (MOD(DFF_Nt_chunksize-1,getNrec(FH)).NE.0 .OR. itt.EQ.0) THEN
+!        PRINT *,"DEBUG: read from file "//FH%fileName
+        ALLOCATE(psi(Nx,Ny,DFF_Nt_chunksize),stat=alloc_error)
+        IF (alloc_error .ne. 0) THEN
+          WRITE(*,*) "Allocation error in DFF_initDynFromFile"
+          STOP 1
+        END IF
+        CALL DFF_readFromFile(FH,psi,file_rec,DFF_Nt_chunksize)
+        DFF_u_psi = evSF_zonal(psi)
+        DFF_v_psi = evSF_meridional(psi)
+        IF (ALLOCATED(psi)) DEALLOCATE(psi,stat=alloc_error)
+        IF(alloc_error.NE.0) PRINT *,"Deallocation failed"        
+      END IF
+    END SUBROUTINE tstepPsiVar
 
 END MODULE dynFromFile_module
