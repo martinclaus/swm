@@ -1,5 +1,6 @@
 MODULE calc_lib
 #include "calc_lib.h"
+#include "model.h"
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
   USE CALC_LIB_ELLIPTIC_SOLVER_MODULE
 #endif

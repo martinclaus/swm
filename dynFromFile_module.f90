@@ -124,7 +124,7 @@ MODULE dynFromFile_module
     SUBROUTINE DFF_timestep
       IMPLICIT NONE
       IF (DFF_chunk_counter.EQ.DFF_Nt_chunksize) THEN
-        PRINT *,DFF_file_rec_u,DFF_file_rec_v,DFF_file_rec_eta,DFF_file_rec_psi
+!        PRINT *,DFF_file_rec_u,DFF_file_rec_v,DFF_file_rec_eta,DFF_file_rec_psi
         CALL tstepDynVar(DFF_FH_u,DFF_file_rec_u,DFF_u)
         CALL tstepDynVar(DFF_FH_v,DFF_file_rec_v,DFF_v)
         CALL tstepDynVar(DFF_FH_eta,DFF_file_rec_eta,DFF_eta)
@@ -144,7 +144,7 @@ MODULE dynFromFile_module
       IF (isSetFH(DFF_FH_eta)) eta = DFF_eta(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
       IF (isSetFH(DFF_FH_u))   u = DFF_u(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
       IF (isSetFH(DFF_FH_v))   v = DFF_v(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
-      IF (isSetFH(DFF_FH_psi) .AND. isSetFH(DFF_FH_u)) THEN
+      IF (isSetFH(DFF_FH_psi)) THEN
         u = u_isSet*u + evSF_zonal(DFF_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1))
         v = v_isSet*v + evSF_meridional(DFF_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1))
       END IF
