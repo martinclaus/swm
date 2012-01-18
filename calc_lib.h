@@ -4,6 +4,8 @@ Header file for calc_lib module of shallow water model.
 #ifndef FILE_CALC_LIB_MODULE_SEEN
 #define FILE_CALC_LIB_MODULE_SEEN
 
+#define CORRECT_FLOW_FOR_PSI /* Flag if non-divergent flow should be computed */
+
 /* This should be defined in the Makefile */
 /*#define CALC_LIB_ELLIPTIC_SOLVER ElSolv_SOR */
 

@@ -8,6 +8,7 @@ MODULE calc_lib
   SAVE
 
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi    ! Velocity correction potential
+  LOGICAL                                :: chi_computed=.FALSE. !Flag set when veolcity correction potential is computed at present timestep
 
   CONTAINS
   
@@ -21,6 +22,7 @@ MODULE calc_lib
         STOP 1
       END IF
       chi = 0._8
+      chi_computed=.FALSE.
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_INIT
       ! initialise elliptic solver
       call CALC_LIB_ELLIPTIC_SOLVER_INIT
@@ -35,7 +37,12 @@ MODULE calc_lib
 #endif
       DEALLOCATE(chi, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
-    END SUBROUTINE finishCalcLib    
+    END SUBROUTINE finishCalcLib
+    
+    SUBROUTINE advanceCalcLib
+      IMPLICIT NONE
+      chi_computed=.FALSE.
+    END SUBROUTINE advanceCalcLib
   
     SUBROUTINE computeNonDivergentFlowField(u_in,v_in,u_nd,v_nd)
       USE vars_module, ONLY : Nx,Ny,ocean_u,ocean_v,ocean_eta,itt
@@ -46,26 +53,28 @@ MODULE calc_lib
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
       REAL(8)                               :: epsilon
 #endif
-      
       u_nd = u_in
       v_nd = v_in
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       u_corr = 0._8
       v_corr = 0._8
       epsilon = 1e-4 ! TODO: replace magic number
-      ! compute divergence of velocity field
-      call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)
-      ! Solve elliptic PDE
-      call CALC_LIB_ELLIPTIC_SOLVER_MAIN((-1)*div_u,chi,epsilon,itt.EQ.1)
+      IF (.NOT.chi_computed) THEN
+        ! compute divergence of velocity field
+        call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)
+!        WRITE (*,'(A25,e20.15)') "Initial divergence:", sqrt(sum(div_u**2))
+        ! Solve elliptic PDE
+        call CALC_LIB_ELLIPTIC_SOLVER_MAIN((-1)*div_u,chi,epsilon,itt.EQ.1)
+        chi_computed = .TRUE.
+      END IF
       ! compute non-rotational flow
       call computeGradient(chi,u_corr,v_corr, ocean_eta, ocean_u, ocean_v)
       ! compute non-divergent flow
       u_nd = u_in + u_corr
       v_nd = v_in + v_corr
-      WRITE (*,'(A25,e20.15)') "Initial divergence:", sqrt(sum(div_u**2))
-      call computeDivergence(u_nd,v_nd,res_div, ocean_u, ocean_v, ocean_eta)
-      WRITE (*,'(A25,e20.15)') "Residual divergence:", sqrt(sum(res_div**2))
-      WRITE (*,'(A25,e20.15)') "Ratio:", sqrt(sum(res_div**2))/sqrt(sum(div_u**2))
+!      call computeDivergence(u_nd,v_nd,res_div, ocean_u, ocean_v, ocean_eta)
+!      WRITE (*,'(A25,e20.15)') "Residual divergence:", sqrt(sum(res_div**2))
+!      WRITE (*,'(A25,e20.15)') "Ratio:", sqrt(sum(res_div**2))/sqrt(sum(div_u**2))
 #endif
     END SUBROUTINE computeNonDivergentFlowField
 
@@ -106,10 +115,16 @@ MODULE calc_lib
       USE vars_module, ONLY : Nx,Ny,N0,jm1,H_v,v,A,cosTheta_v,dLambda,H_u,u,A,dTheta
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi
+      REAL(8),DIMENSION(Nx,Ny)             :: u_nd, v_nd
       INTEGER  :: i,j ! spatial coordinates
       psi = 0.
+      u_nd = u(:,:,N0)
+      v_nd = v(:,:,N0)
+#ifdef CORRECT_FLOW_FOR_PSI
+      CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),u_nd,v_nd)
+#endif
       FORALL (i=1:Nx, j=2:Ny) &
-        psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v(i:Nx,j,N0))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u(i,1:jm1(j),N0))*A*dTheta
+        psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v_nd(i:Nx,j))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u_nd(i,1:jm1(j)))*A*dTheta
     END SUBROUTINE computeStreamfunction
     
     SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)

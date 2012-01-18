@@ -102,6 +102,7 @@ PROGRAM model
 #ifdef TRACER
     CALL TRC_advance
 #endif
+    CALL advanceCalcLib
 
     ! write fields to file and do diagnostics
     call Diag
