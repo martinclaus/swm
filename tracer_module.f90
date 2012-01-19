@@ -79,7 +79,7 @@ MODULE tracer_module
         TRC_file_C0, TRC_file_relax, &
         TRC_C1_cons ! Consumption rate of tracer
       ! read the namelist and close again  
-      OPEN(UNIT_TRACER_NL, file = MODEL_NL)
+      OPEN(UNIT_TRACER_NL, file = TRACER_NL)
       READ(UNIT_TRACER_NL, nml = tracer_nl)
       CLOSE(UNIT_TRACER_NL)
       !TODO: replace magic strings for var names

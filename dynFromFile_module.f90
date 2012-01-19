@@ -51,7 +51,7 @@ MODULE dynFromFile_module
         varname_eta, varname_u, varname_v, varname_psi, & ! Variable names in input files
         DFF_Nt_chunksize ! Number of timesteps to read at once
       ! read the namelist and close again  
-      open(UNIT_DYNFROMFILE_NL, file = MODEL_NL)
+      open(UNIT_DYNFROMFILE_NL, file = DYNFROMFILE_NL)
       read(UNIT_DYNFROMFILE_NL, nml = dynFromFile)
       close(UNIT_DYNFROMFILE_NL)
       ! initialise file handles
