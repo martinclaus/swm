@@ -23,7 +23,7 @@ MODULE io_module
   END INTERFACE createDS
   
   INTERFACE putVar
-    MODULE PROCEDURE putVar3Dold, putVar3Dhandle, putVar2D
+    MODULE PROCEDURE putVar3Dold, putVar3Dhandle, putVar2Dold
   END INTERFACE
   
   INTERFACE openDS
@@ -187,14 +187,15 @@ MODULE io_module
       call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
     END SUBROUTINE createDS3old
 
-    SUBROUTINE openDSHandle(FH)
+    RECURSIVE SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH
+      INTEGER     :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid))
       CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid))
-      CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid))
-      CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
+      CALL check(nf90_inquire(FH%ncid, nDimensions=nDims, unlimitedDimId=FH%timedid))
+      IF (FH%timedid .NE. NF90_NOTIMEDIM) CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
 
@@ -223,13 +224,18 @@ MODULE io_module
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH
-      INTEGER, INTENT(in)                 :: rec
-      REAL(8), INTENT(in)                 :: varData(Nx,Ny), time
+      REAL(8), INTENT(in)                 :: varData(Nx,Ny)
+      INTEGER, INTENT(in), OPTIONAL       :: rec
+      REAL(8), INTENT(in), OPTIONAL       :: time
       LOGICAL                             :: wasOpen
+      INTEGER                             :: local_rec=1
+      REAL(8)                             :: local_time=0.
+      IF (PRESENT(rec)) local_rec = rec
+      IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
-      CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
-      CALL check(nf90_put_var(FH%ncid, FH%timevid,time,start=(/rec/)))
+      CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)))
+      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)))
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVar3Dhandle
 
@@ -242,13 +248,13 @@ MODULE io_module
       CALL check(nf90_put_var(ncid, timevid,time,start=(/rec/)))
     END SUBROUTINE putVar3Dold
     
-    SUBROUTINE putVar2D(ncid,varid,varData)
+    SUBROUTINE putVar2Dold(ncid,varid,varData)
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       INTEGER, INTENT(in)     :: ncid,varid
       REAL(8), INTENT(in)     :: varData(Nx,Ny)
       CALL check(nf90_put_var(ncid, varid, varData))
-    END SUBROUTINE putVar2D
+    END SUBROUTINE putVar2Dold
     
     SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen)
       USE vars_module, ONLY : Nx, Ny
@@ -264,18 +270,23 @@ MODULE io_module
     
     SUBROUTINE touch(FH)
       TYPE(fileHandle), INTENT(inout)    :: FH
-      IF ( .NOT. FH%isOpen) THEN
-        call openDS(FH)
-        call closeDS(FH)
+      LOGICAL                            :: file_exist
+      IF ( .NOT. FH%isOpen ) THEN
+        INQUIRE(FILE=FH%filename,EXIST=file_exist)
+        IF ( file_exist ) THEN
+          call openDS(FH)
+          call closeDS(FH)
+        END IF
       END IF
     END SUBROUTINE touch
     
     SUBROUTINE initFH(fileName,varname,FH)
-      CHARACTER(CHARLEN), intent(in)  :: fileName,varname
+      CHARACTER(*), intent(in)        :: fileName,varname
       TYPE(fileHandle), intent(out)   :: FH
+      LOGICAL                         :: file_exist
       IF (LEN_TRIM(fileName) .NE. 0) THEN
         FH = fileHandle(fileName,varname)
-        call touch(FH)
+        CALL touch(FH)
       END IF
     END SUBROUTINE initFH
     

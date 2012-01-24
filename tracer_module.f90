@@ -44,7 +44,7 @@ MODULE tracer_module
     !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #include "tracer_module.h"
-  USE io_module, ONLY : fileHandle
+  USE io_module, ONLY : initFH,fileHandle
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -83,9 +83,9 @@ MODULE tracer_module
       READ(UNIT_TRACER_NL, nml = tracer_nl)
       CLOSE(UNIT_TRACER_NL)
       !TODO: replace magic strings for var names
-      TRC_FH_C0     = fileHandle(TRC_file_C0,"C0")
-      TRC_FH_relax  = fileHandle(TRC_file_relax,"RELAX")
-      TRC_FH_init   = fileHandle(TRC_file_C0,"C")
+      CALL initFH(TRC_file_C0,"C0",TRC_FH_C0)
+      CALL initFH(TRC_file_relax,"RELAX",TRC_FH_relax)
+      CALL initFH(TRC_file_C0,"C",TRC_FH_init)
       ALLOCATE(TRC_C1(1:Nx,1:Ny,1:TRC_NLEVEL_SCHEME), TRC_C1_0(1:Nx,1:Ny), TRC_C1_relax(1:Nx,1:Ny), &
         TRC_u_nd(1:Nx,1:Ny), TRC_v_nd(1:Nx,1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN

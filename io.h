@@ -15,6 +15,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define DEF_TIMEVID -99999
 #define DEF_NREC -99999
 
+#define NF90_NOTIMEDIM -1
+
 /* Namelist files */
 #define MODEL_NL "model.namelist"
 #define OUTPUT_NL "output.namelist"
@@ -29,7 +31,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 
 
 /* Switches for output control */ 
-!#define writeInput
+!#define WRITEINPUT
 #define TAXISNAME "TIME"
 #define XAXISNAME "LONGITUDE"
 #define YAXISNAME "LATITUDE"
@@ -43,6 +45,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OFILEFX    "fx_out.nc"
 #define OFILEFY    "fy_out.nc"
 #define OFILEPSI   "psi_out.nc"
+#define OFILETRACER "C1.nc"
+#define OFILEGAMMA_N "gamma_n"
 #define OVARNAMEETA "ETA"
 #define OVARNAMEU   "U"
 #define OVARNAMEV   "V"
@@ -50,13 +54,10 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OVARNAMEFX  "TAUX"
 #define OVARNAMEFY  "TAUY"
 #define OVARNAMEPSI "PSI"
-#define OFILEGAMMA_N "gamma_n"
+#define OVARNAMETRACER "C"
 #define OVARNAMEGAMMA_N "GAMMA_N"
 
 /* If switched on, the diagnostics routines flush at every write_step */
 #define DIAG_FLUSH
-
-/* If switched on, the non-divergent flow field is written every time it is computed */
-!#define WRITENONDIVFLOW
 
 #endif

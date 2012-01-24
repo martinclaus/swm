@@ -12,6 +12,10 @@ PROGRAM model
 #endif
   IMPLICIT NONE
   
+  ! initialise io module (read output suffix and prefix from namelist)
+  call initIO
+  print *, 'initIO done'
+
   ! initialize the variables (namelist input, allocation etc.)
   call initVars
   print *, 'initVars done'
@@ -20,10 +24,6 @@ PROGRAM model
   call initDomain
   print *, 'initDomain done'
 
-  ! initialise io module (read output suffix and prefix from namelist)
-  call initIO
-  print *, 'initIO done'
-  
   ! initialise Calc library
   call initCalcLib
   print *, 'initCalcLib done'
@@ -143,11 +143,11 @@ PROGRAM model
       TYPE(fileHandle) :: FH
       ! initial conditions of dynamic fields
       IF (init_cond_from_file) THEN
-        FH = fileHandle(file_eta_init,varname_eta_init)
+        CALL initFH(file_eta_init,varname_eta_init,FH)
         call readInitialCondition(FH,eta(:,:,N0))
-        FH = fileHandle(file_u_init,varname_u_init)
+        CALL initFH(file_u_init,varname_u_init,FH)
         call readInitialCondition(FH,u(:,:,N0))
-        FH = fileHandle(file_v_init,varname_v_init)
+        CALL initFH(file_v_init,varname_v_init,FH)
         call readInitialCondition(FH,v(:,:,N0))
         eta(:,:,N0) = ocean_eta * eta(:,:,N0)
         u(:,:,N0)   = ocean_u * u(:,:,N0)
@@ -161,8 +161,8 @@ PROGRAM model
 
     SUBROUTINE initDomain
       IMPLICIT NONE
+      TYPE(fileHandle) :: FH_H
       INTEGER :: i, j
-      INTEGER :: Hncid, Hid
       REAL(8) :: c1,c2 ! constants for sponge Layers
       ! index fields
       ! note that periodicity is already implemented in the index field
@@ -198,10 +198,8 @@ PROGRAM model
       END FORALL
 
       ! read and process topography
-      call check(nf90_open(in_file_H, NF90_NOWRITE, Hncid))
-      call check(nf90_inq_varid(Hncid, in_varname_H, Hid))          
-      call check(nf90_get_var(Hncid, Hid, H))              
-      call check(nf90_close(Hncid))
+      CALL initFH(in_file_H,in_varname_H, FH_H)
+      CALL readInitialCondition(FH_H,H)
       ! Do not allow negative topography
       WHERE(H .LE. 0.) H = 0._8
 
@@ -267,16 +265,15 @@ PROGRAM model
 
     SUBROUTINE initForcing
       IMPLICIT NONE
+      TYPE(fileHandle)  :: FH_in
       INTEGER :: i, j
       INTEGER :: Fncid, FxID, FyID
       ! read wind forcing
       windstress: IF (in_file_TAU .NE. "") THEN
-        call check(nf90_open(in_file_TAU, NF90_NOWRITE, Fncid))
-        call check(nf90_inq_varid(Fncid, in_varname_TAU_x, FxID))          
-        call check(nf90_get_var(Fncid, FxID, TAU_x))              
-        call check(nf90_inq_varid(Fncid, in_varname_TAU_y, FyID))          
-        call check(nf90_get_var(Fncid, FyID, TAU_y))              
-        call check(nf90_close(Fncid))
+        CALL initFH(in_file_TAU,in_varname_TAU_x,FH_in)
+        CALL readInitialCondition(FH_in,TAU_X)
+        CALL initFH(in_file_TAU,in_varname_TAU_y,FH_in)
+        CALL readInitialCondition(FH_in,TAU_Y)
         FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 1) &
           TAU_x(i,j) = 0.
         FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 1) &
