@@ -187,14 +187,13 @@ MODULE io_module
       call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
     END SUBROUTINE createDS3old
 
-    RECURSIVE SUBROUTINE openDSHandle(FH)
+    SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH
-      INTEGER     :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid))
       CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid))
-      CALL check(nf90_inquire(FH%ncid, nDimensions=nDims, unlimitedDimId=FH%timedid))
+      CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid))
       IF (FH%timedid .NE. NF90_NOTIMEDIM) CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
