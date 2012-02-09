@@ -128,7 +128,7 @@ MODULE tracer_module
 
     SUBROUTINE TRC_readInitialConditions
       USE io_module, ONLY : readInitialCondition
-      USE vars_module, ONLY : ocean_eta
+      USE vars_module, ONLY : ocean_eta, Nx, Ny
       IMPLICIT NONE
       CALL readInitialCondition(TRC_FH_init,TRC_C1(:,:,TRC_N0))
       CALL readInitialCondition(TRC_FH_C0,TRC_C1_0)

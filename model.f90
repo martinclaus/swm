@@ -11,7 +11,6 @@ PROGRAM model
   USE tracer_module
 #endif
   IMPLICIT NONE
-  
   ! initialise io module (read output suffix and prefix from namelist)
   call initIO
   print *, 'initIO done'
@@ -163,6 +162,7 @@ PROGRAM model
       IMPLICIT NONE
       TYPE(fileHandle) :: FH_H
       INTEGER :: i, j
+      INTEGER, DIMENSION(Nx,Ny)  :: missmask, missmask_H
       REAL(8) :: c1,c2 ! constants for sponge Layers
       ! index fields
       ! note that periodicity is already implemented in the index field
@@ -199,8 +199,10 @@ PROGRAM model
 
       ! read and process topography
       CALL initFH(in_file_H,in_varname_H, FH_H)
-      CALL readInitialCondition(FH_H,H)
-      ! Do not allow negative topography
+      CALL readInitialCondition(FH_H,H,missmask)
+      missmask_H=missmask
+      ! Do not allow negative topography and set H=0 where H has missing values
+      WHERE(missmask_H .eq. 1) H = 0._8
       WHERE(H .LE. 0.) H = 0._8
 
       ! close NS boundary (should be done anyway in input H field)

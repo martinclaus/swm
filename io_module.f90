@@ -57,12 +57,14 @@ MODULE io_module
       end if
     END SUBROUTINE check
 
-    SUBROUTINE readInitialCondition(FH,var)
+
+    SUBROUTINE readInitialCondition(FH,var,missmask)
       USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)           :: FH
       REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var
-      call getVar(FH,var,getNrec(FH),1)
+      INTEGER, DIMENSION(Nx,Ny,1), OPTIONAL, INTENT(inout)  :: missmask
+      call getVar(FH,var,getNrec(FH),1,missmask)
     END SUBROUTINE readInitialCondition
 
 
@@ -101,7 +103,7 @@ MODULE io_module
     END SUBROUTINE createDS2
 
     SUBROUTINE createDS3handle(FH,lat_vec, lon_vec)
-      USE vars_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : Nx, Ny, missval
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)   :: FH
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
@@ -135,6 +137,7 @@ MODULE io_module
       !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
       ! variable field
       call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
+      call check(nf90_put_att(FH%ncid,FH%varid,"missing_value",missval))
       ! end define mode
       call check(nf90_enddef(FH%ncid))
       ! write domain variables
@@ -254,16 +257,24 @@ MODULE io_module
       REAL(8), INTENT(in)     :: varData(Nx,Ny)
       CALL check(nf90_put_var(ncid, varid, varData))
     END SUBROUTINE putVar2Dold
-    
-    SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen)
+
+    SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen, missmask)
       USE vars_module, ONLY : Nx, Ny
       TYPE(fileHandle), INTENT(inout)             :: FH
       INTEGER, INTENT(in)                         :: tstart, tlen
       REAL(8), DIMENSION(Nx,Ny,tlen), INTENT(out) :: var
+      INTEGER, DIMENSION(Nx,Ny,tlen), OPTIONAL, INTENT(inout) :: missmask
+      REAL(8)                                     :: missing_value
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
       call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)))              
+      ! assume that if getatt gives an error, there's no missing value defined.
+      IF ( present(missmask)) THEN
+        missmask = 0
+        IF ( nf90_get_att(FH%ncid, FH%varid, 'missing_value', missing_value) .EQ. NF90_NOERR ) &
+          WHERE ( var .eq. missing_value ) missmask = 1
+      END IF  
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar3Dhandle
     

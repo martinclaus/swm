@@ -94,27 +94,36 @@ MODULE diag_module
     
     SUBROUTINE writeInput
       IMPLICIT NONE
+      REAL(8), DIMENSION(Nx,Ny) :: var
       WRITE (fullrecstr, '(i12.12)') fullrec
 
       CALL initFH(OFILEH,OVARNAMEH,FH_h)
       CALL createDS(FH_H,lat_H,lon_H)
-      CALL putVar(FH_H, H)
+      var = H
+      WHERE (ocean_H .ne. 1) var = missval
+      CALL putVar(FH_H, var)
       CALL closeDS(FH_H)
 
       CALL initFH(OFILEFX,OVARNAMEFX,FH_Fx)
       CALL createDS(FH_Fx,lat_u,lon_u)
-      CALL putVar(FH_Fx, F_x)
+      var = F_x 
+      WHERE (ocean_u .ne. 1) var = missval
+      CALL putVar(FH_Fx, var)
       CALL closeDS(FH_Fx)
       
       CALL initFH(OFILEFY,OVARNAMEFY,FH_Fy)
       CALL createDS(FH_Fy,lat_v,lon_v)
-      CALL putVar(FH_Fy, F_y)
+      var = F_y 
+      WHERE (ocean_v .ne. 1) var = missval
+      CALL putVar(FH_Fy, var)
       CALL closeDS(FH_Fy)
 
 #ifdef NEWTONIAN_COOLING
       CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
       CALL createDS(FH_gamma_n,lat_eta,lon_eta)
-      CALL putVar(FH_gamma_n, gamma_n)
+      var = gamma_n 
+      WHERE (ocean_eta .ne. 1) var = missval
+      CALL putVar(FH_gamma_n, var)
       CALL closeDS(FH_gamma_n)
 #endif
     END SUBROUTINE writeInput
@@ -124,12 +133,23 @@ MODULE diag_module
       USE tracer_module, ONLY : TRC_C1, TRC_N0
 #endif
       IMPLICIT NONE
-        call putVar(FH_eta, eta(:,:,N0), rec, itt*dt)
-        call putVar(FH_u, u(:,:,N0), rec, itt*dt)
-        call putVar(FH_v, v(:,:,N0), rec, itt*dt)
-        call putVar(FH_psi, psi/1e6, rec, itt*dt)
+      REAL(8), DIMENSION(Nx, Ny) :: var
+      var = eta(:,:,N0)
+      WHERE (ocean_eta .ne. 1) var = missval
+      call putVar(FH_eta, var, rec, itt*dt)
+      var = u(:,:,N0)
+      WHERE (ocean_u .ne. 1) var = missval
+      call putVar(FH_u, var, rec, itt*dt)
+      var = v(:,:,N0)
+      WHERE (ocean_v .ne. 1) var = missval
+      call putVar(FH_v, var, rec, itt*dt)
+      var = psi/1e6
+      WHERE (ocean_H .ne. 1) var = missval
+      call putVar(FH_psi, var, rec, itt*dt)
 #ifdef TRACER
-        call putVar(FH_tracer, TRC_C1(:,:,TRC_N0), rec, itt*dt)
+      var = TRC_C1(:,:,TRC_N0)
+      WHERE (ocean_eta .ne. 1) var = missval
+      call putVar(FH_tracer, var, rec, itt*dt)
 #endif
     END SUBROUTINE
     

@@ -18,6 +18,7 @@ MODULE vars_module
   REAL(8)                :: r=2e-3                           ! linear friction parameter (m/s)
   REAL(8)                :: k=2e-1                           ! quadratic friction parameter
   REAL(8)                :: Ah=1e3                           ! horizontal eddy viscosity coefficient
+  REAL(8)                :: missval=1e37                     ! missing value for CDF outfiles
   REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
   REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
   REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale (L_D)
@@ -109,7 +110,7 @@ SUBROUTINE initVars
   ! definition of the namelist
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
-    r,k,Ah,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
+    r,k,Ah,missval,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
     Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
     dt, & ! time step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
