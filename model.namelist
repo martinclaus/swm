@@ -15,6 +15,7 @@
   Nout = 200,             ! number of eq. distributed "measurements"
   NoutChunk = 9999,     ! max lsize of output files
   dt = 25,      ! time step (s)
+  Meanout=0    ! Number of time averages written to the disk. Uses Nout stepping for Meanout=0
   lon_s = -100.,           ! min. lon. of the domain (H-grid)
   lon_e = 0.          ! max. lon. of the domain (H-grid),
   lat_s = 15.     ! min. lat. of the domain (H-grid),

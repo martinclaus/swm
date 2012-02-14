@@ -9,10 +9,12 @@ MODULE diag_module
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
   TYPE(fileHandle)              :: FH_eta, FH_u, FH_v, FH_H, FH_Fx, FH_Fy, FH_psi, FH_tracer, FH_gamma_n
-  INTEGER                      :: rec=1
-  INTEGER                      :: fullrec=1 ! full number of records (including all chunks of output files). TODO: Maybe moved to io_module some time
-  ! diagnostic fields
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: psi ! Streamfunction
+  TYPE(fileHandle)              :: FH_eta_mean, FH_u_mean, FH_v_mean, FH_psi_mean, FH_eta2_mean, FH_u2_mean, FH_v2_mean,&
+                                   &FH_psi2_mean
+  REAL(8), DIMENSION(:,:), ALLOCATABLE     :: eta_mean, u_mean, v_mean, psi_mean, psi, eta2_mean, u2_mean, v2_mean, psi2_mean  
+  INTEGER                      :: rec=1, rec_mean=1
+  INTEGER                      :: fullrec=1, fullrec_mean=1 ! full number of records (including all chunks of output files). 
+                                                            ! TODO: Maybe moved to io_module some time
 
   CONTAINS
 
@@ -22,14 +24,66 @@ MODULE diag_module
 #ifdef WRITEINPUT
       CALL writeInput
 #endif
+#ifdef WRITEMEAN
       CALL createDatasets
+      CALL createmeanDatasets
+#endif
       ! allocate and initialise diagnostic fields
       ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in diag_module"
+        WRITE(*,*) "Allocation of psi error in diag_module"
         STOP 1
       END IF
-      
+#ifdef WRITEMEAN
+      ALLOCATE(eta_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of eta_mean error in diag_module"
+        STOP 1
+      END IF
+      eta_mean=0
+      ALLOCATE(u_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of u_mean error in diag_module"
+        STOP 1
+      END IF
+      u_mean=0
+      ALLOCATE(v_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of v_mean error in diag_module"
+        STOP 1
+      END IF
+      v_mean=0
+      ALLOCATE(psi_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of psi_mean error in diag_module"
+        STOP 1
+      END IF
+      psi_mean=0
+      ALLOCATE(eta2_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of eta2_mean error in diag_module"
+        STOP 1
+      END IF
+      eta2_mean=0
+      ALLOCATE(u2_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of u2_mean error in diag_module"
+        STOP 1
+      END IF
+      u2_mean=0
+      ALLOCATE(v2_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of v2_mean error in diag_module"
+        STOP 1
+      END IF
+      v2_mean=0
+      ALLOCATE(psi2_mean(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation of psi2_mean error in diag_module"
+        STOP 1
+      END IF
+      psi2_mean=0
+#endif
     END SUBROUTINE initDiag
 
     SUBROUTINE finishDiag
@@ -40,12 +94,17 @@ MODULE diag_module
       IF ( alloc_error .NE. 0 ) WRITE(*,*) "Deallocation failed in diag_module"
       ! Close all output files
       CALL closeDatasets
+#ifdef WRITEMEAN
+      CALL closemeanDatasets
+#endif
     END SUBROUTINE finishDiag
 
     SUBROUTINE Diag
       USE calc_lib, ONLY : computeStreamfunction
       IMPLICIT NONE
-
+#ifdef WRITEMEAN
+      CALL calc_mean
+#endif
       IF (mod(itt, write_tstep)==0) then
         IF (rec .gt. NoutChunk) then
           ! close files and create new set of output files
@@ -61,6 +120,21 @@ MODULE diag_module
         rec = rec + 1
         fullrec = fullrec + 1
       END IF
+#ifdef WRITEMEAN
+      IF (mod(itt, write_tmeanstep)==0 .AND. itt .ne. 0) then
+        IF (rec_mean .gt. NoutChunk) then
+          ! close files and create new set of output files
+          CALL closemeanDatasets
+          CALL createmeanDatasets
+          WRITE (fullrecstr, '(i12.12)') fullrec_mean
+          rec_mean = 1  
+        END IF
+        ! write mean output
+        CALL writeMean
+        rec_mean = rec_mean + 1
+        fullrec_mean = fullrec_mean + 1
+      END IF
+#endif
     END SUBROUTINE Diag
     
     SUBROUTINE createDatasets
@@ -80,7 +154,29 @@ MODULE diag_module
       CALL createDS(FH_tracer,lat_eta,lon_eta)
 #endif
     END SUBROUTINE createDatasets
-    
+
+#ifdef WRITEMEAN
+    SUBROUTINE createmeanDatasets
+      IMPLICIT NONE
+      CALL initFH(OFILEETAMEAN,OVARNAMEETAMEAN,FH_eta_mean)
+      CALL createDS(FH_eta_mean,lat_eta,lon_eta)
+      CALL initFH(OFILEUMEAN,OVARNAMEUMEAN,FH_u_mean)
+      CALL createDS(FH_u_mean,lat_u,lon_u)
+      CALL initFH(OFILEVMEAN,OVARNAMEVMEAN,FH_v_mean)
+      CALL createDS(FH_v_mean,lat_v,lon_v)
+      CALL initFH(OFILEPSIMEAN,OVARNAMEPSIMEAN,FH_psi_mean)
+      CALL createDS(FH_psi_mean,lat_H,lon_H)
+      CALL initFH(OFILEETA2MEAN,OVARNAMEETA2MEAN,FH_eta2_mean)
+      CALL createDS(FH_eta2_mean,lat_eta,lon_eta)
+      CALL initFH(OFILEU2MEAN,OVARNAMEU2MEAN,FH_u2_mean)
+      CALL createDS(FH_u2_mean,lat_u,lon_u)
+      CALL initFH(OFILEV2MEAN,OVARNAMEV2MEAN,FH_v2_mean)
+      CALL createDS(FH_v2_mean,lat_v,lon_v)
+      CALL initFH(OFILEPSI2MEAN,OVARNAMEPSI2MEAN,FH_psi2_mean)
+      CALL createDS(FH_psi2_mean,lat_H,lon_H)
+    END SUBROUTINE createmeanDatasets
+#endif
+
     SUBROUTINE closeDatasets
     IMPLICIT NONE
       call closeDS(FH_eta)
@@ -92,6 +188,20 @@ MODULE diag_module
 #endif
     END SUBROUTINE closeDatasets
     
+#ifdef WRITEMEAN
+    SUBROUTINE closemeanDatasets
+    IMPLICIT NONE
+      call closeDS(FH_eta_mean)
+      call closeDS(FH_u_mean)
+      call closeDS(FH_v_mean)
+      call closeDS(FH_psi_mean)
+      call closeDS(FH_eta2_mean)
+      call closeDS(FH_u2_mean)
+      call closeDS(FH_v2_mean)
+      call closeDS(FH_psi2_mean)
+    END SUBROUTINE closemeanDatasets
+#endif
+
     SUBROUTINE writeInput
       IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny) :: var
@@ -153,4 +263,54 @@ MODULE diag_module
 #endif
     END SUBROUTINE
     
+#ifdef WRITEMEAN
+    SUBROUTINE writeMean
+    IMPLICIT NONE
+      eta_mean = eta_mean/write_tmeanstep
+      WHERE (ocean_eta .ne. 1) eta_mean = missval
+      call putVar(FH_eta_mean, eta_mean, rec_mean, itt*dt)
+      eta_mean = 0
+      u_mean = u_mean/write_tmeanstep
+      WHERE (ocean_u .ne. 1) u_mean = missval
+      call putVar(FH_u_mean, u_mean, rec_mean, itt*dt)
+      u_mean = 0
+      v_mean = v_mean/write_tmeanstep
+      WHERE (ocean_v .ne. 1) v_mean = missval
+      call putVar(FH_v_mean, v_mean, rec_mean, itt*dt)
+      v_mean = 0
+      psi_mean = psi_mean/write_tmeanstep
+      WHERE (ocean_H .ne. 1) psi_mean = missval
+      call putVar(FH_psi_mean, psi_mean/1e6, rec_mean, itt*dt)
+      psi_mean = 0
+      eta2_mean = eta2_mean/write_tmeanstep
+      WHERE (ocean_eta .ne. 1) eta2_mean = missval
+      call putVar(FH_eta2_mean, eta2_mean, rec_mean, itt*dt)
+      eta2_mean = 0
+      u2_mean = u2_mean/write_tmeanstep
+      WHERE (ocean_u .ne. 1) u2_mean = missval
+      call putVar(FH_u2_mean, u2_mean, rec_mean, itt*dt)
+      u2_mean = 0
+      v2_mean = v2_mean/write_tmeanstep
+      WHERE (ocean_v .ne. 1) v2_mean = missval
+      call putVar(FH_v2_mean, v2_mean, rec_mean, itt*dt)
+      v2_mean = 0
+      psi2_mean = psi2_mean/write_tmeanstep
+      WHERE (ocean_H .ne. 1) psi2_mean = missval
+      call putVar(FH_psi2_mean, psi2_mean/1e6, rec_mean, itt*dt)
+      psi2_mean = 0
+    END SUBROUTINE writeMean
+
+    SUBROUTINE calc_mean
+    IMPLICIT NONE
+     eta_mean = eta_mean + eta(:,:,N0)
+     u_mean = u_mean + u(:,:,N0)
+     v_mean = v_mean + v(:,:,N0)
+     psi_mean = psi_mean + psi
+     eta2_mean = eta2_mean + (eta(:,:,N0))**2
+     u2_mean = u2_mean + (u(:,:,N0))**2
+     v2_mean = v2_mean + (v(:,:,N0))**2
+     psi2_mean = psi2_mean + psi**2
+    END SUBROUTINE
+#endif
+
 END MODULE diag_module
