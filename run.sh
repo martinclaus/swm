@@ -1,14 +1,13 @@
 #!/bin/bash
-#PBS -M mclaus@ifm-geomar.de
+#PBS -M vkratzsch@ifm-geomar.de
 #PBS -m ae
 #PBS -l walltime=12:00:00
 #PBS -l ncpus=8
-#PBS -j oe
-#PBS -q huge 
-#PBS -N NA_wind_long
+#PBS -q small
+#PBS -N vkadvtest 
 
 # Setting up variables
-export OMP_NUM_THREADS=8
+export OMP_NUM_THREADS=4
 JOBID=${PBS_JOBID%%\.*}
 OUTDIR="output/"
 
@@ -21,12 +20,12 @@ make clean >/dev/null
 # Setting parameters and run model
 cat << EOF > output.namelist
 &output_nl
-  oprefix = "${OUTDIR}${PBS_JOBNAME}_",  ! output prefix used to specify directory
-  osuffix = "$JOBID",  ! suffix to name model run
+  oprefix = "${OUTDIR}${PBS_JOBNAME}_${JOBID}_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
 &end
 EOF
 cat model.namelist
 grep "^#define" model.h
 echo $HOSTNAME
-time ./model
+time ./model > model.log
 chmod a+r $OUTDIR/*$JOBID

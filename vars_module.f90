@@ -45,7 +45,7 @@ MODULE vars_module
                             lat_s = -20.0, lat_e = 20.0      ! domain specs, H-grid
   LOGICAL                :: pbc_lon = .false.                ! periodic boundary condition switch / OBSOLETE ??
   REAL(8)                :: dt = 10.                         ! stepsize in time
-  INTEGER                :: Meanout = 0                     ! numer of cycles that are used for each mean output
+  REAL(8)                :: meant_out = 2.628e6                     ! Time span for each mean written to disk
   ! grid constants, derived from domain specs during initialization
   REAL                   :: dLambda, dTheta
 
@@ -58,7 +58,7 @@ MODULE vars_module
   REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_v, cosTheta_u, &
                                         tanTheta_v, tanTheta_u  ! cosines and tangens of longitude
 
-  INTEGER                 :: write_tstep, write_tmeanstep            ! save every write_tstep'th step
+  INTEGER                 :: write_tstep            ! save every write_tstep'th step
 
   ! numerical parameters
   INTEGER(1), PARAMETER   :: Ns = 2                        ! max order of scheme
@@ -112,7 +112,7 @@ SUBROUTINE initVars
     A, OMEGA, G, RHO0,  & ! physical constants
     r,k,Ah,missval,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
     Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
-    dt, Meanout, & ! time step and mean cycles
+    dt, meant_out, & ! time step and mean step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
     pbc_lon, & ! periodic boundary conditions in x-direction
     in_file_H, in_varname_H, & ! specification of input topography file
@@ -129,11 +129,6 @@ SUBROUTINE initVars
   dTheta = D2R * (lat_e-lat_s)/(Ny-1)
   Nt = INT(run_length / dt) 
   write_tstep = MAX(INT(Nt / Nout),1)
-  IF (Meanout .ne. 0) THEN 
-    write_tmeanstep = MAX(INT(Nt / Meanout),1)
-    ELSE 
-    write_tmeanstep = write_tstep
-  END IF
   ! allocate vars depending on Nx, Ny
   allocate(u(1:Nx, 1:Ny, 1:Ns))
   allocate(v(1:Nx, 1:Ny, 1:Ns))

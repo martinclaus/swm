@@ -1,4 +1,4 @@
 &output_nl
-  oprefix = "output/vkvartest_1695_",  ! output prefix used to specify directory
+  oprefix = "output/vkadvtest_1705_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
 &end

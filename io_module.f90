@@ -222,21 +222,27 @@ MODULE io_module
       CALL check(nf90_close(ncid))
     END SUBROUTINE closeDSold
     
-    SUBROUTINE putVar3Dhandle(FH,varData,rec,time)
-      USE vars_module, ONLY : Nx,Ny
+    SUBROUTINE putVar3Dhandle(FH,varData,rec,time,ocean_mask)
+      USE vars_module, ONLY : Nx,Ny,missval
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH
       REAL(8), INTENT(in)                 :: varData(Nx,Ny)
+      REAL(8), DIMENSION(Nx,Ny)           :: var_dummy
+      INTEGER(1), INTENT(in), OPTIONAL    :: ocean_mask(Nx,Ny)
       INTEGER, INTENT(in), OPTIONAL       :: rec
       REAL(8), INTENT(in), OPTIONAL       :: time
       LOGICAL                             :: wasOpen
       INTEGER                             :: local_rec=1
       REAL(8)                             :: local_time=0.
+      var_dummy=varData
+      IF (PRESENT(ocean_mask)) THEN
+        WHERE (ocean_mask .ne. 1) var_dummy = missval
+      END IF
       IF (PRESENT(rec)) local_rec = rec
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
-      CALL check(nf90_put_var(FH%ncid, FH%varid, varData, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)))
+      CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)))
       CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)))
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVar3Dhandle
@@ -263,7 +269,7 @@ MODULE io_module
       TYPE(fileHandle), INTENT(inout)             :: FH
       INTEGER, INTENT(in)                         :: tstart, tlen
       REAL(8), DIMENSION(Nx,Ny,tlen), INTENT(out) :: var
-      INTEGER, DIMENSION(Nx,Ny,tlen), OPTIONAL, INTENT(inout) :: missmask
+      INTEGER, DIMENSION(Nx,Ny,tlen), OPTIONAL, INTENT(out) :: missmask
       REAL(8)                                     :: missing_value
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
@@ -273,6 +279,8 @@ MODULE io_module
       IF ( present(missmask)) THEN
         missmask = 0
         IF ( nf90_get_att(FH%ncid, FH%varid, 'missing_value', missing_value) .EQ. NF90_NOERR ) &
+          WHERE ( var .eq. missing_value ) missmask = 1
+        IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
           WHERE ( var .eq. missing_value ) missmask = 1
       END IF  
       IF ( .NOT. wasOpen ) call closeDS(FH)

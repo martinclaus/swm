@@ -120,21 +120,6 @@ MODULE diag_module
         rec = rec + 1
         fullrec = fullrec + 1
       END IF
-#ifdef WRITEMEAN
-      IF (mod(itt, write_tmeanstep)==0 .AND. itt .ne. 0) then
-        IF (rec_mean .gt. NoutChunk) then
-          ! close files and create new set of output files
-          CALL closemeanDatasets
-          CALL createmeanDatasets
-          WRITE (fullrecstr, '(i12.12)') fullrec_mean
-          rec_mean = 1  
-        END IF
-        ! write mean output
-        CALL writeMean
-        rec_mean = rec_mean + 1
-        fullrec_mean = fullrec_mean + 1
-      END IF
-#endif
     END SUBROUTINE Diag
     
     SUBROUTINE createDatasets
@@ -204,36 +189,27 @@ MODULE diag_module
 
     SUBROUTINE writeInput
       IMPLICIT NONE
-      REAL(8), DIMENSION(Nx,Ny) :: var
       WRITE (fullrecstr, '(i12.12)') fullrec
 
       CALL initFH(OFILEH,OVARNAMEH,FH_h)
       CALL createDS(FH_H,lat_H,lon_H)
-      var = H
-      WHERE (ocean_H .ne. 1) var = missval
-      CALL putVar(FH_H, var)
+      CALL putVar(FH=FH_H, varData=H, ocean_mask=ocean_H)
       CALL closeDS(FH_H)
 
       CALL initFH(OFILEFX,OVARNAMEFX,FH_Fx)
       CALL createDS(FH_Fx,lat_u,lon_u)
-      var = F_x 
-      WHERE (ocean_u .ne. 1) var = missval
-      CALL putVar(FH_Fx, var)
+      CALL putVar(FH=FH_Fx, varData=F_x, ocean_mask=ocean_u)
       CALL closeDS(FH_Fx)
       
       CALL initFH(OFILEFY,OVARNAMEFY,FH_Fy)
       CALL createDS(FH_Fy,lat_v,lon_v)
-      var = F_y 
-      WHERE (ocean_v .ne. 1) var = missval
-      CALL putVar(FH_Fy, var)
+      CALL putVar(FH=FH_Fy, varData=F_y, ocean_mask=ocean_v)
       CALL closeDS(FH_Fy)
 
 #ifdef NEWTONIAN_COOLING
       CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
       CALL createDS(FH_gamma_n,lat_eta,lon_eta)
-      var = gamma_n 
-      WHERE (ocean_eta .ne. 1) var = missval
-      CALL putVar(FH_gamma_n, var)
+      CALL putVar(FH=FH_gamma_n, varData=gamma_n,ocean_mask=ocean_eta )
       CALL closeDS(FH_gamma_n)
 #endif
     END SUBROUTINE writeInput
@@ -243,73 +219,72 @@ MODULE diag_module
       USE tracer_module, ONLY : TRC_C1, TRC_N0
 #endif
       IMPLICIT NONE
-      REAL(8), DIMENSION(Nx, Ny) :: var
-      var = eta(:,:,N0)
-      WHERE (ocean_eta .ne. 1) var = missval
-      call putVar(FH_eta, var, rec, itt*dt)
-      var = u(:,:,N0)
-      WHERE (ocean_u .ne. 1) var = missval
-      call putVar(FH_u, var, rec, itt*dt)
-      var = v(:,:,N0)
-      WHERE (ocean_v .ne. 1) var = missval
-      call putVar(FH_v, var, rec, itt*dt)
-      var = psi/1e6
-      WHERE (ocean_H .ne. 1) var = missval
-      call putVar(FH_psi, var, rec, itt*dt)
+      call putVar(FH_eta,eta(:,:,N0), rec, itt*dt,ocean_eta)
+      call putVar(FH_u,u(:,:,N0), rec, itt*dt,ocean_u)
+      call putVar(FH_v,v(:,:,N0), rec, itt*dt,ocean_v)
+      call putVar(FH_psi,psi/1e6, rec, itt*dt,ocean_H)
 #ifdef TRACER
-      var = TRC_C1(:,:,TRC_N0)
-      WHERE (ocean_eta .ne. 1) var = missval
-      call putVar(FH_tracer, var, rec, itt*dt)
+      call putVar(FH_tracer,TRC_C1(:,:,TRC_N0), rec, itt*dt,ocean_eta)
 #endif
     END SUBROUTINE
     
 #ifdef WRITEMEAN
     SUBROUTINE writeMean
     IMPLICIT NONE
-      eta_mean = eta_mean/write_tmeanstep
-      WHERE (ocean_eta .ne. 1) eta_mean = missval
-      call putVar(FH_eta_mean, eta_mean, rec_mean, itt*dt)
-      eta_mean = 0
-      u_mean = u_mean/write_tmeanstep
-      WHERE (ocean_u .ne. 1) u_mean = missval
-      call putVar(FH_u_mean, u_mean, rec_mean, itt*dt)
-      u_mean = 0
-      v_mean = v_mean/write_tmeanstep
-      WHERE (ocean_v .ne. 1) v_mean = missval
-      call putVar(FH_v_mean, v_mean, rec_mean, itt*dt)
-      v_mean = 0
-      psi_mean = psi_mean/write_tmeanstep
-      WHERE (ocean_H .ne. 1) psi_mean = missval
-      call putVar(FH_psi_mean, psi_mean/1e6, rec_mean, itt*dt)
-      psi_mean = 0
-      eta2_mean = eta2_mean/write_tmeanstep
-      WHERE (ocean_eta .ne. 1) eta2_mean = missval
-      call putVar(FH_eta2_mean, eta2_mean, rec_mean, itt*dt)
-      eta2_mean = 0
-      u2_mean = u2_mean/write_tmeanstep
-      WHERE (ocean_u .ne. 1) u2_mean = missval
-      call putVar(FH_u2_mean, u2_mean, rec_mean, itt*dt)
-      u2_mean = 0
-      v2_mean = v2_mean/write_tmeanstep
-      WHERE (ocean_v .ne. 1) v2_mean = missval
-      call putVar(FH_v2_mean, v2_mean, rec_mean, itt*dt)
-      v2_mean = 0
-      psi2_mean = psi2_mean/write_tmeanstep
-      WHERE (ocean_H .ne. 1) psi2_mean = missval
-      call putVar(FH_psi2_mean, psi2_mean/1e6, rec_mean, itt*dt)
-      psi2_mean = 0
+      call putVar(FH_eta_mean, eta_mean, rec_mean, itt*dt,ocean_eta)
+      call putVar(FH_u_mean, u_mean, rec_mean, itt*dt,ocean_u)
+      call putVar(FH_v_mean, v_mean, rec_mean, itt*dt,ocean_v)
+      call putVar(FH_psi_mean, psi_mean/1e6, rec_mean, itt*dt,ocean_H)
+      call putVar(FH_eta2_mean, eta2_mean, rec_mean, itt*dt,ocean_eta)
+      call putVar(FH_u2_mean, u2_mean, rec_mean, itt*dt,ocean_u)
+      call putVar(FH_v2_mean, v2_mean, rec_mean, itt*dt,ocean_v)
+      call putVar(FH_psi2_mean, psi2_mean/1e6, rec_mean, itt*dt,ocean_H)
     END SUBROUTINE writeMean
 
     SUBROUTINE calc_mean
     IMPLICIT NONE
-     eta_mean = eta_mean + eta(:,:,N0)
-     u_mean = u_mean + u(:,:,N0)
-     v_mean = v_mean + v(:,:,N0)
-     psi_mean = psi_mean + psi
-     eta2_mean = eta2_mean + (eta(:,:,N0))**2
-     u2_mean = u2_mean + (u(:,:,N0))**2
-     v2_mean = v2_mean + (v(:,:,N0))**2
-     psi2_mean = psi2_mean + psi**2
+    REAL(8)     :: rest
+     rest=(mod(dt*itt, meant_out)) 
+     IF (rest<dt .AND. itt .ne. 0) then
+        IF (rec_mean .gt. NoutChunk) then
+          ! close files and create new set of output files
+          CALL closemeanDatasets
+          CALL createmeanDatasets
+          WRITE (fullrecstr, '(i12.12)') fullrec_mean
+          rec_mean = 1  
+        END IF
+        eta_mean = (eta_mean + (dt-rest)*eta(:,:,N0))/meant_out
+        u_mean = (u_mean + (dt-rest)*u(:,:,N0))/meant_out
+        v_mean = (v_mean + (dt-rest)*v(:,:,N0))/meant_out
+        psi_mean = (psi_mean + (dt-rest)*psi)/meant_out
+        eta2_mean = (eta2_mean + (dt-rest)*(eta(:,:,N0)))**2/meant_out
+        u2_mean = (u2_mean + (dt-rest)*(u(:,:,N0)))**2/meant_out
+        v2_mean = (v2_mean + (dt-rest)*(v(:,:,N0)))**2/meant_out
+        psi2_mean = (psi2_mean + (dt-rest)*psi**2)/meant_out
+        
+        CALL writeMean
+        
+        eta_mean = rest*eta(:,:,N0)
+        u_mean = rest*u(:,:,N0)
+        v_mean = rest*v(:,:,N0)
+        psi_mean = rest*psi
+        eta2_mean = rest*(eta(:,:,N0))**2
+        u2_mean = rest*(u(:,:,N0))**2
+        v2_mean = rest*(v(:,:,N0))**2
+        psi2_mean = rest*psi**2
+
+        fullrec_mean = fullrec_mean + 1
+        rec_mean = rec_mean + 1
+      ELSE 
+        eta_mean = eta_mean +dt*eta(:,:,N0)
+        u_mean = u_mean + dt*u(:,:,N0)
+        v_mean = v_mean + dt*v(:,:,N0)
+        psi_mean = psi_mean + dt*psi
+        eta2_mean = eta2_mean + dt*(eta(:,:,N0))**2
+        u2_mean = u2_mean + dt*(u(:,:,N0))**2
+        v2_mean = v2_mean + dt*(v(:,:,N0))**2
+        psi2_mean = psi2_mean + dt*psi**2
+      END IF
     END SUBROUTINE
 #endif
 
