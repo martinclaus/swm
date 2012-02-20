@@ -7,15 +7,13 @@
   gamma_new = 0,  ! Newtonian cooling parameter (1/s)
   freq_wind = 5.6506040e-08,         ! Frequency of wind forcing
   Ah = 1e5,               ! horizontal eddy viscosity (m^2/s)
-  missval = 1e37,         ! missing value for the OUTPUT data (input data's
-			  ! missing values are directly read from the infiles)
   Nx = 601,               ! number of grid points in x-dir.
   Ny = 241,               ! number of grif points in y-dir.
   run_length = 4e7, ! length of run in seconds
   Nout = 200,             ! number of eq. distributed "measurements"
   NoutChunk = 9999,     ! max lsize of output files
   dt = 25,      ! time step (s)
-  meant_out=2.628e6    ! Time span in seconds for each mean step written to disk
+  meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   lon_s = -100.,           ! min. lon. of the domain (H-grid)
   lon_e = 0.          ! max. lon. of the domain (H-grid),
   lat_s = 15.     ! min. lat. of the domain (H-grid),

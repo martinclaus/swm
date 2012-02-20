@@ -17,6 +17,9 @@ Header file for shallow water model. Meant to set Input/Output constants
 
 #define NF90_NOTIMEDIM -1
 
+/* Define missing values in CDF Outfiles */
+#define MISS_VAL_DEF 1e37
+
 /* Namelist files */
 #define MODEL_NL "model.namelist"
 #define OUTPUT_NL "output.namelist"

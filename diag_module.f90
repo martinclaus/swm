@@ -243,9 +243,9 @@ MODULE diag_module
 
     SUBROUTINE calc_mean
     IMPLICIT NONE
-    REAL(8)     :: rest
-     rest=(mod(dt*itt, meant_out)) 
-     IF (rest<dt .AND. itt .ne. 0) then
+    REAL(8)     :: remainder
+     remainder=(mod(dt*itt, meant_out)) 
+     IF (remainder<dt .AND. itt .ne. 0) then
         IF (rec_mean .gt. NoutChunk) then
           ! close files and create new set of output files
           CALL closemeanDatasets
@@ -253,25 +253,25 @@ MODULE diag_module
           WRITE (fullrecstr, '(i12.12)') fullrec_mean
           rec_mean = 1  
         END IF
-        eta_mean = (eta_mean + (dt-rest)*eta(:,:,N0))/meant_out
-        u_mean = (u_mean + (dt-rest)*u(:,:,N0))/meant_out
-        v_mean = (v_mean + (dt-rest)*v(:,:,N0))/meant_out
-        psi_mean = (psi_mean + (dt-rest)*psi)/meant_out
-        eta2_mean = (eta2_mean + (dt-rest)*(eta(:,:,N0)))**2/meant_out
-        u2_mean = (u2_mean + (dt-rest)*(u(:,:,N0)))**2/meant_out
-        v2_mean = (v2_mean + (dt-rest)*(v(:,:,N0)))**2/meant_out
-        psi2_mean = (psi2_mean + (dt-rest)*psi**2)/meant_out
+        eta_mean = (eta_mean + (dt-remainder)*eta(:,:,N0))/meant_out
+        u_mean = (u_mean + (dt-remainder)*u(:,:,N0))/meant_out
+        v_mean = (v_mean + (dt-remainder)*v(:,:,N0))/meant_out
+        psi_mean = (psi_mean + (dt-remainder)*psi)/meant_out
+        eta2_mean = (eta2_mean + (dt-remainder)*(eta(:,:,N0)))**2/meant_out
+        u2_mean = (u2_mean + (dt-remainder)*(u(:,:,N0)))**2/meant_out
+        v2_mean = (v2_mean + (dt-remainder)*(v(:,:,N0)))**2/meant_out
+        psi2_mean = (psi2_mean + (dt-remainder)*psi**2)/meant_out
         
         CALL writeMean
         
-        eta_mean = rest*eta(:,:,N0)
-        u_mean = rest*u(:,:,N0)
-        v_mean = rest*v(:,:,N0)
-        psi_mean = rest*psi
-        eta2_mean = rest*(eta(:,:,N0))**2
-        u2_mean = rest*(u(:,:,N0))**2
-        v2_mean = rest*(v(:,:,N0))**2
-        psi2_mean = rest*psi**2
+        eta_mean = remainder*eta(:,:,N0)
+        u_mean = remainder*u(:,:,N0)
+        v_mean = remainder*v(:,:,N0)
+        psi_mean = remainder*psi
+        eta2_mean = remainder*(eta(:,:,N0))**2
+        u2_mean = remainder*(u(:,:,N0))**2
+        v2_mean = remainder*(v(:,:,N0))**2
+        psi2_mean = remainder*psi**2
 
         fullrec_mean = fullrec_mean + 1
         rec_mean = rec_mean + 1
