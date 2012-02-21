@@ -1,0 +1,4 @@
+&output_nl
+  oprefix = "selfcheck/sc_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+&end

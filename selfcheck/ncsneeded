@@ -1,0 +1,13 @@
+H_sc.nc mit "H"
+F_sc.nc mit "Fu" und "Fv"
+tau_sc.nc mit "TAUX" und "TAUY"
+eta_sc.nc mit ETA
+u_sc.nc mit "U"
+v_sc.nc mit "V"
+
+CO_sc.nc
+Crelax_sc.nc
+
+u_dff_sc.nc
+v_dff_sc.nc
+eta_dff_sc.nc

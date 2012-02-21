@@ -1,6 +1,6 @@
 CFORTAN := gfortran
 O := -O3
-CFLAGS := -fopenmp -cpp
+CFLAGS = -fopenmp -cpp $(defSelfCheck)
 libnc = -L/home/mclaus/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I/home/mclaus/local/netcdf-3.6.3/include
 
@@ -17,7 +17,7 @@ endif
 
 modules = vars_module diag_module timestep_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv)
 
-.PHONY: all clean_all clean
+.PHONY: all clean_all clean selfcheck defineSelfcheck
 
 all     : model clean
 #clean
@@ -51,6 +51,11 @@ calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
 
 dynFromFile_module.o : dynFromFile_module.f90 io_module.o vars_module.o
 	$(CFORTAN) $O $(CFLAGS) -c $<
+
+selfcheck : defineSelfcheck model
+
+defineSelfcheck :
+	$(eval defSelfCheck := -D'ISSELFCHECK')
 
 clean_all : clean
 	@rm -fv model

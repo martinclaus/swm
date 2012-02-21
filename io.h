@@ -32,7 +32,6 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_TRACER_NL 19
 #define UNIT_DYNFROMFILE_NL 20
 
-
 /* Switches for output control */ 
 !#define WRITEINPUT
 #define WRITEMEAN
@@ -79,5 +78,16 @@ Header file for shallow water model. Meant to set Input/Output constants
 
 /* If switched on, the diagnostics routines flush at every write_step */
 #define DIAG_FLUSH
+
+#ifdef ISSELFCHECK
+#define DIRSELFCHECK selfcheck
+#define MODEL_NL "DIRSELFCHECK/model.namelist"
+#define OUTPUT_NL "DIRSELFCHECK/output.namelist"
+#define TRACER_NL "DIRSELFCHECK/model.namelist"
+#define DYNFROMFILE_NL "DIRSELFCHECK/model.namelist"
+#define WRITEINPUT
+#define WRITEMEAN
+#define DIAG_FLUSH
+#endif
 
 #endif

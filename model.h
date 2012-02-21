@@ -38,4 +38,17 @@ Header file for shallow water model. Meant to set different physics.
 /* Switch for tracer module */
 !#define TRACER
 
+#ifdef ISSELFCHECK
+#define LINEAR_BOTTOM_FRICTION
+#define QUADRATIC_BOTTOM_FRICTION
+#define LATERAL_MIXING
+#define NEWTONIAN_COOLING
+#define PERIODIC_FORCING
+#define NEWTONIAN_SPONGE_N
+#define NEWTONIAN_SPONGE_S
+#define SWM
+#define DYNFROMFILE
+#define TDEP_FORCING
+#define TRACER
+#endif
 #endif
