@@ -360,10 +360,13 @@ PROGRAM model
     !
     ! LINEAR INTERPOLATION for now.
     !
-    ! NOTE01: We always assume the forcing time step to be greater than the
+    ! NOTE01 : We always assume the forcing time step to be greater than the
     !   model time step!
     !
-    ! NOTE01: If in doubt, center!
+    ! NOTE02 : If in doubt, center!
+    !
+    ! NOTE03 : We require the first model time step and the first forcing time
+    !   step to be equal.
     !
     ! Variable names:
     !   TDF_ncid : NC file ID of the time dependent forcing file
@@ -471,9 +474,9 @@ PROGRAM model
         TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * dt
         TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
 
-        ! interpolate to first time step
-        TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
-        TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
+        ! interpolate to TDF_t0
+        TDF_Fu0 = TDF_Fu1 + (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * (TDF_t0 - TDF_t1)
+        TDF_Fv0 = TDF_Fv1 + (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * (TDF_t0 - TDF_t1)
 
       else
         
