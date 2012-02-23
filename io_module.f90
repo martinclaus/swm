@@ -18,6 +18,8 @@ MODULE io_module
   CHARACTER(CHARLEN)            :: oprefix = "", osuffix="" ! prefix and suffix of output filenames
   CHARACTER(FULLREC_STRLEN)     :: fullrecstr=""
   
+  CHARACTER(CHARLEN)            :: time_unit=TUNIT
+  
   INTERFACE createDS
     MODULE PROCEDURE createDS2, createDS3old, createDS3handle
   END INTERFACE createDS
@@ -69,7 +71,7 @@ MODULE io_module
 
 
     SUBROUTINE createDS2(fileNameStem, varname, lat_vec, lon_vec, ncid, varid)
-      USE vars_module, ONLY : Nx,Ny
+      USE vars_module, ONLY : Nx,Ny, missval
       IMPLICIT NONE
       CHARACTER(*), INTENT(in)      :: fileNameStem, varname
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
@@ -82,19 +84,20 @@ MODULE io_module
       ! create file
       call check(nf90_create(getFname(fileNameStem), NF90_CLOBBER, ncid))
       ! create dimensions
-      call check(nf90_def_dim(ncid,lon_name,Nx,lon_dimid)) 
-      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
+      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
       ! define variables
-      ! latitude vector
-      call check(nf90_def_var(ncid,lat_name,NF90_DOUBLE,(/lat_dimid/),lat_varid))
-      call check(nf90_put_att(ncid,lat_varid, str_unit, lat_unit))
-      call check(nf90_put_att(ncid,lat_varid, str_name, lat_name))
       ! longitude vector
-      call check(nf90_def_var(ncid,lon_name,NF90_DOUBLE,(/lon_dimid/),lon_varid))
-      call check(nf90_put_att(ncid,lon_varid, str_unit, lon_unit))
-      call check(nf90_put_att(ncid,lon_varid, str_name, lon_name))
+      call check(nf90_def_var(ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
+      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
+      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+      ! latitude vector
+      call check(nf90_def_var(ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
+      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
+      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
       ! variable field
       call check(nf90_def_var(ncid,varname,NF90_DOUBLE,(/lon_dimid,lat_dimid/), varid))
+      call check(nf90_put_att(ncid,varid,NUG_ATT_MISS,missval))
       ! end define mode
       call check(nf90_enddef(ncid))
       ! write domain variables
@@ -109,35 +112,31 @@ MODULE io_module
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
       INTEGER                       :: lat_dimid, lon_dimid, &
                                        lat_varid, lon_varid
-      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
-                                       lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
-                                       lat_unit=YUNIT, lon_unit=XUNIT,&
-                                       time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
       FH%filename = getFname(FH%filename)
       ! create file
       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid))
       FH%isOpen = .TRUE.
       ! create dimensions
-      call check(nf90_def_dim(FH%ncid,lon_name,Nx,lon_dimid)) 
-      call check(nf90_def_dim(FH%ncid,lat_name,Ny,lat_dimid))
-      call check(nf90_def_dim(FH%ncid,time_name,NF90_UNLIMITED,FH%timedid))
+      call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(FH%ncid,YAXISNAME,Ny,lat_dimid))
+      call check(nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
       ! define variables
-      ! latitude vector
-      call check(nf90_def_var(FH%ncid,lat_name,NF90_DOUBLE,(/lat_dimid/),lat_varid))
-      call check(nf90_put_att(FH%ncid,lat_varid, str_unit, lat_unit))
-      call check(nf90_put_att(FH%ncid,lat_varid, str_name, lat_name))
       ! longitude vector
-      call check(nf90_def_var(FH%ncid,lon_name,NF90_DOUBLE,(/lon_dimid/),lon_varid))
-      call check(nf90_put_att(FH%ncid,lon_varid, str_unit, lon_unit))
-      call check(nf90_put_att(FH%ncid,lon_varid, str_name, lon_name))
+      call check(nf90_def_var(FH%ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
+      call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
+      call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+      ! latitude vector
+      call check(nf90_def_var(FH%ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
+      call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
+      call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
       ! time vector
-      call check(nf90_def_var(FH%ncid,time_name,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
-      call check(nf90_put_att(FH%ncid,FH%timevid, str_unit, time_unit))
-      call check(nf90_put_att(FH%ncid,FH%timevid, str_name, time_name))
+      call check(nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
+      call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
+      call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
       !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
       ! variable field
       call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
-      call check(nf90_put_att(FH%ncid,FH%varid,"missing_value",missval))
+      call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,missval))
       ! end define mode
       call check(nf90_enddef(FH%ncid))
       ! write domain variables
@@ -150,39 +149,36 @@ MODULE io_module
     END SUBROUTINE createDS3handle
 
     SUBROUTINE createDS3old(fileNameStem, varname,lat_vec, lon_vec, ncid, varid, time_varid)
-      USE vars_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : Nx, Ny, missval
       IMPLICIT NONE
       CHARACTER(*), INTENT(in)      :: fileNameStem, varname
       REAL(8), DIMENSION(*), INTENT(in) :: lat_vec, lon_vec
       INTEGER, INTENT(out)              :: ncid, varid, time_varid
       INTEGER                       :: lat_dimid, lon_dimid, time_dimid, &
                                        lat_varid, lon_varid
-      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
-                                       lat_name=YAXISNAME, lon_name=XAXISNAME, time_name=TAXISNAME, &
-                                       lat_unit=YUNIT, lon_unit=XUNIT,&
-                                       time_unit=TUNIT !since 1900-01-01 00:00:00", time_cal="noleap"
       ! create file
       call check(nf90_create(getFname(fileNameStem), NF90_CLOBBER, ncid))
       ! create dimensions
-      call check(nf90_def_dim(ncid,lon_name,Nx,lon_dimid)) 
-      call check(nf90_def_dim(ncid,lat_name,Ny,lat_dimid))
-      call check(nf90_def_dim(ncid,time_name,NF90_UNLIMITED,time_dimid))
+      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
+      call check(nf90_def_dim(ncid,TAXISNAME,NF90_UNLIMITED,time_dimid))
       ! define variables
-      ! latitude vector
-      call check(nf90_def_var(ncid,lat_name,NF90_DOUBLE,(/lat_dimid/),lat_varid))
-      call check(nf90_put_att(ncid,lat_varid, str_unit, lat_unit))
-      call check(nf90_put_att(ncid,lat_varid, str_name, lat_name))
       ! longitude vector
-      call check(nf90_def_var(ncid,lon_name,NF90_DOUBLE,(/lon_dimid/),lon_varid))
-      call check(nf90_put_att(ncid,lon_varid, str_unit, lon_unit))
-      call check(nf90_put_att(ncid,lon_varid, str_name, lon_name))
+      call check(nf90_def_var(ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
+      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
+      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+      ! latitude vector
+      call check(nf90_def_var(ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
+      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
+      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
       ! time vector
-      call check(nf90_def_var(ncid,time_name,NF90_DOUBLE,(/time_dimid/),time_varid))
-      call check(nf90_put_att(ncid,time_varid, str_unit, time_unit))
-      call check(nf90_put_att(ncid,time_varid, str_name, time_name))
+      call check(nf90_def_var(ncid,TAXISNAME,NF90_DOUBLE,(/time_dimid/),time_varid))
+      call check(nf90_put_att(ncid,time_varid, NUG_ATT_UNITS, time_unit))
+      call check(nf90_put_att(ncid,time_varid, NUG_ATT_LONG_NAME, TAXISNAME))
       !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
       ! variable field
       call check(nf90_def_var(ncid,varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,time_dimid/), varid))
+      call check(nf90_put_att(ncid,varid,NUG_ATT_MISS,missval))
       ! end define mode
       call check(nf90_enddef(ncid))
       ! write domain variables

@@ -391,20 +391,22 @@ PROGRAM model
 
       IMPLICIT NONE
       INTEGER :: TDF_tDimID
-      CHARACTER(len = 80) :: tmp1 
-      INTEGER :: i, j
+      CHARACTER(CHARLEN) :: tmp1 
+      INTEGER :: i, j, NC_status
 
       ! open file, get lengt of time vector, allocate get dime vector, get
       ! other var IDs
 
       call check(nf90_open(TDF_fname, NF90_NOWRITE, TDF_ncid))
-      call check(nf90_inq_dimid(TDF_ncid, 'TS', TDF_tDimID))
+      call check(nf90_inq_dimid(TDF_ncid, 'time', TDF_tDimID))
       call check(nf90_inquire_dimension(TDF_ncid, TDF_tDimID, tmp1, TDF_tLEN))
       allocate(TDF_t(1:TDF_tLEN))
-      call check(nf90_inq_varid(TDF_ncid, 'TS', TDF_tID))
+      call check(nf90_inq_varid(TDF_ncid, 'time', TDF_tID))
       call check(nf90_get_var(TDF_ncid, TDF_tID, TDF_t))
       call check(nf90_inq_varid(TDF_ncid, 'TAUX', TDF_FuID))
       call check(nf90_inq_varid(TDF_ncid, 'TAUY', TDF_FvID))
+      NC_status = nf90_get_att(TDF_ncid,TDF_tID,NUG_ATT_UNITS, tmp1)
+      IF (NC_status .EQ. NF90_NOERR) time_unit = tmp1
 
       ! initialize iteration
       TDF_itt1 = 1
