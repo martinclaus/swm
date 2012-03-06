@@ -25,9 +25,9 @@ MODULE diag_module
       CALL writeInput
 #endif
 #ifdef WRITEMEAN
-      CALL createDatasets
       CALL createmeanDatasets
 #endif
+      CALL createDatasets
       ! allocate and initialise diagnostic fields
       ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
