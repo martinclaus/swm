@@ -363,9 +363,7 @@ PROGRAM model
     ! NOTE01 : We always assume the forcing time step to be greater than the
     !   model time step!
     !
-    ! NOTE02 : If in doubt, center!
-    !
-    ! NOTE03 : We require the first model time step and the first forcing time
+    ! NOTE02 : We require the first model time step and the first forcing time
     !   step to be equal.
     !
     ! Variable names:
@@ -413,7 +411,7 @@ PROGRAM model
       TDF_itt2 = 2
       TDF_t1 = TDF_t(TDF_itt1)
       TDF_t2 = TDF_t(TDF_itt2)
-      TDF_t0 = dt * (itt + 0.5)
+      TDF_t0 = dt * itt
 
       ! allocate Forcing buffers
       allocate(TDF_Fu1(1:Nx, 1:Ny))
@@ -444,8 +442,8 @@ PROGRAM model
       TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
 
       ! interpolate to first time step
-      TDF_Fu0 = TDF_Fu1 + 0.5 * TDF_dFu
-      TDF_Fv0 = TDF_Fv1 + 0.5 * TDF_dFv
+      TDF_Fu0 = TDF_Fu1
+      TDF_Fv0 = TDF_Fv1
 
     END SUBROUTINE initTdepForcing
 
@@ -454,9 +452,9 @@ PROGRAM model
       IMPLICIT NONE
       INTEGER :: i, j
 
-      TDF_t0 = dt * (itt + 0.5)
+      TDF_t0 = dt * itt
 
-      if(TDF_t0 .ge. TDF_t2) then
+      if(TDF_t0 .gt. TDF_t2) then
 
         TDF_itt1 = TDF_itt2
         TDF_itt2 = TDF_itt2 + 1
