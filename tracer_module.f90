@@ -54,7 +54,7 @@ MODULE tracer_module
   INTEGER(1), PARAMETER                           :: TRC_NLEVEL_SCHEME=3, & ! how many time levels are used
                                                      TRC_N0=2, TRC_N0p1=TRC_N0+1, TRC_N0m1=TRC_N0-1 ! Timestep indices 
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_C1  ! Tracer field
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0, & ! field to which the tracer should be relaxed (also initial value for tracer at the moment)
+  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0, & ! field to which the tracer should be relaxed
                                                      TRC_C1_relax ! local relaxation timescale
   REAL(8)                                         :: TRC_C1_A = 1., &! Diffusivity
                                                      TRC_C1_cons=0. ! Consumption rate of tracer
@@ -104,8 +104,6 @@ MODULE tracer_module
       CALL TRC_initEFScheme
       ! compute second initial condition with euler forward scheme
       CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
-      CALL TRC_tracerStepEulerForward
-      CALL TRC_advance
       ! check if stability criteria is met
     END SUBROUTINE TRC_initTracer
     
@@ -140,11 +138,15 @@ MODULE tracer_module
 
     SUBROUTINE TRC_tracerStep
       USE calc_lib, ONLY : computeNonDivergentFlowField
-      USE vars_module, ONLY : u,v,N0
+      USE vars_module, ONLY : u,v,N0, itt
       IMPLICIT NONE
       CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
-!      CALL TRC_checkLeapfrogStability(TRC_u_nd,TRC_v_nd)
-      CALL TRC_tracerStepLeapfrog
+      IF (itt.GT.1) THEN
+!       CALL TRC_checkLeapfrogStability(TRC_u_nd,TRC_v_nd)
+        CALL TRC_tracerStepLeapfrog
+      ELSE
+        CALL TRC_tracerStepEulerForward
+      END IF
     END SUBROUTINE TRC_tracerStep
     
     SUBROUTINE TRC_advance
