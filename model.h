@@ -19,6 +19,8 @@ Header file for shallow water model. Meant to set different physics.
 /* Sponge layers */
 !#define NEWTONIAN_SPONGE_N
 !#define NEWTONIAN_SPONGE_S
+!#define VELOCITY_SPONGE_N
+!#define VELOCITY_SPONGE_S
 
 /* Switches for Reynolds stress terms*/
 !#define wo_u2_x_u
@@ -46,6 +48,8 @@ Header file for shallow water model. Meant to set different physics.
 #define PERIODIC_FORCING
 #define NEWTONIAN_SPONGE_N
 #define NEWTONIAN_SPONGE_S
+#define VELOCITY_SPONGE_N
+#define VELOCITY_SPONGE_S
 #define SWM
 #define DYNFROMFILE
 #define TDEP_FORCING
