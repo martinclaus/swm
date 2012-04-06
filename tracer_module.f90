@@ -176,10 +176,10 @@ MODULE tracer_module
                                 + TRC_C1(i     ,j,TRC_N0)*TRC_u_nd(i     ,j)*TRC_Coef_EF(i,j,6) &
                                 + TRC_C1(i     ,j,TRC_N0)*TRC_v_nd(i,jp1(j))*TRC_Coef_EF(i,j,7) &
                                 + TRC_C1(i     ,j,TRC_N0)*TRC_v_nd(i     ,j)*TRC_Coef_EF(i,j,8) &
-                                + TRC_C1(ip1(i),j,TRC_N0m1)*TRC_Coef_EF(i,j,9) &
-                                + TRC_C1(im1(i),j,TRC_N0m1)*TRC_Coef_EF(i,j,10) &
-                                + TRC_C1(i,jp1(j),TRC_N0m1)*TRC_Coef_EF(i,j,11) &
-                                + TRC_C1(i,jm1(j),TRC_N0m1)*TRC_Coef_EF(i,j,12) &
+                                + TRC_C1(ip1(i),j,TRC_N0)*TRC_Coef_EF(i,j,9) &
+                                + TRC_C1(im1(i),j,TRC_N0)*TRC_Coef_EF(i,j,10) &
+                                + TRC_C1(i,jp1(j),TRC_N0)*TRC_Coef_EF(i,j,11) &
+                                + TRC_C1(i,jm1(j),TRC_N0)*TRC_Coef_EF(i,j,12) &
                                 + TRC_C1(i     ,j,TRC_N0)*TRC_Coef_EF(i,j,13) &
                                 + TRC_Coef_EF(i,j,14)
         END DO XSPACE
