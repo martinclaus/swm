@@ -10,7 +10,7 @@ MODULE diag_module
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
   TYPE(fileHandle)              :: FH_eta, FH_u, FH_v, FH_H, FH_Fx, FH_Fy, FH_psi, FH_tracer, FH_gamma_n
   TYPE(fileHandle)              :: FH_eta_mean, FH_u_mean, FH_v_mean, FH_psi_mean, FH_eta2_mean, FH_u2_mean, FH_v2_mean,&
-                                   &FH_psi2_mean
+                                   FH_psi2_mean
   REAL(8), DIMENSION(:,:), ALLOCATABLE     :: eta_mean, u_mean, v_mean, psi_mean, psi, eta2_mean, u2_mean, v2_mean, psi2_mean  
   INTEGER                      :: rec=1, rec_mean=1
   INTEGER                      :: fullrec=1, fullrec_mean=1 ! full number of records (including all chunks of output files). 
@@ -196,22 +196,22 @@ MODULE diag_module
       CALL putVar(FH=FH_H, varData=H, ocean_mask=ocean_H)
       CALL closeDS(FH_H)
 
-      CALL initFH(OFILEFX,OVARNAMEFX,FH_Fx)
-      CALL createDS(FH_Fx,lat_u,lon_u)
-      CALL putVar(FH=FH_Fx, varData=F_x, ocean_mask=ocean_u)
-      CALL closeDS(FH_Fx)
+!      CALL initFH(OFILEFX,OVARNAMEFX,FH_Fx)
+!      CALL createDS(FH_Fx,lat_u,lon_u)
+!      CALL putVar(FH=FH_Fx, varData=F_x, ocean_mask=ocean_u)
+!      CALL closeDS(FH_Fx)
       
-      CALL initFH(OFILEFY,OVARNAMEFY,FH_Fy)
-      CALL createDS(FH_Fy,lat_v,lon_v)
-      CALL putVar(FH=FH_Fy, varData=F_y, ocean_mask=ocean_v)
-      CALL closeDS(FH_Fy)
+!      CALL initFH(OFILEFY,OVARNAMEFY,FH_Fy)
+!      CALL createDS(FH_Fy,lat_v,lon_v)
+!      CALL putVar(FH=FH_Fy, varData=F_y, ocean_mask=ocean_v)
+!      CALL closeDS(FH_Fy)
 
-#ifdef NEWTONIAN_COOLING
-      CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
-      CALL createDS(FH_gamma_n,lat_eta,lon_eta)
-      CALL putVar(FH=FH_gamma_n, varData=gamma_n,ocean_mask=ocean_eta )
-      CALL closeDS(FH_gamma_n)
-#endif
+!#ifdef NEWTONIAN_COOLING
+!      CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
+!      CALL createDS(FH_gamma_n,lat_eta,lon_eta)
+!      CALL putVar(FH=FH_gamma_n, varData=gamma_n,ocean_mask=ocean_eta )
+!      CALL closeDS(FH_gamma_n)
+!#endif
     END SUBROUTINE writeInput
     
     SUBROUTINE writeDiag

@@ -37,8 +37,12 @@ MODULE io_module
   END INTERFACE closeDS
   
   INTERFACE getVar
-    MODULE PROCEDURE getVar3Dhandle
+    MODULE PROCEDURE getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
   END INTERFACE getVar
+  
+  INTERFACE getAtt
+    MODULE PROCEDURE getCHARAtt
+  END INTERFACE
   
   CONTAINS
     SUBROUTINE initIO
@@ -281,6 +285,49 @@ MODULE io_module
       END IF  
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar3Dhandle
+
+    SUBROUTINE getVar2Dhandle(FH,var,tstart, missmask)
+      USE vars_module, ONLY : Nx, Ny
+      TYPE(fileHandle), INTENT(inout)             :: FH
+      INTEGER, INTENT(in)                         :: tstart
+      REAL(8), DIMENSION(:,:), INTENT(out) :: var
+      INTEGER, DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask
+      REAL(8)                                     :: missing_value
+      LOGICAL                                     :: wasOpen
+      wasOpen = FH%isOpen
+      call openDS(FH)
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,1/)))              
+      ! assume that if getatt gives an error, there's no missing value defined.
+      IF ( present(missmask)) THEN
+        missmask = 0
+        IF ( nf90_get_att(FH%ncid, FH%varid, 'missing_value', missing_value) .EQ. NF90_NOERR ) &
+          WHERE ( var .eq. missing_value ) missmask = 1
+        IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
+          WHERE ( var .eq. missing_value ) missmask = 1
+      END IF  
+      IF ( .NOT. wasOpen ) call closeDS(FH)
+    END SUBROUTINE getVar2Dhandle
+    
+    SUBROUTINE getVar1Dhandle(FH,var,tstart,tlen)
+      TYPE(fileHandle), INTENT(inout)              :: FH
+      INTEGER, INTENT(in), OPTIONAL                :: tstart, tlen
+      REAL(8), DIMENSION(:), INTENT(out)           :: var
+      REAL(8)  :: missing_value
+      LOGICAL  :: wasOpen
+      !TODO: Test for overflow, i.e. var should have sufficient size
+      wasOpen = FH%isOpen
+      CALL openDS(FH)
+      IF (PRESENT(tstart)) THEN
+        IF (PRESENT(tlen)) THEN
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/), count=(/tlen/)))
+        ELSE
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/)))
+        END IF
+      ELSE
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var))
+      END IF
+      IF ( .NOT. wasOpen ) call closeDS(FH)
+    END SUBROUTINE getVar1Dhandle
     
     SUBROUTINE touch(FH)
       TYPE(fileHandle), INTENT(inout)    :: FH
@@ -297,7 +344,6 @@ MODULE io_module
     SUBROUTINE initFH(fileName,varname,FH)
       CHARACTER(*), intent(in)        :: fileName,varname
       TYPE(fileHandle), intent(out)   :: FH
-      LOGICAL                         :: file_exist
       IF (LEN_TRIM(fileName) .NE. 0) THEN
         FH = fileHandle(fileName,varname)
         CALL touch(FH)
@@ -325,4 +371,23 @@ MODULE io_module
       isSetFH = (LEN_TRIM(FH%filename) .NE. 0)
       RETURN
     END FUNCTION isSetFH
+    
+    CHARACTER(CHARLEN) FUNCTION getCHARAtt(FH,attname)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout) :: FH
+      CHARACTER(*), INTENT(in)        :: attname
+      CHARACTER(CHARLEN)  :: tmpChar
+      INTEGER  :: NC_status
+      LOGICAL  :: wasOpen
+      wasOpen = FH%isOpen
+      CALL openDS(FH)
+      NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpChar)
+      IF (NC_status .EQ. NF90_NOERR) THEN
+        getCHARAtt = tmpChar
+      ELSE
+        getCHARAtt = ""
+      END IF
+      IF ( .NOT. wasOpen ) call closeDS(FH)
+    END FUNCTION getCHARAtt
+
 END MODULE io_module

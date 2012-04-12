@@ -15,7 +15,7 @@ else
   $(info Elliptic solver used by calc_lib module: none) 
 endif
 
-modules = vars_module diag_module timestep_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv)
+modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv)
 
 .PHONY: all clean_all clean selfcheck defineSelfcheck
 
@@ -25,13 +25,13 @@ all     : model clean
 model   : $(modules:%=%.o) model.o
 	$(CFORTAN) $O $(CFLAGS) -o model $^ $(libnc)
 
-model.o : model.f90 diag_module.o vars_module.o tracer_module.o model.h io.h
-	$(CFORTAN) $O $(CFLAGS) -c $< $(includenc)
+model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o model.h io.h
+	$(CFORTAN) $O $(CFLAGS) -c $<
 
 vars_module.o : vars_module.f90 io.h
 	$(CFORTAN) $O $(CFLAGS) -c $<
 
-timestep_module.o : timestep_module.f90 vars_module.o model.h
+swm_module.o : swm_module.f90 vars_module.o io_module.o model.h io.h
 	$(CFORTAN) $O $(CFLAGS) -c $<
 
 diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o model.h

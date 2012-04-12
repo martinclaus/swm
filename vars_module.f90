@@ -67,11 +67,8 @@ MODULE vars_module
   ! dynamic fields u, v, eta, allocated during initialization
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: u, v, eta   ! variable fields
 
-  ! constant fieds H, Forcing, damping, allocated during initialization
-  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H, F_x, F_y, gamma_lin_u, &
-                                  TAU_X, TAU_Y, F1_X, F1_Y, REY_u2, REY_v2, REY_uv, &
-                                  gamma_lin_v, gamma_sq_v, gamma_sq_u, gamma_n, &
-                                  H_u, H_v, H_eta                        ! constant fields
+  ! constant fieds H, allocated during initialization
+  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H, H_u, H_v, H_eta
 
   ! nearest neighbor indices, derived from domain specs                                
   INTEGER, DIMENSION(:), ALLOCATABLE :: ip1, im1, jp1, jm1                                
@@ -84,22 +81,6 @@ MODULE vars_module
   ! runtime variables
   INTEGER(8) :: itt ! time step
 
-  ! variables related to the time dependent forcing
-  CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"  ! input file name
-  INTEGER :: TDF_ncid                           ! input file ID
-  INTEGER :: TDF_tID, TDF_FuID, TDF_FvID        ! var IDs
-  INTEGER :: TDF_tLEN                           ! length of time dim
-  REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t   ! time vector
-  INTEGER :: TDF_itt1, TDF_itt2                 ! indices of the two buffers used for linear interpolation
-  REAL(8) :: TDF_t1, TDF_t2                     ! times of the two buffers used for linear interpolation
-  REAL(8) :: TDF_t0                             ! current model time + 1/2 step to which the forcing
-                                                ! is interpolated
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu1, TDF_Fu2, TDF_Fv1, TDF_Fv2
-                                                ! two buffers of forcing data
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu0, TDF_Fv0 
-                                                ! Forcing interpolated to model time (+1/2 step)
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_dFu, TDF_dFv 
-                                                ! Forcing increment
 
 END MODULE vars_module
 
@@ -137,20 +118,6 @@ SUBROUTINE initVars
   allocate(H_u(1:Nx, 1:Ny))
   allocate(H_v(1:Nx, 1:Ny))
   allocate(H_eta(1:Nx, 1:Ny))
-  allocate(F_x(1:Nx, 1:Ny))
-  allocate(F_y(1:Nx, 1:Ny))
-  allocate(F1_x(1:Nx, 1:Ny))
-  allocate(F1_y(1:Nx, 1:Ny))
-  allocate(TAU_x(1:Nx, 1:Ny))
-  allocate(TAU_y(1:Nx, 1:Ny))
-  allocate(REY_u2(1:Nx, 1:Ny))
-  allocate(REY_v2(1:Nx, 1:Ny))
-  allocate(REY_uv(1:Nx, 1:Ny))
-  allocate(gamma_lin_u(1:Nx, 1:Ny)); gamma_lin_u = 0.;
-  allocate(gamma_lin_v(1:Nx, 1:Ny)); gamma_lin_v = 0.;
-  allocate(gamma_sq_u(1:Nx, 1:Ny)); gamma_sq_u = 0.;
-  allocate(gamma_sq_v(1:Nx, 1:Ny)); gamma_sq_v = 0.;
-  allocate(gamma_n(1:Nx, 1:Ny)); gamma_n = 0.;
   allocate(land_H(1:Nx, 1:Ny))
   allocate(land_u(1:Nx, 1:Ny))
   allocate(land_v(1:Nx, 1:Ny))
@@ -177,4 +144,8 @@ SUBROUTINE initVars
   allocate(tanTheta_u(1:Ny))
   ! start time loop
   itt = 0
+  ! init dynamical variables
+  u = 0.
+  v = 0.
+  eta = 0.
 END SUBROUTINE initVars

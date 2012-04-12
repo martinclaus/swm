@@ -144,18 +144,15 @@ MODULE dynFromFile_module
     
     SUBROUTINE DFF_advance
       USE io_module, ONLY : isSetFH
-      USE vars_module, ONLY : u,v,eta
-      USE calc_lib, ONLY : evSF_zonal, evSF_meridional
+      USE vars_module, ONLY : u,v,eta, N0
       IMPLICIT NONE
       INTEGER(1) :: u_isSet=0, v_isSet=0
-      IF (isSetFH(DFF_FH_u)) u_isSet=1_1
-      IF (isSetFH(DFF_FH_v)) v_isSet=1_1
-      IF (isSetFH(DFF_FH_eta)) eta = DFF_eta(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
-      IF (isSetFH(DFF_FH_u))   u = DFF_u(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
-      IF (isSetFH(DFF_FH_v))   v = DFF_v(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
+      IF (isSetFH(DFF_FH_eta)) eta(:,:,N0) = eta(:,:,N0) + DFF_eta(:,:,DFF_chunk_counter)
+      IF (isSetFH(DFF_FH_u))   u(:,:,N0) = u(:,:,N0) + DFF_u(:,:,DFF_chunk_counter)
+      IF (isSetFH(DFF_FH_v))   v(:,:,N0) = v(:,:,N0) + DFF_v(:,:,DFF_chunk_counter)
       IF (isSetFH(DFF_FH_psi)) THEN
-        u = u_isSet*u + DFF_u_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
-        v = v_isSet*v + DFF_v_psi(:,:,DFF_chunk_counter:DFF_chunk_counter+1)
+        u(:,:,N0) = u(:,:,N0) + DFF_u_psi(:,:,DFF_chunk_counter)
+        v(:,:,N0) = v(:,:,N0) + DFF_v_psi(:,:,DFF_chunk_counter)
       END IF
       DFF_chunk_counter = DFF_chunk_counter + 1
     END SUBROUTINE DFF_advance
@@ -170,7 +167,7 @@ MODULE dynFromFile_module
       INTEGER, INTENT(in)                                     :: nt_len
       INTEGER                                                 :: nt_end, nt_len2, nrec, nFpC, nt_start2
       ! get length of file
-!      PRINT *,"DEBUG: readFromFile ",FH%filename,nt_start,nt_len
+!      PRINT *,"DEBUG: readFromFile ",trim(FH%filename),nt_start,nt_len
       nrec = getNrec(FH)
       nFpC = MAX(floor(REAL(DFF_Nt_chunksize)/nrec),1)
       ! rewind file if start index is out of bound
@@ -200,7 +197,7 @@ MODULE dynFromFile_module
       IF (.NOT. isSetFH(FH)) RETURN
       file_rec = file_rec + DFF_Nt_chunksize-1
       IF (MOD(DFF_Nt_chunksize-1,getNrec(FH)).NE.0 .OR. itt.EQ.0) THEN
-!        PRINT *,"DEBUG: read from file "//FH%fileName
+!        PRINT *,"DEBUG: read from file "//FH%fileName,file_rec,itt
         CALL DFF_readFromFile(FH,dynVar,file_rec,DFF_Nt_chunksize)
       END IF
     END SUBROUTINE tstepDynVar
