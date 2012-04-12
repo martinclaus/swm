@@ -9,6 +9,8 @@ MODULE swm_module
                                             SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, lat_mixing_u, lat_mixing_v
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u, &
                                             F_x, F_y
+  INTEGER, PARAMETER                     :: NG=2, NG0=NG, NG0m1=NG0-1
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: G_u, G_v, G_eta
   ! variables related to the time dependent forcing
   CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"  ! input file name TODO: remove magic string
   REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t   ! time vector
@@ -29,7 +31,8 @@ MODULE swm_module
       IMPLICIT NONE
       INTEGER :: alloc_error ! spatial coordinates
       ! allocate what's necessary
-      ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns), stat=alloc_error)
+      ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),&
+               G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_init:",alloc_error
         STOP 1
@@ -52,7 +55,7 @@ MODULE swm_module
 #endif
       CALL SWM_finishForcing
       CALL SWM_finishDamping
-      DEALLOCATE(SWM_u, SWM_v, SWM_eta, stat=alloc_error)
+      DEALLOCATE(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_finishSWM
 
@@ -218,6 +221,47 @@ MODULE swm_module
       CALL SWM_finishLateralMixing
 #endif
     END SUBROUTINE SWM_finishHeapsScheme
+
+    SUBROUTINE SWM_initLiMeanState
+      USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u, v, A, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
+      IMPLICIT NONE
+      INTEGER :: alloc_error, i, j
+      REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v
+      ALLOCATE(SWM_Coef_eta(1:9,1:Nx, 1:Ny), SWM_Coef_v(1:11, 1:Nx, 1:Ny), SWM_Coef_u(1:11, 1:Nx, 1:Ny),&
+               U_v(1:Nx, 1:Ny), V_u(1:Nx, 1:Ny), f(1:Nx, 1:Ny), f_u(1:Nx, 1:Ny), f_v(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation error in SWM_initHeapsScheme:",alloc_error
+        STOP 1
+      END IF
+      ! initialise coefficients
+      SWM_Coef_eta = 0._8
+      SWM_Coef_u   = 0._8
+      SWM_Coef_v   = 0._8
+      FORALL (i=1:Nx, j=1:Ny)
+        ! eta coefficients
+        SWM_Coef_eta(1,i,j) = - (u(ip1(i),j,N0)-u(i,j,N0))/(2*A*cosTheta_u(j)*dLambda) &
+                              - (cosTheta_v(jp1(j))*v(i,jp1(j),N0)-cosTheta_v(j)*v(i,j,N0))/(2*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(2,i,j) = - u(ip1(i),j,N0) / (2*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(3,i,j) =   u(i     ,j,N0) / (2*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v(i,jp1(j),N0))/(2*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v(i,j,N0))/(2*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(6,i,j) = -(H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(7,i,j) =  (H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(8,i,j) = -(cosTheta_v(jp1(j))*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(9,i,j) =  (cosTheta_v(j)*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
+        ! u coefficients
+        ! v coefficients
+      END FORALL
+      DEALLOCATE(U_v, V_u, f, f_u, f_v, stat=alloc_error)
+      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+    END SUBROUTINE SWM_initLiMeanState
+    
+    SUBROUTINE SWM_finishLiMeanState
+      IMPLICIT NONE
+      INTEGER :: alloc_error
+      DEALLOCATE(SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, stat=alloc_error)
+      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+    END SUBROUTINE SWM_finishLiMeanState
 
     SUBROUTINE SWM_initLateralMixing
       USE vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v, &
