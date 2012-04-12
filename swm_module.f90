@@ -10,7 +10,8 @@ MODULE swm_module
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u, &
                                             F_x, F_y
   INTEGER, PARAMETER                     :: NG=2, NG0=NG, NG0m1=NG0-1
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: G_u, G_v, G_eta
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: G_u, G_v, G_eta ! explicit increment vectors
+  REAL(8), PARAMETER                     :: AB_Chi=.1_8, AB_C1=1.5_8+AB_Chi, AB_C2=.5_8+AB_Chi   ! TODO: replace AB_Chi by namelist entry
   ! variables related to the time dependent forcing
   CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"  ! input file name TODO: remove magic string
   REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t   ! time vector
@@ -42,14 +43,24 @@ MODULE swm_module
 #ifdef TDEP_FORCING
       CALL SWM_initTdepForcing
 #endif
+#ifdef SWM_TSTEP_HEAPS
       CALL SWM_initHeapsScheme
+#endif
+#ifdef SWM_TSTEP_ADAMSBASHFORTH
+      CALL SWM_initLiMeanState
+#endif
       CALL SWM_initialConditions
     END SUBROUTINE SWM_initSWM
 
     SUBROUTINE SWM_finishSWM
       IMPLICIT NONE
       INTEGER   :: alloc_error
+#ifdef SWM_TSTEP_ADAMSBASHFORTH
+      CALL SWM_finishLiMeanState
+#endif
+#ifdef SWM_TSTEP_HEAPS
       CALL SWM_finishHeapsScheme
+#endif
 #ifdef TDEP_FORCING
       CALL SWM_finishTdepForcing
 #endif
@@ -58,16 +69,29 @@ MODULE swm_module
       DEALLOCATE(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_finishSWM
-
+    
     SUBROUTINE SWM_timestep
-      USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1,  land_eta, land_u, land_v
       IMPLICIT NONE
-      INTEGER :: i, j 
-      REAL(8) :: v_u, u_v
 #ifdef TDEP_FORCING
       ! update time dependent forcing
       CALL SWM_updateTdepForcing
 #endif
+#ifdef SWM_TSTEP_EULERFW
+      CALL SWM_timestepEulerForward
+#endif
+#ifdef SWM_TSTEP_HEAPS
+      CALL SWM_timestepHeaps
+#endif
+#ifdef SWM_TSTEP_ADAMSBASHFORTH
+      CALL SWM_timestepAdamsBashforth
+#endif
+    END SUBROUTINE SWM_timestep
+
+    SUBROUTINE SWM_timestepHeaps
+      USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, freq_wind, land_eta, land_u, land_v
+      IMPLICIT NONE
+      INTEGER :: i, j 
+      REAL(8) :: v_u, u_v
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -112,8 +136,8 @@ MODULE swm_module
                           + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #endif
                           + F_x(i,j)                                           &
-#ifdef PERIODIC_FORCING
-                             *SIN(freq_wind*itt*dt)                            & ! Forcing
+#ifdef PERIODIC_FORCING_X
+                             *PERIODIC_FORCING_X(freq_wind*itt*dt)                            & ! Forcing
 #endif
 #ifdef TDEP_FORCING
                           + TDF_Fu0(i,j)                                       & ! time dep. forcing
@@ -159,7 +183,138 @@ MODULE swm_module
       ENDDO YSPACE3
 !$OMP END DO
 !$OMP END PARALLEL
-    END SUBROUTINE SWM_timestep
+    END SUBROUTINE SWM_timestepHeaps
+
+    SUBROUTINE SWM_timestepAdamsBashforth
+      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
+      IMPLICIT NONE
+      INTEGER :: i,j,u_v,v_u
+      IF (itt.le.1) THEN ! do a Euler forward to compute second initial condition
+        CALL SWM_timestepEulerForward
+        RETURN
+      END IF
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,u_v,v_u)
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
+      YSPACE: DO j=1,Ny   ! loop over y dimension
+        XSPACE: DO i=1,Nx ! loop over x dimension
+          ! eta equation
+          ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_eta(i,j,NG0) = (SUM(&
+                             (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
+                                SWM_u(ip1(i),j,N0),SWM_u(i,j,N0),&
+                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/)&
+                              *SWM_Coef_eta(:,i,j)) &
+                             )
+            ! Integrate
+            SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*(AB_C1*G_eta(i,j,NG0) - AB_C2*G_eta(i,j,NG0m1)))/impl_eta(i,j)
+          END IF ETA
+          ! u equation
+          U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
+                                 SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
+                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
+                               *SWM_Coef_u(:,i,j)) &
+                           + F_x(i,j) &                                                 ! forcing
+#ifdef PERIODIC_FORCING_X
+                            *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef TDEP_FORCING
+                           + TDF_Fu0(i,j) &                                             ! time dep. forcing
+#endif                      
+                          )
+            ! Integrate
+            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*(AB_C1*G_u(i,j,NG0) - AB_C2*G_u(i,j,NG0m1)))/impl_u(i,j) !TODO: implement non-linear terms
+          END IF U
+          ! v equation
+          V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
+                                  SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
+                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
+                                *SWM_Coef_v(:,i,j)) &
+                           + F_y(i,j) &                                                 ! forcing
+#ifdef PERIODIC_FORCING_Y
+                            *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef TDEP_FORCING
+                           + TDF_Fv0(i,j) &                                             ! time dep. forcing
+#endif                      
+                           )
+           ! Integrate
+           SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*(AB_C1*G_v(i,j,NG0) - AB_C2*G_v(i,j,NG0m1)))/impl_v(i,j) !TODO: implement non-linear terms
+          END IF V
+        ENDDO XSPACE
+      ENDDO YSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+    END SUBROUTINE SWM_timestepAdamsBashforth
+
+    SUBROUTINE SWM_timestepEulerForward
+      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
+      IMPLICIT NONE
+      INTEGER :: i,j,u_v,v_u
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,u_v,v_u)
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
+      YSPACE: DO j=1,Ny   ! loop over y dimension
+        XSPACE: DO i=1,Nx ! loop over x dimension
+          ! eta equation
+          ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_eta(i,j,NG0)= (SUM(&
+                             (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
+                                SWM_u(ip1(i),j,N0),SWM_u(i,j,N0), &
+                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/) &
+                              *SWM_Coef_eta(:,i,j)) &
+                             )
+            ! Integrate
+            SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*G_eta(i,j,NG0))/impl_eta(i,j)
+          END IF ETA
+          !u equation
+          U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
+                                 SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
+                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
+                               *SWM_Coef_u(:,i,j)) &
+                           + F_x(i,j) &                                                 ! forcing
+#ifdef PERIODIC_FORCING_X
+                            *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef TDEP_FORCING
+                           + TDF_Fu0(i,j) &                                             ! time dep. forcing
+#endif                      
+                           )
+            ! Integrate
+            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j) !TODO: implement non-linear terms
+          END IF U
+          V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
+            ! compute explicit linear increment
+            G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
+                                  SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
+                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
+                                *SWM_Coef_v(:,i,j)) &
+                           + F_y(i,j) &                                                 ! forcing
+#ifdef PERIODIC_FORCING_Y
+                            *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef TDEP_FORCING
+                          + TDF_Fv0(i,j) &                                             ! time dep. forcing
+#endif                      
+                           )
+            ! Integrate
+            SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*G_v(i,j,NG0))/impl_v(i,j) !TODO: implement non-linear terms
+          END IF V
+        ENDDO XSPACE
+      ENDDO YSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+    END SUBROUTINE SWM_timestepEulerForward
 
     SUBROUTINE SWM_advance
       USE vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
@@ -172,6 +327,10 @@ MODULE swm_module
       u(:,:,N0)     = u(:,:,N0) + SWM_u(:,:,N0)
       v(:,:,N0)     = v(:,:,N0) + SWM_v(:,:,N0)
       eta(:,:,N0)   = eta(:,:,N0) + SWM_eta(:,:,N0)
+      ! Shift explicit increment vectors
+      G_u(:,:,1:NG-1) = G_u(:,:,2:NG)
+      G_v(:,:,1:NG-1) = G_v(:,:,2:NG)
+      G_eta(:,:,1:NG-1) = G_eta(:,:,2:NG)
     END SUBROUTINE SWM_advance
     
     SUBROUTINE SWM_initHeapsScheme
@@ -223,7 +382,7 @@ MODULE swm_module
     END SUBROUTINE SWM_finishHeapsScheme
 
     SUBROUTINE SWM_initLiMeanState
-      USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u, v, A, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
+      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v

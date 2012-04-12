@@ -10,18 +10,22 @@ Header file for shallow water model. Meant to set different physics.
 
 /* Switch for Shallow Water Model */
 #define SWM
+/* Switches for timestepping (only use one at a time) */
+!#define SWM_TSTEP_EULERFW
+!#define SWM_TSTEP_HEAPS
+#define SWM_TSTEP_ADAMSBASHFORTH
 /* Switches for forcing */
-#define TDEP_FORCING
-!#define PERIODIC_FORCING
+!#define TDEP_FORCING
+#define PERIODIC_FORCING_X SIN
 /* Switches for Reynolds stress terms*/
 !#define wo_u2_x_u
 !#define wo_uv_y_u
 !#define wo_uv_x_v
 !#define wo_v2_y_v
 /* Switches for damping */
-#define LINEAR_BOTTOM_FRICTION
+!#define LINEAR_BOTTOM_FRICTION
 !#define QUADRATIC_BOTTOM_FRICTION
-!#define LATERAL_MIXING
+#define LATERAL_MIXING
 !#define oldmixing
 #define NEWTONIAN_COOLING
 /* Sponge layers */
