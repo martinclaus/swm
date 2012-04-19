@@ -382,7 +382,7 @@ MODULE swm_module
     END SUBROUTINE SWM_finishHeapsScheme
 
     SUBROUTINE SWM_initLiMeanState
-      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
+      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v
@@ -409,7 +409,37 @@ MODULE swm_module
         SWM_Coef_eta(8,i,j) = -(cosTheta_v(jp1(j))*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
         SWM_Coef_eta(9,i,j) =  (cosTheta_v(j)*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
         ! u coefficients
+        SWM_Coef_u(1,i,j)   =  ((cosTheta_u(j))/(2*A*dTheta*cosTheta_v(jp1(j))) &
+                              -(cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)))*V_u(i,j)
+        SWM_Coef_u(2,i,j)   =  (-u(ip1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(3,i,j)   =  ( u(im1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(4,i,j)   =  (-cosTheta_u(jp1(j))*V_u(i,j))/(2*A*dTheta*cosTheta_v(jp1(j)))
+        SWM_Coef_u(5,i,j)   =  (cosTheta_u(jm1(j))*V_u(i,j))/(2*A*dTheta*cosTheta_v(j))
+        SWM_Coef_u(6,i,j)   =  (f_u(i,j))/(4) + (V_u(i,j))/(2*A*dLambda*cosTheta_v(j)) - (v(i,j,N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(7,i,j)   =  (f_u(i,j))/(4) - (V_u(i,j))/(2*A*dLambda*cosTheta_v(j)) + &
+                                 (v(im1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(8,i,j)   =  (f_u(i,j))/(4) - (V_u(i,j))/(2*A*dLambda*cosTheta_v(jp1(j))) &
+                              +(v(im1(i),jp1(j),N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(9,i,j)   =  (f_u(i,j))/(4) + (V_u(i,j))/(2*A*dLambda*cosTheta_v(jp1(j))) &
+                              +(v(i,jp1(j),N0))/(2*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(10,i,j)  =  (-g) / (A*cosTheta_u(j)*dLambda)
+        SWM_Coef_u(11,i,j)  =  (g) / (A*cosTheta_u(j)*dLambda)
         ! v coefficients
+        SWM_Coef_v(2,i,j)   =  (-U_v(i,j))/(2*A*dLambda*cosTheta_v(j))
+        SWM_Coef_v(3,i,j)   =  (U_v(i,j))/(2*A*dLambda*cosTheta_v(j))
+        SWM_Coef_v(4,i,j)   =  (-v(i,jp1(j),N0))/(2*A*dTheta)
+        SWM_Coef_v(5,i,j)   =  (v(i,jm1(j),N0))/(2*A*dTheta)
+        SWM_Coef_v(6,i,j)   =  (-f_v(i,j))/(4) - (U_v(i,j)*cosTheta_u(jm1(j)))/(2*A*dTheta*cosTheta_v(j)) &
+                              +(u(ip1(i),jm1(j),N0))/(2*A*dTheta)
+        SWM_Coef_v(7,i,j)   =  (-f_v(i,j))/(4) - (U_v(i,j)*cosTheta_u(jm1(j)))/(2*A*dTheta*cosTheta_v(j)) &
+                              +(u(i,jm1(j),N0))/(2*A*dTheta)
+        SWM_Coef_v(8,i,j)   =  (-f_v(i,j))/(4) + (U_v(i,j)*cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)) &
+                              -(u(i,j,N0))/(2*A*dTheta)
+        SWM_Coef_v(9,i,j)   =  (-f_v(i,j))/(4) + (U_v(i,j)*cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)) &
+                              -(u(i,jp1(j),N0))/(2*A*dTheta)
+        SWM_Coef_v(10,i,j)  =  (-g) / (A*dTheta)
+        SWM_Coef_v(11,i,j)  =  (g) / (A*dTheta)
+
       END FORALL
       DEALLOCATE(U_v, V_u, f, f_u, f_v, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
