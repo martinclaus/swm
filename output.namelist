@@ -1,4 +1,4 @@
 &output_nl
-  oprefix = "output/vkadvtest_1705_",  ! output prefix used to specify directory
+  oprefix = "output/3100.multimode.5.50.",  ! output prefix used to specify director
   osuffix = "",  ! suffix to name model run
 &end

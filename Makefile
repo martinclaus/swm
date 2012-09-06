@@ -31,10 +31,10 @@ model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o mod
 vars_module.o : vars_module.f90 io.h
 	$(CFORTAN) $O $(CFLAGS) -c $<
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o model.h io.h
+swm_module.o : swm_module.f90 swm_module.h vars_module.o io_module.o model.h io.h
 	$(CFORTAN) $O $(CFLAGS) -c $<
 
-diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o model.h
+diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o model.h swm_module.o
 	$(CFORTAN) $O $(CFLAGS) -c $<
 
 io_module.o : io_module.f90 io.h vars_module.o

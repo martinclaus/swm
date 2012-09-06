@@ -1,6 +1,7 @@
 MODULE swm_module
 #include "io.h"
 #include "model.h"
+#include "swm_module.h"
   IMPLICIT NONE
   SAVE
 
@@ -135,12 +136,12 @@ MODULE swm_module
                           + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
                           + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #endif
-                          + F_x(i,j)                                           &
+                          + dt * F_x(i,j)                                           &
 #ifdef PERIODIC_FORCING_X
                              *PERIODIC_FORCING_X(freq_wind*itt*dt)                            & ! Forcing
 #endif
 #ifdef TDEP_FORCING
-                          + TDF_Fu0(i,j)                                       & ! time dep. forcing
+                          + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
 #endif                      
                           ) / impl_u(i,j)                                        ! implicit linear friction
         ENDDO XSPACE2
@@ -174,9 +175,9 @@ MODULE swm_module
                           + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
                           + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
 #endif
-                          + F_y(i,j)                                           & ! forcing
+                          + dt * F_y(i,j)                                           & ! forcing
 #ifdef TDEP_FORCING
-                          + TDF_Fv0(i,j)                                       & ! time dep. forcing
+                          + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
 #endif                      
                           ) / impl_v(i,j)                                        ! implicit linear friction
         ENDDO XSPACE3
@@ -189,7 +190,7 @@ MODULE swm_module
       USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER :: i,j,u_v,v_u
-      IF (itt.le.1) THEN ! do a Euler forward to compute second initial condition
+      IF (itt.lt.2) THEN ! do a Euler forward to compute second initial condition
         CALL SWM_timestepEulerForward
         RETURN
       END IF
@@ -368,6 +369,8 @@ MODULE swm_module
       ! add lateral mixing
 #ifdef LATERAL_MIXING
       CALL SWM_initLateralMixing
+      lat_mixing_u = dt * lat_mixing_u
+      lat_mixing_v = dt * lat_mixing_v
 #endif
     END SUBROUTINE SWM_initHeapsScheme
 
@@ -382,7 +385,8 @@ MODULE swm_module
     END SUBROUTINE SWM_finishHeapsScheme
 
     SUBROUTINE SWM_initLiMeanState
-      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, dLambda, dTheta, cosTheta_u, cosTheta_v, H_eta
+      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, D2R, OMEGA, dLambda, dTheta, &
+                              lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v
@@ -396,53 +400,78 @@ MODULE swm_module
       SWM_Coef_eta = 0._8
       SWM_Coef_u   = 0._8
       SWM_Coef_v   = 0._8
+      f   = 0._8
+      f_u = 0._8
+      f_v = 0._8
+      U_v = 0._8
+      V_u = 0._8
+      ! compute ambient vorticity
+      FORALL (i=1:Nx, j=1:Ny)
+        f(i,j) =  2*OMEGA*SIN(D2R*lat_H(j)) & ! coriolis parameter
+                + ocean_H(i,j)/(A*cosTheta_v(j))*(&
+                  (v(i,j,N0)-v(im1(i),j,N0))/dLambda &
+                  - (cosTheta_u(j)*u(i,j,N0) - cosTheta_u(jm1(j))*u(i,jm1(j),N0))/dTheta)
+        U_v(i,j) = .25_8*(u(i,j,N0)+u(ip1(i),j,N0)+u(ip1(i),jm1(j),N0)+u(i,jm1(j),N0))
+        V_u(i,j) = .25_8*(v(im1(i),jp1(j),N0)+v(im1(i),j,N0)+v(i,j,N0)+v(i,jp1(j),N0))
+      END FORALL
+      FORALL (i=1:Nx, j=1:Ny)
+        f_u(i,j) = .5_8 * (f(i,j)+f(i,jp1(j)))
+        f_v(i,j) = .5_8 * (f(i,j)+f(ip1(i),j))
+      END FORALL
+
       FORALL (i=1:Nx, j=1:Ny)
         ! eta coefficients
-        SWM_Coef_eta(1,i,j) = - (u(ip1(i),j,N0)-u(i,j,N0))/(2*A*cosTheta_u(j)*dLambda) &
-                              - (cosTheta_v(jp1(j))*v(i,jp1(j),N0)-cosTheta_v(j)*v(i,j,N0))/(2*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(2,i,j) = - u(ip1(i),j,N0) / (2*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(3,i,j) =   u(i     ,j,N0) / (2*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v(i,jp1(j),N0))/(2*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v(i,j,N0))/(2*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(1,i,j) = -(u(ip1(i),j,N0)-u(i,j,N0))/(2.*A*cosTheta_u(j)*dLambda) &
+                              -(cosTheta_v(jp1(j))*v(i,jp1(j),N0)-cosTheta_v(j)*v(i,j,N0))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(2,i,j) = - u(ip1(i),j,N0) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(3,i,j) =   u(i     ,j,N0) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v(i,jp1(j),N0))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v(i,j,N0))/(2.*A*cosTheta_u(j)*dTheta)
         SWM_Coef_eta(6,i,j) = -(H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(7,i,j) =  (H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(8,i,j) = -(cosTheta_v(jp1(j))*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
         SWM_Coef_eta(9,i,j) =  (cosTheta_v(j)*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
         ! u coefficients
-        SWM_Coef_u(1,i,j)   =  ((cosTheta_u(j))/(2*A*dTheta*cosTheta_v(jp1(j))) &
-                              -(cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)))*V_u(i,j)
-        SWM_Coef_u(2,i,j)   =  (-u(ip1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(3,i,j)   =  ( u(im1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(4,i,j)   =  (-cosTheta_u(jp1(j))*V_u(i,j))/(2*A*dTheta*cosTheta_v(jp1(j)))
-        SWM_Coef_u(5,i,j)   =  (cosTheta_u(jm1(j))*V_u(i,j))/(2*A*dTheta*cosTheta_v(j))
-        SWM_Coef_u(6,i,j)   =  (f_u(i,j))/(4) + (V_u(i,j))/(2*A*dLambda*cosTheta_v(j)) - (v(i,j,N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(7,i,j)   =  (f_u(i,j))/(4) - (V_u(i,j))/(2*A*dLambda*cosTheta_v(j)) + &
-                                 (v(im1(i),j,N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(8,i,j)   =  (f_u(i,j))/(4) - (V_u(i,j))/(2*A*dLambda*cosTheta_v(jp1(j))) &
-                              +(v(im1(i),jp1(j),N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(9,i,j)   =  (f_u(i,j))/(4) + (V_u(i,j))/(2*A*dLambda*cosTheta_v(jp1(j))) &
-                              +(v(i,jp1(j),N0))/(2*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(10,i,j)  =  (-g) / (A*cosTheta_u(j)*dLambda)
-        SWM_Coef_u(11,i,j)  =  (g) / (A*cosTheta_u(j)*dLambda)
+        SWM_Coef_u(1,i,j)   =  (cosTheta_u(j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j))) &
+                                 - cosTheta_u(j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j)))*V_u(i,j)
+        SWM_Coef_u(2,i,j)   = - u(ip1(i),j,N0)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(3,i,j)   =   u(im1(i),j,N0)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(4,i,j)   = - cosTheta_u(jp1(j))*V_u(i,j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j)))
+        SWM_Coef_u(5,i,j)   =   cosTheta_u(jm1(j))*V_u(i,j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j))
+        SWM_Coef_u(6,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
+                                 - (v(i,j,N0))/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(7,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
+                                 + (v(im1(i),j,N0))/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(8,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
+                                 + (v(im1(i),jp1(j),N0))/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(9,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
+                                 - (v(i,jp1(j),N0))/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(10,i,j)  = - g / (A*cosTheta_u(j)*dLambda)
+        SWM_Coef_u(11,i,j)  =   g / (A*cosTheta_u(j)*dLambda)
         ! v coefficients
-        SWM_Coef_v(2,i,j)   =  (-U_v(i,j))/(2*A*dLambda*cosTheta_v(j))
-        SWM_Coef_v(3,i,j)   =  (U_v(i,j))/(2*A*dLambda*cosTheta_v(j))
-        SWM_Coef_v(4,i,j)   =  (-v(i,jp1(j),N0))/(2*A*dTheta)
-        SWM_Coef_v(5,i,j)   =  (v(i,jm1(j),N0))/(2*A*dTheta)
-        SWM_Coef_v(6,i,j)   =  (-f_v(i,j))/(4) - (U_v(i,j)*cosTheta_u(jm1(j)))/(2*A*dTheta*cosTheta_v(j)) &
-                              +(u(ip1(i),jm1(j),N0))/(2*A*dTheta)
-        SWM_Coef_v(7,i,j)   =  (-f_v(i,j))/(4) - (U_v(i,j)*cosTheta_u(jm1(j)))/(2*A*dTheta*cosTheta_v(j)) &
-                              +(u(i,jm1(j),N0))/(2*A*dTheta)
-        SWM_Coef_v(8,i,j)   =  (-f_v(i,j))/(4) + (U_v(i,j)*cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)) &
-                              -(u(i,j,N0))/(2*A*dTheta)
-        SWM_Coef_v(9,i,j)   =  (-f_v(i,j))/(4) + (U_v(i,j)*cosTheta_u(j))/(2*A*dTheta*cosTheta_v(j)) &
-                              -(u(i,jp1(j),N0))/(2*A*dTheta)
-        SWM_Coef_v(10,i,j)  =  (-g) / (A*dTheta)
-        SWM_Coef_v(11,i,j)  =  (g) / (A*dTheta)
-
+        SWM_Coef_v(1,i,j)   =  ((ocean_H(ip1(i),j)-ocean_H(i,j))*U_v(i,j))/(2.*A*dLambda*cosTheta_v(j))
+        SWM_Coef_v(2,i,j)   =  (-U_v(i,j)*ocean_H(ip1(i),j))/(2.*A*dLambda*cosTheta_v(j))
+        SWM_Coef_v(3,i,j)   =  (U_v(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j))
+        SWM_Coef_v(4,i,j)   =  (-v(i,jp1(j),N0))/(2.*A*dTheta)
+        SWM_Coef_v(5,i,j)   =  (v(i,jm1(j),N0))/(2.*A*dTheta)
+        SWM_Coef_v(6,i,j)   = - f_v(i,j)/4. - (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
+                                 + (u(ip1(i),jm1(j),N0))/(2.*A*dTheta)
+        SWM_Coef_v(7,i,j)   = - f_v(i,j)/4. - (ocean_H(i,j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
+                                 + (u(i,jm1(j),N0))/(2.*A*dTheta)
+        SWM_Coef_v(8,i,j)   = - f_v(i,j)/4. + (ocean_H(i,j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
+                                 - (u(i,j,N0))/(2.*A*dTheta)
+        SWM_Coef_v(9,i,j)   = - f_v(i,j)/4. + (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
+                                 - (u(ip1(i),j,N0))/(2.*A*dTheta)
+        SWM_Coef_v(10,i,j)  = - g / (A*dTheta)
+        SWM_Coef_v(11,i,j)  =   g / (A*dTheta)
       END FORALL
       DEALLOCATE(U_v, V_u, f, f_u, f_v, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+#ifdef LATERAL_MIXING
+      CALL SWM_initLateralMixing
+      SWM_Coef_u(1:9,:,:) = SWM_Coef_u(1:9,:,:) + lat_mixing_u
+      SWM_Coef_v(1:9,:,:) = SWM_Coef_v(1:9,:,:) + lat_mixing_v
+#endif
     END SUBROUTINE SWM_initLiMeanState
     
     SUBROUTINE SWM_finishLiMeanState
@@ -462,6 +491,8 @@ MODULE swm_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      lat_mixing_u = 0._8
+      lat_mixing_v = 0._8
       FORALL (i=1:Nx, j=1:Ny)
         lat_mixing_u(1,i,j) = -2/(dLambda*A*cosTheta_u(j))**2 + ((ocean_H(i,jp1(j))-ocean_H(i,j))*tanTheta_u(j))/(2*dTheta*A**2)&
                               -(ocean_H(i,jp1(j))+ocean_H(i,j))/(dTheta*A)**2 + (1-tanTheta_u(j)**2)/(A**2)
@@ -504,8 +535,8 @@ MODULE swm_module
         lat_mixing_v(9,i,j) = lat_mixing_v(9,i,j)*H_u(ip1(i),j)/H_v(i,j)
       END FORALL
 #endif
-      lat_mixing_u = dt*Ah*lat_mixing_u
-      lat_mixing_v = dt*Ah*lat_mixing_v
+      lat_mixing_u = Ah*lat_mixing_u
+      lat_mixing_v = Ah*lat_mixing_v
     END SUBROUTINE SWM_initLateralMixing
 
     SUBROUTINE SWM_finishLateralMixing
@@ -575,8 +606,16 @@ MODULE swm_module
         CALL readInitialCondition(FH_in,TAU_x)
         CALL initFH(in_file_TAU,in_varname_TAU_y,FH_in)
         CALL readInitialCondition(FH_in,TAU_y)
-        WHERE (ocean_u .eq. 1) F_x = F_x + dt*TAU_x/(RHO0*H_u)
-        WHERE (ocean_v .eq. 1) F_y = F_y + dt*TAU_y/(RHO0*H_v)
+        WHERE (ocean_u .eq. 1) F_x = F_x + &
+#ifdef TAU_SCALE
+                TAU_SCALE*&
+#endif
+                TAU_x/(RHO0*H_u)
+        WHERE (ocean_v .eq. 1) F_y = F_y + &
+#ifdef TAU_SCALE
+                TAU_SCALE*&
+#endif
+                TAU_y/(RHO0*H_v)
         DEALLOCATE(TAU_x,TAU_y, stat=alloc_error)
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF windstress
@@ -598,7 +637,7 @@ MODULE swm_module
           REY_v2 = 0.
           REY_uv = 0.
         END WHERE
-        FORALL (i=1:Nx, j=1:Ny, ocean_u(i,j) .eq. 1) F_x(i,j) = F_x(i,j) + dt *( &
+        FORALL (i=1:Nx, j=1:Ny, ocean_u(i,j) .eq. 1) F_x(i,j) = F_x(i,j) + ( &
 #ifndef wo_u2_x_u
                  -((REY_u2(i,j)+REY_u2(ip1(i),j)+REY_u2(i,jp1(j))+REY_u2(ip1(i),jp1(j)))*H_eta(i,j)&
                     -(REY_u2(im1(i),j)+REY_u2(im1(i),jp1(j))+REY_u2(i,j)+REY_u2(i,jp1(j)))*H_eta(im1(i),j))&
@@ -609,7 +648,7 @@ MODULE swm_module
                   /(2*A*dTheta*cosTheta_u(j)*H_u(i,j)) &     ! Reynolds stress term \overbar{u'v'}_y
 #endif
           )
-        FORALL (i=1:Nx, j=1:Ny, ocean_v(i,j) .eq. 1) F_y(i,j) = F_y(i,j) + dt*(&
+        FORALL (i=1:Nx, j=1:Ny, ocean_v(i,j) .eq. 1) F_y(i,j) = F_y(i,j) + ( &
 #ifndef wo_uv_x_v
                  -(REY_uv(ip1(i),j)*H(ip1(i),j) - REY_uv(i,j)*H(i,j)) &
                   /(2*A*dLambda*cosTheta_v(j)*H_v(i,j)) & ! Reynolds stress term \overbar{u'v'}_x
@@ -634,8 +673,8 @@ MODULE swm_module
         CALL readInitialCondition(FH_in,F1_x)
         CALL initFH(in_file_F1, in_varname_F1_y,FH_in)
         CALL readInitialCondition(FH_in,F1_y)
-        WHERE (ocean_u .eq. 1) F_x = F_x + dt*F1_x
-        WHERE (ocean_v .eq. 1) F_y = F_x + dt*F1_y
+        WHERE (ocean_u .eq. 1) F_x = F_x + F1_x
+        WHERE (ocean_v .eq. 1) F_y = F_x + F1_y
         DEALLOCATE(F1_x,F1_y, stat=alloc_error)
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF forcing
@@ -653,7 +692,6 @@ MODULE swm_module
                               land_u, H_u, land_v, H_v, land_eta, gamma_new_sponge
       IMPLICIT NONE
       INTEGER :: i,j, alloc_error
-      REAL(8) :: c1, c2  ! coefficients for sponge layers
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n
       ! allocate memory
       ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
@@ -661,42 +699,29 @@ MODULE swm_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      ! linear friction
 #ifdef LINEAR_BOTTOM_FRICTION
+      ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      gamma_lin_u = 0.; gamma_lin_v = 0.;
+      gamma_lin_u = ( r &
 #ifdef VELOCITY_SPONGE_N
-      c1 = D2R*A*2*OMEGA*ABS(SIN(lat_u(Ny-1)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
+                      + getSpongeLayer(lat_u,lat_u(Ny-1)) & 
 #endif
 #ifdef VELOCITY_SPONGE_S
-      c2 = D2R*A*2*OMEGA*ABS(SIN(lat_u(1)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
+                      + getSpongeLayer(lat_u,lat_u(1)) &
 #endif
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0.) gamma_lin_u(i,j) = ( r &
+                    )!/H_u(i,j)
+      gamma_lin_v = ( r &
 #ifdef VELOCITY_SPONGE_N
-                             + gamma_new_sponge*EXP((lat_u(j)-lat_u(Ny-1))*c1) &
+                      + getSpongeLayer(lat_v,lat_v(Ny)) & 
 #endif
 #ifdef VELOCITY_SPONGE_S
-                             + gamma_new_sponge*EXP(-(lat_eta(j)-lat_eta(1))*c2)&
+                      + getSpongeLayer(lat_v,lat_v(2)) &
 #endif
-                           )/H_u(i,j)
-#ifdef VELOCITY_SPONGE_N
-      c1 = D2R*A*2*OMEGA*ABS(SIN(lat_v(Ny)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
-#endif
-#ifdef VELOCITY_SPONGE_S
-      c2 = D2R*A*2*OMEGA*ABS(SIN(lat_v(2)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
-#endif
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0.) gamma_lin_v(i,j) = ( r &
-#ifdef VELOCITY_SPONGE_N
-                             + gamma_new_sponge*EXP((lat_v(j)-lat_v(Ny))*c1) &
-#endif
-#ifdef VELOCITY_SPONGE_S
-                             + gamma_new_sponge*EXP(-(lat_v(j)-lat_v(2))*c2)&
-#endif
-                           )/H_v(i,j)
+                    )!/H_v(i,j)
 #endif
       ! quadratic friction
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -715,20 +740,12 @@ MODULE swm_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      gamma_n = 0.
+      gamma_n = ( gamma_new &
 #ifdef NEWTONIAN_SPONGE_N
-      c1 = D2R*A*2*OMEGA*ABS(SIN(lat_eta(Ny-1)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
+                  + getSpongeLayer(lat_eta,lat_eta(Ny-1)) &
 #endif
 #ifdef NEWTONIAN_SPONGE_S
-      c2 = D2R*A*2*OMEGA*ABS(SIN(lat_eta(1)*D2R))/(new_sponge_efolding*SQRT(G*maxval(H)))
-#endif
-       
-      FORALL (i=1:Nx, j=1:Ny, land_eta(i,j) .eq. 0) gamma_n(i,j) = ( gamma_new &
-#ifdef NEWTONIAN_SPONGE_N
-                       + gamma_new_sponge*EXP((lat_eta(j)-lat_eta(Ny-1))*c1)&
-#endif
-#ifdef NEWTONIAN_SPONGE_S
-                       + gamma_new_sponge*EXP(-(lat_eta(j)-lat_eta(1))*c2)&
+                  + getSpongeLayer(lat_eta,lat_eta(1)) &
 #endif
                 )
 #endif
@@ -762,6 +779,33 @@ MODULE swm_module
       END IF
     END SUBROUTINE SWM_initDamping
     
+    REAL(8) PURE FUNCTION getSpongeLayer(lat,pos)
+      USE vars_module, ONLY : Nx,Ny, A, D2R, OMEGA, G, H, &
+                              gamma_new_sponge, new_sponge_efolding, G, H
+      IMPLICIT NONE
+      REAL(8), DIMENSION(Ny), INTENT(in) :: lat
+      REAL(8), INTENT(in)                :: pos
+      REAL(8), DIMENSION(Nx,Ny)          :: getSpongeLayer
+      REAL(8)                            :: spongeCoefficient
+      spongeCoefficient = D2R * A / new_sponge_efolding / &
+#if SPONGE_SCALE_UNIT == SCU_DEGREE
+                                       (D2R*A)
+#elif SPONGE_SCALE_UNIT == SCU_RADIUS_OF_DEFORMATION
+                                       (SQRT(G*maxval(H))/2/OMEGA/ABS(SIN(pos*D2R)))
+#elif SPONGE_SCALE_UNIT == SCU_METER
+                                       1.
+#endif
+      getSpongeLayer = TRANSPOSE( &
+                         SPREAD( &
+                           gamma_new_sponge * &
+                             MAX(0.,EXP(-ABS(lat-pos)*spongeCoefficient)-EXP(-REAL(SPONGE_CUT_OFF))), &
+                           2, &
+                           Nx &
+                         )    &
+                       )
+
+    END FUNCTION getSpongeLayer
+
     SUBROUTINE SWM_finishDamping
       IMPLICIT NONE
       INTEGER :: alloc_error
@@ -843,16 +887,16 @@ MODULE swm_module
       CALL getVar(TDF_FH, TDF_Fv2, TDF_itt2)
       ! scale with rho0, H and dt
       WHERE (land_u .eq. 0)
-        TDF_Fu1 = TDF_Fu1 / (RHO0 * H_u) * dt
-        TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u) * dt
+        TDF_Fu1 = TDF_Fu1 / (RHO0 * H_u)
+        TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u)
       END WHERE
       WHERE (land_v .eq. 0)
-        TDF_Fv1 = TDF_Fv1 / (RHO0 * H_v) * dt
-        TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v) * dt
+        TDF_Fv1 = TDF_Fv1 / (RHO0 * H_v)
+        TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v)
       END WHERE
       ! calculate increment
-      TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * dt
-      TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
+      TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1)
+      TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1)
       ! interpolate to first time step
       TDF_Fu0 = TDF_Fu1
       TDF_Fv0 = TDF_Fv1
@@ -877,11 +921,11 @@ MODULE swm_module
         CALL initFH(TDF_fname,"TAUY",TDF_FH) !TODO: remove magic string
         CALL getVar(TDF_FH, TDF_Fv2, TDF_itt2)
         ! scale with rho0, H and dt
-        WHERE (land_u .eq. 0) TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u) * dt
-        WHERE (land_v .eq. 0) TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v) * dt
+        WHERE (land_u .eq. 0) TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u)
+        WHERE (land_v .eq. 0) TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v)
         ! calculate increment
-        TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * dt
-        TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * dt
+        TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1)
+        TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1)
         ! interpolate to TDF_t0
         TDF_Fu0 = TDF_Fu1 + (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1) * (TDF_t0 - TDF_t1)
         TDF_Fv0 = TDF_Fv1 + (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1) * (TDF_t0 - TDF_t1)

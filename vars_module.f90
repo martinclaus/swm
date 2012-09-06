@@ -21,7 +21,7 @@ MODULE vars_module
   REAL(8)                :: missval=MISS_VAL_DEF             ! missing value for CDF outfiles
   REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
   REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
-  REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale (L_D)
+  REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale
   REAL(8)                :: freq_wind=0                      ! frequency of oscillating wind forcing
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
@@ -32,7 +32,7 @@ MODULE vars_module
                             file_eta_init="eta_init.nc", varname_eta_init="ETA", &
                             file_u_init="u_init.nc", varname_u_init="U", &
                             file_v_init="v_init.nc", varname_v_init="V"
-  LOGICAL                :: init_cond_from_file=.true.
+  LOGICAL                :: init_cond_from_file=.FALSE.
 
   ! definition of domain, contained in model.namelist
   INTEGER, PARAMETER     :: Ndims = 3                        ! number of dimensions
@@ -91,7 +91,7 @@ SUBROUTINE initVars
   ! definition of the namelist
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
-    r,k,Ah,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
+    r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding,TAU_0,freq_wind, & ! friction and forcing parameter
     Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
     dt, meant_out, & ! time step and mean step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs

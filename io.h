@@ -45,7 +45,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 
 /* Switches for output control */ 
 !#define WRITEINPUT
-#define WRITEMEAN
+!#define WRITEMEAN
 #define TAXISNAME "TIME"
 #define XAXISNAME "LONGITUDE"
 #define YAXISNAME "LATITUDE"
@@ -61,6 +61,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OFILEPSI   "psi_out.nc"
 #define OFILETRACER "C1.nc"
 #define OFILEGAMMA_N "gamma_n"
+#define OFILEGAMMA_U "gamma_u"
+#define OFILEGAMMA_V "gamma_v"
 #define OFILEETAMEAN "eta_mean_out.nc"
 #define OFILEUMEAN "u_mean_out.nc"
 #define OFILEVMEAN "v_mean_out.nc"
@@ -86,6 +88,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OVARNAMEPSI "PSI"
 #define OVARNAMETRACER "C"
 #define OVARNAMEGAMMA_N "GAMMA_N"
+#define OVARNAMEGAMMA_U "GAMMA_U"
+#define OVARNAMEGAMMA_V "GAMMA_V"
 
 /* If switched on, the diagnostics routines flush at every write_step */
 #define DIAG_FLUSH

@@ -144,15 +144,15 @@ MODULE dynFromFile_module
     
     SUBROUTINE DFF_advance
       USE io_module, ONLY : isSetFH
-      USE vars_module, ONLY : u,v,eta, N0
+      USE vars_module, ONLY : u,v,eta, N0, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER(1) :: u_isSet=0, v_isSet=0
-      IF (isSetFH(DFF_FH_eta)) eta(:,:,N0) = eta(:,:,N0) + DFF_eta(:,:,DFF_chunk_counter)
-      IF (isSetFH(DFF_FH_u))   u(:,:,N0) = u(:,:,N0) + DFF_u(:,:,DFF_chunk_counter)
-      IF (isSetFH(DFF_FH_v))   v(:,:,N0) = v(:,:,N0) + DFF_v(:,:,DFF_chunk_counter)
+      IF (isSetFH(DFF_FH_eta)) eta(:,:,N0) = eta(:,:,N0) + ocean_eta * DFF_eta(:,:,DFF_chunk_counter)
+      IF (isSetFH(DFF_FH_u))   u(:,:,N0) = u(:,:,N0) + ocean_u * DFF_u(:,:,DFF_chunk_counter)
+      IF (isSetFH(DFF_FH_v))   v(:,:,N0) = v(:,:,N0) + ocean_v * DFF_v(:,:,DFF_chunk_counter)
       IF (isSetFH(DFF_FH_psi)) THEN
-        u(:,:,N0) = u(:,:,N0) + DFF_u_psi(:,:,DFF_chunk_counter)
-        v(:,:,N0) = v(:,:,N0) + DFF_v_psi(:,:,DFF_chunk_counter)
+        u(:,:,N0) = u(:,:,N0) + ocean_u * DFF_u_psi(:,:,DFF_chunk_counter)
+        v(:,:,N0) = v(:,:,N0) + ocean_v * DFF_v_psi(:,:,DFF_chunk_counter)
       END IF
       DFF_chunk_counter = DFF_chunk_counter + 1
     END SUBROUTINE DFF_advance
