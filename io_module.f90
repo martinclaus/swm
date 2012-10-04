@@ -208,9 +208,8 @@ MODULE io_module
                  __LINE__,trim(FH%filename))
       CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid),&
                  __LINE__,trim(FH%filename))
-      CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
+      IF (FH%timedid .NE. NF90_NOTIMEDIM) CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
                  __LINE__,trim(FH%filename))
-      IF (FH%timedid .NE. NF90_NOTIMEDIM) CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
 
