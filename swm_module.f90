@@ -202,7 +202,7 @@ MODULE swm_module
         XSPACE: DO i=1,Nx ! loop over x dimension
           ! eta equation
           ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit linear increment
+            ! compute explicit increment
             G_eta(i,j,NG0) = (SUM(&
                              (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
                                 SWM_u(ip1(i),j,N0),SWM_u(i,j,N0),&
@@ -214,39 +214,57 @@ MODULE swm_module
           END IF ETA
           ! u equation
           U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit linear increment
+#ifdef QUADRATIC_BOTTOM_FRICTION
+            v_u = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
+#endif
+            ! compute explicit increment
             G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
                                  SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
                                  SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
                                *SWM_Coef_u(:,i,j)) &
+#ifdef QUADRATIC_BOTTOM_FRICTION
+                           - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
+#endif
                            + F_x(i,j) &                                                 ! forcing
 #ifdef PERIODIC_FORCING_X
                             *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef FXDEP
+                            FXDEP &
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fu0(i,j) &                                             ! time dep. forcing
 #endif                      
                           )
             ! Integrate
-            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*(AB_C1*G_u(i,j,NG0) - AB_C2*G_u(i,j,NG0m1)))/impl_u(i,j) !TODO: implement non-linear terms
+            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*(AB_C1*G_u(i,j,NG0) - AB_C2*G_u(i,j,NG0m1)))/impl_u(i,j)
           END IF U
           ! v equation
           V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit linear increment
+#ifdef QUADRATIC_BOTTOM_FRICTION
+            u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
+#endif
+            ! compute explicit increment
             G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
                                   SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
                                 *SWM_Coef_v(:,i,j)) &
+#ifdef QUADRATIC_BOTTOM_FRICTION
+                           - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
+#endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef PERIODIC_FORCING_Y
                             *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef FYDEP
+                            FYDEP &
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fv0(i,j) &                                             ! time dep. forcing
 #endif                      
                            )
            ! Integrate
-           SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*(AB_C1*G_v(i,j,NG0) - AB_C2*G_v(i,j,NG0m1)))/impl_v(i,j) !TODO: implement non-linear terms
+           SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*(AB_C1*G_v(i,j,NG0) - AB_C2*G_v(i,j,NG0m1)))/impl_v(i,j)
           END IF V
         ENDDO XSPACE
       ENDDO YSPACE
@@ -278,38 +296,56 @@ MODULE swm_module
           END IF ETA
           !u equation
           U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit linear increment
+#ifdef QUADRATIC_BOTTOM_FRICTION
+            v_u = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
+#endif
+            ! compute explicit increment
             G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
                                  SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
                                  SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
                                *SWM_Coef_u(:,i,j)) &
+#ifdef QUADRATIC_BOTTOM_FRICTION
+                           - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
+#endif
                            + F_x(i,j) &                                                 ! forcing
 #ifdef PERIODIC_FORCING_X
                             *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
+#endif
+#ifdef FXDEP
+                            FXDEP &
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fu0(i,j) &                                             ! time dep. forcing
 #endif                      
                            )
             ! Integrate
-            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j) !TODO: implement non-linear terms
+            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j) 
           END IF U
           V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit linear increment
+#ifdef QUADRATIC_BOTTOM_FRICTION
+            u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4.  ! averaging u on v grid
+#endif
+            ! compute explicit increment
             G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
                                   SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
                                 *SWM_Coef_v(:,i,j)) &
+#ifdef QUADRATIC_BOTTOM_FRICTION
+                           - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction 
+#endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef PERIODIC_FORCING_Y
                             *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
 #endif
+#ifdef FYDEP
+                             FYDEP &
+#endif
 #ifdef TDEP_FORCING
-                          + TDF_Fv0(i,j) &                                             ! time dep. forcing
+                           + TDF_Fv0(i,j) &                                             ! time dep. forcing
 #endif                      
                            )
             ! Integrate
-            SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*G_v(i,j,NG0))/impl_v(i,j) !TODO: implement non-linear terms
+            SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*G_v(i,j,NG0))/impl_v(i,j)
           END IF V
         ENDDO XSPACE
       ENDDO YSPACE
@@ -515,8 +551,8 @@ MODULE swm_module
         lat_mixing_v(8,i,j) = -lat_mixing_v(6,i,j)
         lat_mixing_v(9,i,j) = lat_mixing_v(6,i,j)
       END FORALL
-#ifndef oldmixing
-      FORALL (i=1:Nx, j=1:Ny)
+#ifdef BAROTROPIC
+      FORALL (i=1:Nx, j=1:Ny, ocean_u .EQ. 1)
         lat_mixing_u(2,i,j) = lat_mixing_u(2,i,j)*H_u(ip1(i),j)/H_u(i,j)
         lat_mixing_u(3,i,j) = lat_mixing_u(3,i,j)*H_u(im1(i),j)/H_u(i,j)
         lat_mixing_u(4,i,j) = lat_mixing_u(4,i,j)*H_u(i,jp1(j))/H_u(i,j)
@@ -525,6 +561,8 @@ MODULE swm_module
         lat_mixing_u(7,i,j) = lat_mixing_u(7,i,j)*H_v(im1(i),j)/H_u(i,j)
         lat_mixing_u(8,i,j) = lat_mixing_u(8,i,j)*H_v(im1(i),jp1(j))/H_u(i,j)
         lat_mixing_u(9,i,j) = lat_mixing_u(9,i,j)*H_v(i,jp1(j))/H_u(i,j)
+      END FORALL
+      FORALL (i=1:Nx, j=1:Ny, ocean_v .EQ. 1)
         lat_mixing_v(2,i,j) = lat_mixing_v(2,i,j)*H_v(ip1(i),j)/H_v(i,j)
         lat_mixing_v(3,i,j) = lat_mixing_v(3,i,j)*H_v(im1(i),j)/H_v(i,j)
         lat_mixing_v(4,i,j) = lat_mixing_v(4,i,j)*H_v(i,jp1(j))/H_v(i,j)
@@ -610,12 +648,20 @@ MODULE swm_module
 #ifdef TAU_SCALE
                 TAU_SCALE*&
 #endif
-                TAU_x/(RHO0*H_u)
+                TAU_x/(RHO0 &
+#ifdef BAROTROPIC
+                       *H_u &
+#endif
+                      )
         WHERE (ocean_v .eq. 1) F_y = F_y + &
 #ifdef TAU_SCALE
                 TAU_SCALE*&
 #endif
-                TAU_y/(RHO0*H_v)
+                TAU_y/(RHO0 &
+#ifdef BAROTROPIC
+                       *H_v &
+#endif
+                      )
         DEALLOCATE(TAU_x,TAU_y, stat=alloc_error)
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF windstress
@@ -713,7 +759,7 @@ MODULE swm_module
 #ifdef VELOCITY_SPONGE_S
                       + getSpongeLayer(lat_u,lat_u(1)) &
 #endif
-                    )!/H_u(i,j)
+                    )
       gamma_lin_v = ( r &
 #ifdef VELOCITY_SPONGE_N
                       + getSpongeLayer(lat_v,lat_v(Ny)) & 
@@ -721,7 +767,11 @@ MODULE swm_module
 #ifdef VELOCITY_SPONGE_S
                       + getSpongeLayer(lat_v,lat_v(2)) &
 #endif
-                    )!/H_v(i,j)
+                    )
+#ifdef BAROTROPIC
+      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
+      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v/H_v
+#endif
 #endif
       ! quadratic friction
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -730,9 +780,12 @@ MODULE swm_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      gamma_sq_u = 0.; gamma_sq_v = 0.;
-      FORALL (i=1:Nx, j=1:Ny, land_u(i,j) .eq. 0.)  gamma_sq_u(i,j) = k/H_u(i,j)
-      FORALL (i=1:Nx, j=1:Ny, land_v(i,j) .eq. 0.)  gamma_sq_v(i,j) = k/H_v(i,j)
+      gamma_sq_u = k
+      gamma_sq_v = k
+#ifdef BAROTROPIC
+      WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u/H_u
+      WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
+#endif
 #endif
 #ifdef NEWTONIAN_COOLING
       ALLOCATE(gamma_n(1:Nx, 1:Ny), stat=alloc_error)
@@ -887,13 +940,23 @@ MODULE swm_module
       CALL getVar(TDF_FH, TDF_Fv2, TDF_itt2)
       ! scale with rho0, H and dt
       WHERE (land_u .eq. 0)
-        TDF_Fu1 = TDF_Fu1 / (RHO0 * H_u)
-        TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u)
+        TDF_Fu1 = TDF_Fu1 / RHO0
+        TDF_Fu2 = TDF_Fu2 / RHO0
       END WHERE
       WHERE (land_v .eq. 0)
-        TDF_Fv1 = TDF_Fv1 / (RHO0 * H_v)
-        TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v)
+        TDF_Fv1 = TDF_Fv1 / RHO0
+        TDF_Fv2 = TDF_Fv2 / RHO0
       END WHERE
+#ifdef BAROTROPIC
+      WHERE (land_u .eq. 0)
+        TDF_Fu1 = TDF_Fu1 / H_u
+        TDF_Fu2 = TDF_Fu2 / H_u
+      END WHERE
+      WHERE (land_v .eq. 0)
+        TDF_Fv1 = TDF_Fv1 / H_v
+        TDF_Fv2 = TDF_Fv2 / H_v
+      END WHERE
+#endif
       ! calculate increment
       TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1)
       TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1)
@@ -920,9 +983,13 @@ MODULE swm_module
         CALL getVar(TDF_FH, TDF_Fu2, TDF_itt2)
         CALL initFH(TDF_fname,"TAUY",TDF_FH) !TODO: remove magic string
         CALL getVar(TDF_FH, TDF_Fv2, TDF_itt2)
-        ! scale with rho0, H and dt
-        WHERE (land_u .eq. 0) TDF_Fu2 = TDF_Fu2 / (RHO0 * H_u)
-        WHERE (land_v .eq. 0) TDF_Fv2 = TDF_Fv2 / (RHO0 * H_v)
+        ! scale with rho0 and H
+        WHERE (land_u .eq. 0) TDF_Fu2 = TDF_Fu2 / RHO0
+        WHERE (land_v .eq. 0) TDF_Fv2 = TDF_Fv2 / RHO0
+#ifdef BAROTROPIC
+        WHERE (land_u .eq. 0) TDF_Fu2 = TDF_Fu2 / H_u
+        WHERE (land_v .eq. 0) TDF_Fv2 = TDF_Fv2 / H_u                          
+#endif
         ! calculate increment
         TDF_dFu = (TDF_Fu2 - TDF_Fu1) / (TDF_t2 - TDF_t1)
         TDF_dFv = (TDF_Fv2 - TDF_Fv1) / (TDF_t2 - TDF_t1)

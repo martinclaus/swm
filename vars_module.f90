@@ -23,6 +23,7 @@ MODULE vars_module
   REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
   REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale
   REAL(8)                :: freq_wind=0                      ! frequency of oscillating wind forcing
+  REAL(8)                :: H_overwrite = 1.                 ! Depth used in all fields if H_OVERWRITE defined
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
   CHARACTER(CHARLEN)     :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
@@ -92,7 +93,8 @@ SUBROUTINE initVars
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
     r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding,TAU_0,freq_wind, & ! friction and forcing parameter
-    Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
+    Nx, Ny, run_length, H_overwrite, &  ! domain size, length of run, depth if H_OVERWRITE is defined
+    Nout, NoutChunk, & ! number of written time steps, max lsize of out files
     dt, meant_out, & ! time step and mean step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
     pbc_lon, & ! periodic boundary conditions in x-direction

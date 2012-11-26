@@ -209,6 +209,12 @@ PROGRAM model
       ocean_u = 1_1 - land_u
       ocean_H = 1_1 - land_H
       ocean_eta = 1_1 - land_eta
+#ifdef H_OVERWRITE
+      H     = ocean_H * H_overwrite
+      H_u   = ocean_u * H_overwrite
+      H_v   = ocean_v * H_overwrite
+      H_eta = ocean_eta * H_overwrite
+#endif
     END SUBROUTINE initDomain
 
 END PROGRAM model
