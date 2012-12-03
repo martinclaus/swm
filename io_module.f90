@@ -54,11 +54,18 @@ MODULE io_module
       close(UNIT_OUTPUT_NL)
     END SUBROUTINE initIO
     
-    SUBROUTINE check(status)
+    SUBROUTINE check(status,line,fileName)
       IMPLICIT NONE
-      integer, intent(in) :: status
+      integer, intent(in)                    :: status
+      INTEGER, INTENT(in), OPTIONAL          :: line
+      CHARACTER(len=*), intent(in), OPTIONAL :: fileName
       if(status /= nf90_noerr) then
-        print *, trim(nf90_strerror(status))
+        IF (PRESENT(line) .AND. PRESENT(fileName)) THEN
+          WRITE(*,'("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
+            line,TRIM(nf90_strerror(status)),TRIM(fileName)
+        ELSE
+          print *, trim(nf90_strerror(status))
+        END IF
         stop 2
       end if
     END SUBROUTINE check
@@ -82,11 +89,10 @@ MODULE io_module
       INTEGER, INTENT(out)              :: ncid, varid
       INTEGER                       :: lat_dimid, lon_dimid, &
                                        lat_varid, lon_varid
-      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar", &
-                                       lat_name=YAXISNAME, lon_name=XAXISNAME, &
-                                       lat_unit=YUNIT, lon_unit=XUNIT
+      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar"
       ! create file
-      call check(nf90_create(getFname(fileNameStem), NF90_CLOBBER, ncid))
+      call check(nf90_create(getFname(fileNameStem),NF90_CLOBBER,ncid),&
+                 __LINE__, getFname(fileNameStem))
       ! create dimensions
       call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid)) 
       call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
@@ -118,7 +124,8 @@ MODULE io_module
                                        lat_varid, lon_varid
       FH%filename = getFname(FH%filename)
       ! create file
-      call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid))
+      call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
+                 __LINE__,FH%filename)
       FH%isOpen = .TRUE.
       ! create dimensions
       call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid)) 
@@ -193,11 +200,27 @@ MODULE io_module
     SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH
+      INTEGER    :: nDims
       IF ( FH%isOpen ) RETURN
-      CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid))
-      CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid))
-      CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid))
-      IF (FH%timedid .NE. NF90_NOTIMEDIM) CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec))
+      CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
+                 __LINE__,FH%filename)
+      IF (FH%varid.EQ.DEF_VARID) CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
+                                            __LINE__,FH%filename)
+      CALL check(nf90_inquire(FH%ncid,nDimensions=nDims))
+      IF (nDims.GE.3) THEN ! read time axis information
+        IF (FH%timedid.EQ.DEF_TIMEDID) THEN
+          CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid),&
+                     __LINE__,FH%filename)
+          IF (FH%timedid .EQ. NF90_NOTIMEDIM) &
+            CALL check(nf90_inq_dimid(FH%ncid,TAXISNAME,dimid=FH%timedid),__LINE__,FH%filename)
+        END IF
+        CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
+                   __LINE__,trim(FH%filename))
+        IF(FH%timevid.EQ.DEF_TIMEVID) CALL check(nf90_inq_varid(FH%ncid,TAXISNAME,FH%timevid), &
+                     __LINE__,FH%filename)
+      ELSE ! no time axis in dataset
+        FH%nrec = 1
+      END IF
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
 
@@ -212,7 +235,8 @@ MODULE io_module
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH
       IF ( .NOT. FH%isOpen ) RETURN
-      CALL check(nf90_close(FH%ncid))
+      CALL check(nf90_close(FH%ncid),&
+                 __LINE__,TRIM(FH%filename))
       FH%isOpen = .FALSE.
     END SUBROUTINE closeDShandle
 
@@ -242,8 +266,10 @@ MODULE io_module
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
-      CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)))
-      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)))
+      CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)),&
+                 __LINE__,TRIM(FH%filename))
+      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)),&
+                 __LINE__,TRIM(FH%filename))
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVar3Dhandle
 
@@ -274,7 +300,8 @@ MODULE io_module
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)))              
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)),&
+                 __LINE__,TRIM(FH%filename))              
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
@@ -312,7 +339,6 @@ MODULE io_module
       TYPE(fileHandle), INTENT(inout)              :: FH
       INTEGER, INTENT(in), OPTIONAL                :: tstart, tlen
       REAL(8), DIMENSION(:), INTENT(out)           :: var
-      REAL(8)  :: missing_value
       LOGICAL  :: wasOpen
       !TODO: Test for overflow, i.e. var should have sufficient size
       wasOpen = FH%isOpen
@@ -328,6 +354,24 @@ MODULE io_module
       END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar1Dhandle
+
+    SUBROUTINE getTimeVar(FH,time,tstart,tlen)
+      TYPE(fileHandle), INTENT(inout)        :: FH
+      REAL(8), DIMENSION(:), INTENT(out)     :: time
+      INTEGER, INTENT(in), OPTIONAL          :: tstart, tlen
+      TYPE(fileHandle)                       :: FH_time
+      FH_time = FH
+      FH_time%varid = FH%timevid
+      IF (PRESENT(tstart)) THEN
+        IF(PRESENT(tlen)) THEN
+          CALL getVar1Dhandle(FH_time,time,tstart,tlen)
+        ELSE
+          CALL getVar1Dhandle(FH_time,time,tstart)
+        END IF
+      ELSE
+        CALL getVar1Dhandle(FH_time,time)
+      END IF
+    END SUBROUTINE getTimeVar
     
     SUBROUTINE touch(FH)
       TYPE(fileHandle), INTENT(inout)    :: FH

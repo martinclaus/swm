@@ -44,6 +44,18 @@ MODULE calc_lib
       chi_computed=.FALSE.
     END SUBROUTINE advanceCalcLib
   
+    FUNCTION interpLinear(var0,var1,t0,t1,t)
+      USE vars_module, ONLY : Nx, Ny
+      IMPLICIT NONE
+      REAL(8), DIMENSION(Nx,Ny), INTENT(in)  :: var0, var1
+      REAL(8), INTENT(in)                    :: t0,t1,t
+      REAL(8), DIMENSION(Nx,Ny)              :: interpLinear
+      IF (t.LT.t0.OR.t.GT.t1) THEN
+        PRINT *,TRIM(__FILE__)//":",__LINE__, "WARNING Extrapolating",t0,t1,t
+      END IF
+      interpLinear = var0 + (t-t0)*(var1-var0)/(t1-t0)
+    END FUNCTION interpLinear
+
     SUBROUTINE computeNonDivergentFlowField(u_in,v_in,u_nd,v_nd)
       USE vars_module, ONLY : Nx,Ny,ocean_u,ocean_v,ocean_eta,itt
       IMPLICIT NONE
