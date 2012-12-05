@@ -92,7 +92,9 @@ MODULE swm_module
       USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, freq_wind, land_eta, land_u, land_v
       IMPLICIT NONE
       INTEGER :: i, j 
+#ifdef QUADRATIC_BOTTOM_FRICTION
       REAL(8) :: v_u, u_v
+#endif
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -189,7 +191,10 @@ MODULE swm_module
     SUBROUTINE SWM_timestepAdamsBashforth
       USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
-      INTEGER :: i,j,u_v,v_u
+      INTEGER :: i,j
+#ifdef QUADRATIC_BOTTOM_FRICTION
+      REAL(8) :: u_v,v_u
+#endif
       IF (itt.lt.2) THEN ! do a Euler forward to compute second initial condition
         CALL SWM_timestepEulerForward
         RETURN
@@ -275,7 +280,10 @@ MODULE swm_module
     SUBROUTINE SWM_timestepEulerForward
       USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
-      INTEGER :: i,j,u_v,v_u
+      INTEGER :: i,j
+#ifdef QUADRATIC_BOTTOM_FRICTION
+      REAL(8) :: u_v,v_u
+#endif
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
