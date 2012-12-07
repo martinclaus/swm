@@ -92,9 +92,7 @@ MODULE swm_module
       USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, freq_wind, land_eta, land_u, land_v
       IMPLICIT NONE
       INTEGER :: i, j 
-#ifdef QUADRATIC_BOTTOM_FRICTION
       REAL(8) :: v_u, u_v
-#endif
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -192,9 +190,7 @@ MODULE swm_module
       USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER :: i,j
-#ifdef QUADRATIC_BOTTOM_FRICTION
       REAL(8) :: u_v,v_u
-#endif
       IF (itt.lt.2) THEN ! do a Euler forward to compute second initial condition
         CALL SWM_timestepEulerForward
         RETURN
@@ -281,9 +277,7 @@ MODULE swm_module
       USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER :: i,j
-#ifdef QUADRATIC_BOTTOM_FRICTION
       REAL(8) :: u_v,v_u
-#endif
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -746,7 +740,7 @@ MODULE swm_module
                               land_u, H_u, land_v, H_v, land_eta, gamma_new_sponge
       IMPLICIT NONE
       INTEGER :: i,j, alloc_error
-      REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n
+      REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n, sponges
       ! allocate memory
       ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
@@ -761,19 +755,13 @@ MODULE swm_module
         STOP 1
       END IF
       gamma_lin_u = ( r &
-#ifdef VELOCITY_SPONGE_N
-                      + getSpongeLayer(lat_u,lat_u(Ny-1)) & 
-#endif
-#ifdef VELOCITY_SPONGE_S
-                      + getSpongeLayer(lat_u,lat_u(1)) &
+#ifdef VELOCITY_SPONGE
+                      + getSpongeLayer("U",VELOCITY_SPONGE) & 
 #endif
                     )
       gamma_lin_v = ( r &
-#ifdef VELOCITY_SPONGE_N
-                      + getSpongeLayer(lat_v,lat_v(Ny)) & 
-#endif
-#ifdef VELOCITY_SPONGE_S
-                      + getSpongeLayer(lat_v,lat_v(2)) &
+#ifdef VELOCITY_SPONGE
+                      + getSpongeLayer("V",VELOCITY_SPONGE) & 
 #endif
                     )
 #ifdef BAROTROPIC
@@ -802,11 +790,8 @@ MODULE swm_module
         STOP 1
       END IF
       gamma_n = ( gamma_new &
-#ifdef NEWTONIAN_SPONGE_N
-                  + getSpongeLayer(lat_eta,lat_eta(Ny-1)) &
-#endif
-#ifdef NEWTONIAN_SPONGE_S
-                  + getSpongeLayer(lat_eta,lat_eta(1)) &
+#ifdef NEWTONIAN_SPONGE
+                  + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
 #endif
                 )
 #endif
@@ -840,14 +825,36 @@ MODULE swm_module
       END IF
     END SUBROUTINE SWM_initDamping
     
-    REAL(8) PURE FUNCTION getSpongeLayer(lat,pos)
-      USE vars_module, ONLY : Nx,Ny, A, D2R, OMEGA, G, H, &
-                              gamma_new_sponge, new_sponge_efolding, G, H
+    REAL(8) FUNCTION getSpongeLayer(gString,posString)
+      USE vars_module, ONLY : Nx,Ny, lat_u, lon_u, lat_v, lon_v, A, D2R, OMEGA, G, H, &
+                              gamma_new_sponge, new_sponge_efolding
       IMPLICIT NONE
-      REAL(8), DIMENSION(Ny), INTENT(in) :: lat
-      REAL(8), INTENT(in)                :: pos
-      REAL(8), DIMENSION(Nx,Ny)          :: getSpongeLayer
-      REAL(8)                            :: spongeCoefficient
+      CHARACTER(len=*), INTENT(in)       :: gString, posString
+      DIMENSION                          :: getSpongeLayer(Nx,Ny)
+      REAL(8)                            :: lat(Ny), lon(Nx), spongeCoefficient
+      INTEGER                            :: iGrid, iBoundary, iSponge(4,3)
+      CHARACTER                          :: gChar
+      iSponge = RESHAPE((/1,Ny-1,2,Nx-1,&
+                          2,Ny-1,1,Nx-1,&
+                          1,Ny-1,1,Nx-1/),SHAPE(iSponge))
+      getSpongeLayer = 0.
+      SELECT CASE(gString(1:1))
+        CASE("u","U")
+          iGrid = 1
+          lat = lat_u
+          lon = lon_u
+        CASE("v","V")
+          iGrid = 2
+          lat = lat_v
+          lon = lon_v
+        CASE("e","E")
+          iGrid = 3
+          lat = lat_u
+          lon = lon_v
+        CASE default
+          WRITE (*,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
+          RETURN
+      END SELECT
       spongeCoefficient = D2R * A / new_sponge_efolding / &
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
                                        (D2R*A)
@@ -856,15 +863,50 @@ MODULE swm_module
 #elif SPONGE_SCALE_UNIT == SCU_METER
                                        1.
 #endif
-      getSpongeLayer = TRANSPOSE( &
-                         SPREAD( &
-                           gamma_new_sponge * &
-                             MAX(0.,EXP(-ABS(lat-pos)*spongeCoefficient)-EXP(-REAL(SPONGE_CUT_OFF))), &
-                           2, &
-                           Nx &
-                         )    &
-                       )
-
+      IF (SCAN(posString,"Nn").NE.0) THEN
+        iBoundary = 2
+        getSpongeLayer = MAX(TRANSPOSE( &
+                               SPREAD( &
+                                 gamma_new_sponge * &
+                                 EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 2, &
+                                 Nx &
+                            )),getSpongeLayer)
+      END IF
+      IF (SCAN(posString,"Ss").NE.0) THEN
+        iBoundary = 1
+        getSpongeLayer = MAX(TRANSPOSE( &
+                               SPREAD( &
+                                 gamma_new_sponge * &
+                                 EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 2, &
+                                 Nx &
+                            )),getSpongeLayer)
+      END IF
+      IF (SCAN(posString,"Ww").NE.0) THEN
+        iBoundary = 3
+        getSpongeLayer = MAX( &
+                               SPREAD( &
+                                 gamma_new_sponge * &
+                                 EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 2, &
+                                 Ny &
+                            ),getSpongeLayer)
+      END IF
+      IF (SCAN(posString,"Ee").NE.0) THEN
+        iBoundary = 4
+        getSpongeLayer = MAX( &
+                               SPREAD( &
+                                 gamma_new_sponge * &
+                                 EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 2, &
+                                 Ny &
+                            ),getSpongeLayer)
+      END IF
     END FUNCTION getSpongeLayer
 
     SUBROUTINE SWM_finishDamping
