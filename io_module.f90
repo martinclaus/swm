@@ -206,7 +206,7 @@ MODULE io_module
                  __LINE__,FH%filename)
       IF (FH%varid.EQ.DEF_VARID) CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
                                             __LINE__,FH%filename)
-      CALL check(nf90_inquire(FH%ncid,nDimensions=nDims))
+      CALL check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
       IF (nDims.GE.3) THEN ! read time axis information
         IF (FH%timedid.EQ.DEF_TIMEDID) THEN
           CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid),&
