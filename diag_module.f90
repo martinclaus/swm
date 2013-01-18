@@ -146,6 +146,7 @@ MODULE diag_module
 #ifdef WRITEMEAN
     SUBROUTINE createmeanDatasets
       IMPLICIT NONE
+      WRITE (fullrecstr, '(i12.12)') fullrec
       CALL initFH(OFILEETAMEAN,OVARNAMEETAMEAN,FH_eta_mean)
       CALL createDS(FH_eta_mean,lat_eta,lon_eta)
       CALL initFH(OFILEUMEAN,OVARNAMEUMEAN,FH_u_mean)
