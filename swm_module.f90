@@ -737,7 +737,7 @@ MODULE swm_module
     
     SUBROUTINE SWM_initDamping
       USE vars_module, ONLY : Nx, Ny, lat_u, lat_v, lat_eta, A, D2R, OMEGA, new_sponge_efolding, r, k, gamma_new, G, H, dt, &
-                              land_u, H_u, land_v, H_v, land_eta, gamma_new_sponge
+                              ocean_u, ocean_v, H_u, land_v, H_v, land_eta, gamma_new_sponge
       IMPLICIT NONE
       INTEGER :: i,j, alloc_error
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n, sponges
