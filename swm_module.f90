@@ -9,7 +9,7 @@ MODULE swm_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: SWM_u, SWM_v, SWM_eta, &
                                             SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, lat_mixing_u, lat_mixing_v
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u, &
-                                            F_x, F_y
+                                            F_x, F_y, F_eta
   INTEGER, PARAMETER                     :: NG=2, NG0=NG, NG0m1=NG0-1
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: G_u, G_v, G_eta ! explicit increment vectors
   REAL(8), PARAMETER                     :: AB_Chi=.1_8, AB_C1=1.5_8+AB_Chi, AB_C2=.5_8+AB_Chi   ! TODO: replace AB_Chi by namelist entry
@@ -103,6 +103,11 @@ MODULE swm_module
           SWM_eta(i,j,N0p1) = ( SWM_Coef_eta(1,i,j)*SWM_eta(i,j,N0)                                     & ! eta^l
                           + SWM_Coef_eta(2,i,j)*SWM_u(ip1(i),j,N0) + SWM_Coef_eta(3,i,j)*SWM_u(i,j,N0)  & ! -dt*(Hu^l)_x
                           + SWM_Coef_eta(4,i,j)*SWM_v(i,jp1(j),N0) + SWM_Coef_eta(5,i,j)*SWM_v(i,j,N0)  & ! -dt(Hv^l)_y
+                          + dt*( F_eta(i,j) &
+#ifdef FETADEP
+                                FETADEP &
+#endif
+                            ) &
                           )                                                                     & 
                           / impl_eta(i,j)                                                         ! / (1+dt*gamma_new)
         ENDDO XSPACE1
@@ -136,10 +141,11 @@ MODULE swm_module
                           + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
                           + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #endif
-                          + dt * F_x(i,j)                                           &
-#ifdef PERIODIC_FORCING_X
-                             *PERIODIC_FORCING_X(freq_wind*itt*dt)                            & ! Forcing
+                          + dt * (F_x(i,j)                                           &
+#ifdef FXDEP
+                             FXDEP &
 #endif
+                            )&
 #ifdef TDEP_FORCING
                           + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
 #endif                      
@@ -175,7 +181,11 @@ MODULE swm_module
                           + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
                           + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
 #endif
-                          + dt * F_y(i,j)                                           & ! forcing
+                          + dt * (F_y(i,j)                                           & ! forcing
+#ifdef FYDEP
+                            FYDEP &
+#endif
+                            )&
 #ifdef TDEP_FORCING
                           + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
 #endif                      
@@ -209,6 +219,10 @@ MODULE swm_module
                                 SWM_u(ip1(i),j,N0),SWM_u(i,j,N0),&
                                 SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/)&
                               *SWM_Coef_eta(:,i,j)) &
+                             + F_eta(i,j) &
+#ifdef FETADEP
+                               FETADEP &
+#endif
                              )
             ! Integrate
             SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*(AB_C1*G_eta(i,j,NG0) - AB_C2*G_eta(i,j,NG0m1)))/impl_eta(i,j)
@@ -227,9 +241,6 @@ MODULE swm_module
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
                            + F_x(i,j) &                                                 ! forcing
-#ifdef PERIODIC_FORCING_X
-                            *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
-#endif
 #ifdef FXDEP
                             FXDEP &
 #endif
@@ -254,9 +265,6 @@ MODULE swm_module
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
                            + F_y(i,j) &                                                 ! forcing
-#ifdef PERIODIC_FORCING_Y
-                            *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
-#endif
 #ifdef FYDEP
                             FYDEP &
 #endif
@@ -292,6 +300,10 @@ MODULE swm_module
                                 SWM_u(ip1(i),j,N0),SWM_u(i,j,N0), &
                                 SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/) &
                               *SWM_Coef_eta(:,i,j)) &
+                             + F_eta(i,j) &
+#ifdef FETADEP
+                                FETADEP &
+#endif 
                              )
             ! Integrate
             SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*G_eta(i,j,NG0))/impl_eta(i,j)
@@ -310,9 +322,6 @@ MODULE swm_module
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
                            + F_x(i,j) &                                                 ! forcing
-#ifdef PERIODIC_FORCING_X
-                            *PERIODIC_FORCING_X(freq_wind*itt*dt) &                    ! harmonic forcing
-#endif
 #ifdef FXDEP
                             FXDEP &
 #endif
@@ -336,9 +345,6 @@ MODULE swm_module
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction 
 #endif
                            + F_y(i,j) &                                                 ! forcing
-#ifdef PERIODIC_FORCING_Y
-                            *PERIODIC_FORCING_Y(freq_wind*itt*dt) &                    ! harmonic forcing
-#endif
 #ifdef FYDEP
                              FYDEP &
 #endif
@@ -617,24 +623,25 @@ MODULE swm_module
 
     SUBROUTINE SWM_initForcing
       USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, &
-                              in_file_TAU, in_file_REY, in_file_F1, &
+                              in_file_TAU, in_file_REY, in_file_F1, in_file_F_eta, &
                               in_varname_TAU_x, in_varname_TAU_y, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv, &
-                              in_varname_F1_x, in_varname_F1_y, &
+                              in_varname_F1_x, in_varname_F1_y, in_varname_F_eta, &
                               RHO0, dt, A, dLambda, dTheta, cosTheta_u, cosTheta_v, &
-                              H, H_eta, H_u, H_v, ocean_u, ocean_v, land_H
+                              H, H_eta, H_u, H_v, ocean_u, ocean_v, ocean_eta, land_H
       USE io_module, ONLY : fileHandle, initFH, readInitialCondition
       IMPLICIT NONE
       TYPE(fileHandle)  :: FH_in
       INTEGER :: i, j, alloc_error
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: TAU_x, TAU_y, F1_x, F1_y, REY_u2, REY_v2, REY_uv
       ! allocate constant forcing field
-      ALLOCATE(F_x(1:Nx, 1:Ny), F_y(1:Nx, 1:Ny), stat=alloc_error)
+      ALLOCATE(F_x(1:Nx, 1:Ny), F_y(1:Nx, 1:Ny), F_eta(1:Nx,1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
       F_x = 0.
       F_y = 0.
+      F_eta = 0.
       ! read wind forcing
       windstress: IF (in_file_TAU .NE. "") THEN
         ALLOCATE(TAU_x(1:Nx, 1:Ny), TAU_y(1:Nx, 1:Ny),stat=alloc_error)
@@ -726,6 +733,11 @@ MODULE swm_module
         DEALLOCATE(F1_x,F1_y, stat=alloc_error)
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF forcing
+      heating: IF (in_file_F_eta .NE. "") THEN
+        CALL initFH(in_file_F_eta, in_varname_F_eta,FH_in)
+        CALL readInitialCondition(FH_in,F_eta)
+        WHERE (ocean_eta .ne. 1) F_eta = 0.
+      END IF heating
     END SUBROUTINE SWM_initForcing
     
     SUBROUTINE SWM_finishForcing

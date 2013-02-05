@@ -1,7 +1,7 @@
 FC := gfortran
 O := -O3 -fopenmp
 DEBUG = #-Wall -g
-FFLAGS = -cpp $(defSelfCheck) $(DEBUG) $O
+FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
 libnc = -L/home/mclaus/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I/home/mclaus/local/netcdf-3.6.3/include
 
