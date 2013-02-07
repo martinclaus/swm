@@ -8,7 +8,7 @@ MODULE calc_lib
   SAVE
 
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi    ! Velocity correction potential
-  LOGICAL                                :: chi_computed=.FALSE. !Flag set when veolcity correction potential is computed at present timestep
+  LOGICAL                                :: chi_computed=.FALSE. ! Flag set when veolcity correction potential is computed at present timestep
 
   CONTAINS
   
@@ -136,7 +136,16 @@ MODULE calc_lib
       CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),u_nd,v_nd)
 #endif
       FORALL (i=1:Nx, j=2:Ny) &
-        psi(i,j) = (-1)*SUM(H_v(i:Nx,j)*v_nd(i:Nx,j))*A*cosTheta_v(j)*dLambda - SUM(H_u(i,1:jm1(j))*u_nd(i,1:jm1(j)))*A*dTheta
+        psi(i,j) = (-1)*SUM( &
+#ifdef BAROTROPIC        
+                            H_v(i:Nx,j) * &
+#endif 
+                            v_nd(i:Nx,j))*A*cosTheta_v(j)*dLambda &
+                      - SUM( &
+#ifdef BAROTROPIC
+                            H_u(i,1:jm1(j)) * &
+#endif
+                            u_nd(i,1:jm1(j)))*A*dTheta
     END SUBROUTINE computeStreamfunction
     
     SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)
@@ -147,39 +156,8 @@ MODULE calc_lib
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u,evSF_v,evSF_eta
       INTEGER   :: i,i_bound(2),j,j_bound(2),l,l_bound(2)
-      i_bound(1) = LBOUND(evSF_psi,1)
-      i_bound(2) = UBOUND(evSF_psi,1)
-      j_bound(1) = LBOUND(evSF_psi,2)
-      j_bound(2) = UBOUND(evSF_psi,2)
-      l_bound(1) = LBOUND(evSF_psi,3)
-      l_bound(2) = UBOUND(evSF_psi,3)
-!$OMP PARALLEL &
-!$OMP PRIVATE(i,j,l)
-!$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound(1)) COLLAPSE(2) 
-      YSPACE1: DO j=j_bound(1),j_bound(2)
-        XSPACE1: DO i=i_bound(1),i_bound(2)
-          IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE1
-          TSPACE1: DO l=l_bound(1),l_bound(2)
-            evSF_u(i,j,l) = -(ocean_H(i,jp1(j))*evSF_psi(i,jp1(j),l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*H_u(i,j)*dTheta)
-          ENDDO TSPACE1
-        ENDDO XSPACE1
-      ENDDO YSPACE1
-!$OMP END DO
-!$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound(1)) COLLAPSE(2) 
-      YSPACE2: DO j=j_bound(1),j_bound(2)
-        XSPACE2: DO i=i_bound(1),i_bound(2)
-          IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE2
-          TSPACE2: DO l=l_bound(1),l_bound(2)
-            evSF_v(i,j,l) = (ocean_H(ip1(i),j)*evSF_psi(ip1(i),j,l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*cosTheta_v(j)*H_v(i,j)*dLambda)
-          ENDDO TSPACE2
-        ENDDO XSPACE2
-      ENDDO YSPACE2
-!$OMP END DO
-!$OMP END PARALLEL
+      evSF_u = evSF_zonal(evSF_psi)
+      evSF_v = evSF_meridional(evSF_psi)
     END SUBROUTINE evaluateStreamfunction
 
     FUNCTION evSF_zonal(evSF_psi)
@@ -201,7 +179,11 @@ MODULE calc_lib
           IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE
           TSPACE: DO l=1,l_bound
             evSF_zonal(i,j,l) =  -(ocean_H(i,jp1(j))*evSF_psi(i,jp1(j),l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*H_u(i,j)*dTheta)
+                /(A*dTheta &
+#ifdef BAROTROPIC
+                  *H_u(i,j) &
+#endif
+                 )
           ENDDO TSPACE
         ENDDO XSPACE
       ENDDO YSPACE
@@ -228,7 +210,11 @@ MODULE calc_lib
           IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE
           TSPACE: DO l=1,l_bound
             evSF_meridional(i,j,l) = (ocean_H(ip1(i),j)*evSF_psi(ip1(i),j,l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*cosTheta_v(j)*H_v(i,j)*dLambda)
+                /(A*cosTheta_v(j)*dLambda &
+#ifdef BAROTROPIC
+                  * H_v(i,j) &
+#endif
+                 )
           ENDDO TSPACE
         ENDDO XSPACE
       ENDDO YSPACE

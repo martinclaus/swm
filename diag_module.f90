@@ -8,7 +8,7 @@ MODULE diag_module
   SAVE
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  TYPE(fileHandle)              :: FH_eta, FH_u, FH_v, FH_H, FH_Fx, FH_Fy, FH_psi, FH_tracer, FH_gamma_n
+  TYPE(fileHandle)              :: FH_eta, FH_u, FH_v, FH_H, FH_Fx, FH_Fy, FH_psi, FH_tracer, FH_gamma_n, FH_gamma_u, FH_gamma_v
   TYPE(fileHandle)              :: FH_eta_mean, FH_u_mean, FH_v_mean, FH_psi_mean, FH_eta2_mean, FH_u2_mean, FH_v2_mean,&
                                    FH_psi2_mean
   REAL(8), DIMENSION(:,:), ALLOCATABLE     :: eta_mean, u_mean, v_mean, psi_mean, psi, eta2_mean, u2_mean, v2_mean, psi2_mean  
@@ -102,6 +102,9 @@ MODULE diag_module
     SUBROUTINE Diag
       USE calc_lib, ONLY : computeStreamfunction
       IMPLICIT NONE
+#ifdef DIAG_START
+      IF (itt*dt .lt. DIAG_START) RETURN
+#endif
 #ifdef WRITEMEAN
       CALL calc_mean
 #endif
@@ -143,7 +146,7 @@ MODULE diag_module
 #ifdef WRITEMEAN
     SUBROUTINE createmeanDatasets
       IMPLICIT NONE
-      WRITE (fullrecstr, '(i12.12)') fullrec_mean
+      WRITE (fullrecstr, '(i12.12)') fullrec
       CALL initFH(OFILEETAMEAN,OVARNAMEETAMEAN,FH_eta_mean)
       CALL createDS(FH_eta_mean,lat_eta,lon_eta)
       CALL initFH(OFILEUMEAN,OVARNAMEUMEAN,FH_u_mean)
@@ -189,6 +192,8 @@ MODULE diag_module
 #endif
 
     SUBROUTINE writeInput
+      USE swm_module, ONLY : impl_u, impl_v, impl_eta
+      USE vars_module, ONLY : dt
       IMPLICIT NONE
       WRITE (fullrecstr, '(i12.12)') fullrec
 
@@ -207,12 +212,23 @@ MODULE diag_module
 !      CALL putVar(FH=FH_Fy, varData=F_y, ocean_mask=ocean_v)
 !      CALL closeDS(FH_Fy)
 
-!#ifdef NEWTONIAN_COOLING
-!      CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
-!      CALL createDS(FH_gamma_n,lat_eta,lon_eta)
-!      CALL putVar(FH=FH_gamma_n, varData=gamma_n,ocean_mask=ocean_eta )
-!      CALL closeDS(FH_gamma_n)
-!#endif
+#ifdef NEWTONIAN_COOLING
+      CALL initFH(OFILEGAMMA_N,OVARNAMEGAMMA_N,FH_gamma_n)
+      CALL createDS(FH_gamma_n,lat_eta,lon_eta)
+      CALL putVar(FH=FH_gamma_n, varData=(impl_eta-1.)/dt,ocean_mask=ocean_eta )
+      CALL closeDS(FH_gamma_n)
+#endif
+#ifdef LINEAR_BOTTOM_FRICTION
+      CALL initFH(OFILEGAMMA_U,OVARNAMEGAMMA_U,FH_gamma_u)
+      CALL createDS(FH_gamma_u,lat_u,lon_u)
+      CALL putVar(FH=FH_gamma_u,varData=(impl_u-1.)/dt,ocean_mask=ocean_u )
+      CALL closeDS(FH_gamma_u)
+
+      CALL initFH(OFILEGAMMA_V,OVARNAMEGAMMA_V,FH_gamma_v)
+      CALL createDS(FH_gamma_v,lat_v,lon_v)
+      CALL putVar(FH=FH_gamma_v,varData=(impl_v-1.)/dt,ocean_mask=ocean_v )
+      CALL closeDS(FH_gamma_v)
+#endif
     END SUBROUTINE writeInput
     
     SUBROUTINE writeDiag

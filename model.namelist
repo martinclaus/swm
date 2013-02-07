@@ -1,51 +1,25 @@
 &model_nl 
-  A = 6371000,          ! radius of the earth (m)
+  A = 6.371e6,          ! radius of the earth (m)
   OMEGA = 7.272205e-05, ! 1/day (1/s)
+  G = 7.295125222248319e-05,           ! gravitational acceleration (m/s^2)
   RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
-  r = 1e-2,             ! linear bottom friction parameter
-  k = 5e-1,             ! quadratic bottom friction parameter
-  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
-  freq_wind = 5.6506040e-08,         ! Frequency of wind forcing
-  Ah = 1e5,               ! horizontal eddy viscosity (m^2/s)
-  Nx = 601,               ! number of grid points in x-dir.
-  Ny = 241,               ! number of grif points in y-dir.
-  run_length = 4e7, ! length of run in seconds
-  Nout = 200,             ! number of eq. distributed "measurements"
-  NoutChunk = 9999,     ! max lsize of output files
-  dt = 25,      ! time step (s)
-  meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
-  lon_s = -100.,           ! min. lon. of the domain (H-grid)
-  lon_e = 0.          ! max. lon. of the domain (H-grid),
-  lat_s = 15.     ! min. lat. of the domain (H-grid),
-  lat_e = 55.         ! max. lat. of the domain (H-grid)
-  in_file_H = "H_in.nc" ! topography input dataset
+  Ah = 50,             ! horizontal eddy viscosity (m^2/s)
+  r  = 0.,             ! linear friction coefficient (1/s)
+  gamma_new = 0,        ! Newtonian cooling parameter (1/s)
+  new_sponge_efolding=2e-1, ! efolding scale of sponge layers
+  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
+  freq_wind = 8.436071429e-8,         ! Frequency of wind forcing
+  Nx = 271,             ! number of grid points in x-dir.
+  Ny = 101,             ! number of grif points in y-dir.
+  run_length = 5.9584e8,     ! length of run in seconds 
+  Nout = 500,            ! number of eq. distributed "measurements"
+  NoutChunk = 10001,    ! max lsize of output files
+  dt = 1.25e3,
+  lon_s = 0.,         ! min. lon. of the domain (H-grid)
+  lon_e = 54.           ! max. lon. of the domain (H-grid),
+  lat_s = -10.          ! min. lat. of the domain (H-grid),
+  lat_e = 10.           ! max. lat. of the domain (H-grid)
+  in_file_H = "H.nc" ! topography input data
   in_varname_H = "H"    ! variable name of topography in input dataset
-  in_file_F1="" ! forcing input dataset
-  in_varname_F1_x = "FU"! forcing variable in x-direction (u-grid)
-  in_varname_F1_y = "FV"! forcing variable in y-direction (v-grid)
-  in_file_TAU = "tau.nc"    ! wind stress input dataset
-  in_varname_TAU_x="TAUX" ! wind stress component in x-direction (u-grid)
-  in_varname_TAU_y="TAUY" ! wind stress component in y-direction (v-grid)
-  in_file_REY="",	  ! Reynolds stress input dataset
-  in_varname_REY_u2="u2", ! \overbar{u'u'} (H-grid)
-  in_varname_REY_v2="v2", ! \overbar{v'v'} (H-grid)
-  in_varname_REY_uv="uv", ! \overbar{u'v'} (H-grid)
-  init_cond_from_file = .true.
-  file_eta_init="eta.nc"
-  varname_eta_init="ETA"
-  file_u_init="u.nc"
-  varname_u_init="U"
-  file_v_init="v.nc"
-  varname_v_init="V"
-&end
-&dynFromFile
-  FileName_u="u_in.nc",
-  FileName_v="v_in.nc",
-  FileName_eta="eta_in.nc", ! Filenames of input files of dynamical variables
-  DFF_Nt_chunksize=57 ! Number of timesteps to read at once
-&end
-&tracer_nl
-  TRC_C1_A = 1e2     ! horizontal tracer diffusivity
-  TRC_file_C0 = "C0.nc"
-  TRC_file_relax = "Crelax.nc"
+  in_file_tau = "tau_54.nc"
 &end

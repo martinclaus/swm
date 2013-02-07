@@ -21,18 +21,20 @@ MODULE vars_module
   REAL(8)                :: missval=MISS_VAL_DEF             ! missing value for CDF outfiles
   REAL(8)                :: gamma_new=2.314e-8               ! Newtonian cooling coefficient (1/s)
   REAL(8)                :: gamma_new_sponge=1               ! Newtonian cooling coefficient at boundary using sponge layers (1/s)
-  REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale (L_D)
+  REAL(8)                :: new_sponge_efolding=1            ! Newtonian cooling sponge layer e-folding scale
   REAL(8)                :: freq_wind=0                      ! frequency of oscillating wind forcing
+  REAL(8)                :: H_overwrite = 1.                 ! Depth used in all fields if H_OVERWRITE defined
   
   ! input files and variable names for topography, forcing, and initial conditions defined in model.namelist
   CHARACTER(CHARLEN)     :: in_file_H="H_in.nc", in_varname_H="H", in_file_F1="", &
                             in_varname_F1_x="FU", in_varname_F1_y="FV", &
                             in_file_TAU="", in_varname_TAU_x="TAUX", in_varname_TAU_y="TAUY", &
+                            in_file_F_eta="", in_varname_F_eta="FETA", &
                             in_file_REY="", in_varname_REY_u2="u2", in_varname_REY_v2="v2", in_varname_REY_uv="uv",&
                             file_eta_init="eta_init.nc", varname_eta_init="ETA", &
                             file_u_init="u_init.nc", varname_u_init="U", &
                             file_v_init="v_init.nc", varname_v_init="V"
-  LOGICAL                :: init_cond_from_file=.true.
+  LOGICAL                :: init_cond_from_file=.FALSE.
 
   ! definition of domain, contained in model.namelist
   INTEGER, PARAMETER     :: Ndims = 3                        ! number of dimensions
@@ -91,13 +93,15 @@ SUBROUTINE initVars
   ! definition of the namelist
   namelist / model_nl / &
     A, OMEGA, G, RHO0,  & ! physical constants
-    r,k,Ah,gamma_new,TAU_0,freq_wind, & ! friction and forcing parameter
-    Nx, Ny, run_length, Nout, NoutChunk, & ! domain size, length of run, number of written time steps, max lsize of out files
+    r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding,TAU_0,freq_wind, & ! friction and forcing parameter
+    Nx, Ny, run_length, H_overwrite, &  ! domain size, length of run, depth if H_OVERWRITE is defined
+    Nout, NoutChunk, & ! number of written time steps, max lsize of out files
     dt, meant_out, & ! time step and mean step
     lon_s, lon_e, lat_s, lat_e, & ! domain specs
     pbc_lon, & ! periodic boundary conditions in x-direction
     in_file_H, in_varname_H, & ! specification of input topography file
     in_file_TAU, in_varname_TAU_x, in_varname_TAU_y, & !  specification of input wind stress file 
+    in_file_F_eta, in_varname_F_eta, & ! specification of input heating file
     in_file_REY, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv,& ! specification of input Reynold stress file
     in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
     file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis

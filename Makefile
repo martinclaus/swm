@@ -1,7 +1,7 @@
 FC := gfortran
 O := -O3 -fopenmp
 DEBUG = #-Wall -g
-FFLAGS = -cpp $(defSelfCheck) $(DEBUG) $O
+FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
 libnc = -L/home/mclaus/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I/home/mclaus/local/netcdf-3.6.3/include
 
@@ -35,7 +35,7 @@ vars_module.o : vars_module.f90 io.h
 swm_module.o : swm_module.f90 vars_module.o io_module.o model.h io.h
 	$(FC) $(FFLAGS) -c $<
 
-diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o model.h
+diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
 	$(FC) $(FFLAGS) -c $<
 
 io_module.o : io_module.f90 io.h vars_module.o

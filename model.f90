@@ -31,8 +31,8 @@ PROGRAM model
   print *, 'initCalcLib done'
 
   ! Prepare output file (don't forget to close the files at the end of the programm)
-  call initDiag
-  print *, 'initDiag done'
+!  call initDiag
+!  print *, 'initDiag done'
 
 #ifdef DYNFROMFILE
   ! initialise dynFromFile module (read namelist and first chunk from file, override initial conditions from initialConditions)
@@ -45,6 +45,10 @@ PROGRAM model
   call SWM_initSWM
   print *, 'SWM_init done'
 #endif
+
+  ! Prepare output file (don't forget to close the files at the end of the programm)
+  call initDiag
+  print *, 'initDiag done'
 
   ! Initialise tracer field, timestepping coefficients and compute 2nd initial condition
 #ifdef TRACER
@@ -117,9 +121,9 @@ PROGRAM model
       v = 0.
       eta = 0.
       ! advance each module to write information at new time N0
-#ifdef DYNFROMFILE
-      CALL DFF_advance
-#endif
+!#ifdef DYNFROMFILE
+!      CALL DFF_advance
+!#endif
 #ifdef SWM
       CALL SWM_advance
 #endif
@@ -205,6 +209,12 @@ PROGRAM model
       ocean_u = 1_1 - land_u
       ocean_H = 1_1 - land_H
       ocean_eta = 1_1 - land_eta
+#ifdef H_OVERWRITE
+      H     = ocean_H * H_overwrite
+      H_u   = ocean_u * H_overwrite
+      H_v   = ocean_v * H_overwrite
+      H_eta = ocean_eta * H_overwrite
+#endif
     END SUBROUTINE initDomain
 
 END PROGRAM model

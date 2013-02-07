@@ -90,18 +90,20 @@ MODULE dynFromFile_module
     END SUBROUTINE DFF_timestep
     
     SUBROUTINE DFF_advance
-      USE vars_module, ONLY : u,v,eta, N0, itt, dt
+      USE io_module, ONLY : isSetFH
+      USE vars_module, ONLY : u,v,eta,dt,itt, N0, ocean_eta, ocean_u, ocean_v
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
-      REAL(8)   :: model_time
+      INTEGER(1) :: u_isSet=0, v_isSet=0
+      REAL(8)    :: model_time
       model_time = itt*dt
-      IF (DFF_eta_input) eta(:,:,N0) = eta(:,:,N0) + getChunkData(DFF_eta_chunk,model_time)
-      IF (DFF_u_input)   u(:,:,N0) = u(:,:,N0) + getChunkData(DFF_u_chunk,model_time)
-      IF (DFF_v_input)   v(:,:,N0) = v(:,:,N0) + getChunkData(DFF_v_chunk,model_time)
+      IF (DFF_eta_input) eta(:,:,N0) = eta(:,:,N0) + ocean_eta * getChunkData(DFF_eta_chunk,model_time)
+      IF (DFF_u_input)   u(:,:,N0) = u(:,:,N0) + ocean_u * getChunkData(DFF_u_chunk,model_time)
+      IF (DFF_v_input)   v(:,:,N0) = v(:,:,N0) + ocean_v * getChunkData(DFF_v_chunk,model_time)
       IF (DFF_psi_input) THEN
         CALL getVelFromPsi(DFF_psi_chunk,model_time)
-        u(:,:,N0) = u(:,:,N0) + DFF_psi_u(:,:,1)
-        v(:,:,N0) = v(:,:,N0) + DFF_psi_v(:,:,1)
+        u(:,:,N0) = u(:,:,N0) + ocean_u * DFF_psi_u(:,:,1)
+        v(:,:,N0) = v(:,:,N0) + ocean_v * DFF_psi_v(:,:,1)
       END IF
     END SUBROUTINE DFF_advance
     
