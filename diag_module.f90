@@ -90,11 +90,13 @@ MODULE diag_module
       IMPLICIT NONE
       INTEGER           :: alloc_error
       ! release memory of diagnostic fields
-      IF (ALLOCATED(psi)) DEALLOCATE(psi, stat=alloc_error)
+      DEALLOCATE(psi, stat=alloc_error)
       IF ( alloc_error .NE. 0 ) WRITE(*,*) "Deallocation failed in diag_module"
       ! Close all output files
       CALL closeDatasets
 #ifdef WRITEMEAN
+      DEALLOCATE(eta_mean, eta2_mean, u_mean, u2_mean, v_mean, v2_mean, psi_mean, psi2_mean, stat=alloc_error)
+      IF ( alloc_error .NE. 0 ) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       CALL closemeanDatasets
 #endif
     END SUBROUTINE finishDiag
