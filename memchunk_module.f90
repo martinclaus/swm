@@ -52,6 +52,15 @@ MODULE memchunk_module
       memChunk%isInitialised = .TRUE.
     END SUBROUTINE initMemChunk
 
+    SUBROUTINE finishMemChunk(memChunk)
+      IMPLICIT NONE
+      INTEGER   :: alloc_error
+      DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
+      IF ( alloc_error .NE. 0 ) THEN
+        PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      END IF
+    END SUBROUTINE finishMemChunk
+
     SUBROUTINE getChunkFromDisk(memChunk)
       IMPLICIT NONE
       TYPE(memoryChunk), intent(inout) :: memChunk

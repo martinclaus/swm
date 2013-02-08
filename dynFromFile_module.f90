@@ -82,6 +82,10 @@ MODULE dynFromFile_module
         DEALLOCATE(DFF_psi_u,DFF_psi_v,stat=alloc_error)
         IF (alloc_error.NE.0) PRINT *,"Deallocation failed at ",__FILE__,__LINE__
       END IF
+      CALL finishMemChunk(DFF_u_chunk)
+      CALL finishMemChunk(DFF_v_chunk)
+      CALL finishMemChunk(DFF_eta_chunk)
+      CALL finishMemChunk(DFF_psi_chunk)
     END SUBROUTINE DFF_finishDynFromFile
     
     SUBROUTINE DFF_timestep
