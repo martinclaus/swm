@@ -3,7 +3,7 @@ MODULE memchunk_module
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: initMemChunk, getChunkData, isConstant, isSetChunk, getChunkSize, isPersistent
+  PUBLIC :: initMemChunk, getChunkData, isConstant, isSetChunk, getChunkSize, isPersistent, finishMemChunk
 
   TYPE, PUBLIC :: memoryChunk
     TYPE(fileHandle), PRIVATE              :: FH
@@ -54,8 +54,11 @@ MODULE memchunk_module
 
     SUBROUTINE finishMemChunk(memChunk)
       IMPLICIT NONE
+      TYPE(memoryChunk), intent(inout)  :: memChunk
       INTEGER   :: alloc_error
-      DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
+      IF (memChunk%isInitialised) THEN
+        DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
+      END IF
       IF ( alloc_error .NE. 0 ) THEN
         PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF

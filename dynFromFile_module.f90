@@ -76,6 +76,7 @@ MODULE dynFromFile_module
     END SUBROUTINE DFF_initDynFromFile
     
     SUBROUTINE DFF_finishDynFromFile
+      USE memchunk_module, ONLY : finishMemChunk
       IMPLICIT NONE
       INTEGER :: alloc_error
       IF(DFF_psi_input) THEN

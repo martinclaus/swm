@@ -31,14 +31,14 @@ MODULE diag_module
       ! allocate and initialise diagnostic fields
       ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
-        PRINT *, "Deallocation failed in",,__FILE__,__LINE__,alloc_error
+        PRINT *, "Deallocation failed in",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
 #ifdef WRITEMEAN
       ALLOCATE(eta_mean(1:Nx, 1:Ny), u_mean(1:Nx, 1:Ny), v_mean(1:Nx, 1:Ny), psi_mean(1:Nx, 1:Ny), &
           eta2_mean(1:Nx, 1:Ny), u2_mean(1:Nx, 1:Ny), v2_mean(1:Nx, 1:Ny), psi2_mean(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .NE. 0) THEN
-        PRINT *, "Allocation error in",,__FILE__,__LINE__,alloc_error
+        PRINT *, "Allocation error in",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
       eta_mean=0
@@ -57,7 +57,7 @@ MODULE diag_module
       INTEGER           :: alloc_error
       ! release memory of diagnostic fields
       DEALLOCATE(psi, stat=alloc_error)
-      IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in",,__FILE__,__LINE__,alloc_error
+      IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in",__FILE__,__LINE__,alloc_error
       ! Close all output files
       CALL closeDatasets
 #ifdef WRITEMEAN
