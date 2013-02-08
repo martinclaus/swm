@@ -31,57 +31,23 @@ MODULE diag_module
       ! allocate and initialise diagnostic fields
       ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of psi error in diag_module"
+        PRINT *, "Deallocation failed in",,__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
 #ifdef WRITEMEAN
-      ALLOCATE(eta_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of eta_mean error in diag_module"
+      ALLOCATE(eta_mean(1:Nx, 1:Ny), u_mean(1:Nx, 1:Ny), v_mean(1:Nx, 1:Ny), psi_mean(1:Nx, 1:Ny), &
+          eta2_mean(1:Nx, 1:Ny), u2_mean(1:Nx, 1:Ny), v2_mean(1:Nx, 1:Ny), psi2_mean(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .NE. 0) THEN
+        PRINT *, "Allocation error in",,__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
       eta_mean=0
-      ALLOCATE(u_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of u_mean error in diag_module"
-        STOP 1
-      END IF
       u_mean=0
-      ALLOCATE(v_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of v_mean error in diag_module"
-        STOP 1
-      END IF
       v_mean=0
-      ALLOCATE(psi_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of psi_mean error in diag_module"
-        STOP 1
-      END IF
       psi_mean=0
-      ALLOCATE(eta2_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of eta2_mean error in diag_module"
-        STOP 1
-      END IF
       eta2_mean=0
-      ALLOCATE(u2_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of u2_mean error in diag_module"
-        STOP 1
-      END IF
       u2_mean=0
-      ALLOCATE(v2_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of v2_mean error in diag_module"
-        STOP 1
-      END IF
       v2_mean=0
-      ALLOCATE(psi2_mean(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation of psi2_mean error in diag_module"
-        STOP 1
-      END IF
       psi2_mean=0
 #endif
     END SUBROUTINE initDiag
@@ -91,7 +57,7 @@ MODULE diag_module
       INTEGER           :: alloc_error
       ! release memory of diagnostic fields
       DEALLOCATE(psi, stat=alloc_error)
-      IF ( alloc_error .NE. 0 ) WRITE(*,*) "Deallocation failed in diag_module"
+      IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in",,__FILE__,__LINE__,alloc_error
       ! Close all output files
       CALL closeDatasets
 #ifdef WRITEMEAN
