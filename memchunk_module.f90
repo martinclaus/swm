@@ -58,10 +58,9 @@ MODULE memchunk_module
       INTEGER   :: alloc_error
       IF (memChunk%isInitialised) THEN
         DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
+        IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF
-      IF ( alloc_error .NE. 0 ) THEN
-        PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
-      END IF
+      memChunk%isInitialised = .FALSE.
     END SUBROUTINE finishMemChunk
 
     SUBROUTINE getChunkFromDisk(memChunk)
