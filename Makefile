@@ -2,8 +2,8 @@ FC := gfortran
 O := -O3 -fopenmp
 DEBUG = #-Wall -g
 FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
-libnc = -L/home/mclaus/local/netcdf-3.6.3/lib -lnetcdf
-includenc = -I/home/mclaus/local/netcdf-3.6.3/include
+libnc = -L./lib/netcdf-3.6.3/lib -lnetcdf
+includenc = -I./lib/netcdf-3.6.3/include
 
 # conditional modules
 #cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
