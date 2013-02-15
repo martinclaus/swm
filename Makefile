@@ -1,9 +1,9 @@
 FC := gfortran
 O := -O3 -fopenmp
-DEBUG = #-Wall -g
+DEBUG = -Wall -g
 FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
-libnc = -L/bpeiler/local/netcdf-3.6.3/lib -lnetcdf
-includenc = -I/bpeiler/local/netcdf-3.6.3/include
+libnc = -L/home/bpeiler/local/netcdf-3.6.3/lib -lnetcdf
+includenc = -I/home/bpeiler/local/netcdf-3.6.3/include
 
 # conditional modules
 #cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
@@ -16,7 +16,7 @@ else
   $(info Elliptic solver used by calc_lib module: none) 
 endif
 
-modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module
+modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 
 .PHONY: all clean_all clean selfcheck defineSelfcheck
 
@@ -32,7 +32,7 @@ model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o mod
 vars_module.o : vars_module.f90 io.h
 	$(FC) $(FFLAGS) -c $<
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o model.h io.h
+swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o swm_lateralmixing_module.o
 	$(FC) $(FFLAGS) -c $<
 
 diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
@@ -54,6 +54,18 @@ dynFromFile_module.o : dynFromFile_module.f90 io_module.o vars_module.o calc_lib
 	$(FC) $(FFLAGS) -c $<
 
 memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o
+	$(FC) $(FFLAGS) -c $<
+
+swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o io_module.o
+	$(FC) $(FFLAGS) -c $<
+
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h vars_module.o io_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o
+	$(FC) $(FFLAGS) -c $<
+
+swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
+	$(FC) $(FFLAGS) -c $<
+
+swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(FC) $(FFLAGS) -c $<
 
 selfcheck : defineSelfcheck model
