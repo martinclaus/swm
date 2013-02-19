@@ -174,11 +174,11 @@ MODULE swm_timestep_module
           ! eta equation
           ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
             ! compute explicit increment
-            G_eta(i,j,NG0) = (SUM(&
+            G_eta(i,j,NG0) = (DOT_PRODUCT(&
                              (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
                                 SWM_u(ip1(i),j,N0),SWM_u(i,j,N0),&
-                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/)&
-                              *SWM_Coef_eta(:,i,j)) &
+                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/),&
+                              SWM_Coef_eta(:,i,j)) &
                              + F_eta(i,j) &
 #ifdef FETADEP
                                FETADEP &
@@ -193,10 +193,10 @@ MODULE swm_timestep_module
             v_u = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
 #endif
             ! compute explicit increment
-            G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
+            G_u(i,j,NG0) = (DOT_PRODUCT((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
                                  SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
-                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
-                               *SWM_Coef_u(:,i,j)) &
+                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/),&
+                               SWM_Coef_u(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
@@ -217,10 +217,10 @@ MODULE swm_timestep_module
             u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
 #endif
             ! compute explicit increment
-            G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
+	    G_v(i,j,NG0) = (DOT_PRODUCT((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
-                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
-                                *SWM_Coef_v(:,i,j)) &
+                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
+                                SWM_Coef_v(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
@@ -255,11 +255,11 @@ MODULE swm_timestep_module
           ! eta equation
           ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
             ! compute explicit linear increment
-            G_eta(i,j,NG0)= (SUM(&
+            G_eta(i,j,NG0)= (DOT_PRODUCT(&
                              (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
                                 SWM_u(ip1(i),j,N0),SWM_u(i,j,N0), &
-                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/) &
-                              *SWM_Coef_eta(:,i,j)) &
+                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/), &
+                              SWM_Coef_eta(:,i,j)) &
                              + F_eta(i,j) &
 #ifdef FETADEP
                                 FETADEP &
@@ -274,10 +274,10 @@ MODULE swm_timestep_module
             v_u = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
 #endif
             ! compute explicit increment
-            G_u(i,j,NG0) = (SUM((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
+            G_u(i,j,NG0) = (DOT_PRODUCT((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
                                  SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
-                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/)&
-                               *SWM_Coef_u(:,i,j)) &
+                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/),&
+                               SWM_Coef_u(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
@@ -297,10 +297,10 @@ MODULE swm_timestep_module
             u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4.  ! averaging u on v grid
 #endif
             ! compute explicit increment
-            G_v(i,j,NG0) = (SUM((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
+            G_v(i,j,NG0) = (DOT_PRODUCT((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
-                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/)&
-                                *SWM_Coef_v(:,i,j)) &
+                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
+                                SWM_Coef_v(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction 
 #endif
