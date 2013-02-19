@@ -95,11 +95,11 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define DIAG_FLUSH
 
 #ifdef ISSELFCHECK
-#define DIRSELFCHECK selfcheck
-#define MODEL_NL "DIRSELFCHECK/model.namelist"
-#define OUTPUT_NL "DIRSELFCHECK/output.namelist"
-#define TRACER_NL "DIRSELFCHECK/model.namelist"
-#define DYNFROMFILE_NL "DIRSELFCHECK/model.namelist"
+#define DIRSELFCHECK "selfcheck
+#define MODEL_NL DIRSELFCHECK/model.namelist"
+#define OUTPUT_NL DIRSELFCHECK/output.namelist"
+#define TRACER_NL DIRSELFCHECK/model.namelist"
+#define DYNFROMFILE_NL DIRSELFCHECK/model.namelist"
 #define WRITEINPUT
 #define WRITEMEAN
 #define DIAG_FLUSH
