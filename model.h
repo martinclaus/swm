@@ -14,21 +14,18 @@ Header file for shallow water model. Meant to set different physics.
 #define SWM_TSTEP_ADAMSBASHFORTH
 !#define SWM_TSTEP_HEAPS
 /* Switches for forcing */
-#define PERIODIC_FORCING_X SIN
-#define TAU_SCALE 9.949307700452987e+01
+!#define TAU_SCALE 9.949307700452987e+01
 /* Switches for damping */
 #define LINEAR_BOTTOM_FRICTION
 #define LATERAL_MIXING
 #define NEWTONIAN_COOLING
 /* Sponge layers */
-#define VELOCITY_SPONGE_N
-#define VELOCITY_SPONGE_S
-#define NEWTONIAN_SPONGE_N
-#define NEWTONIAN_SPONGE_S
+!#define NEWTONIAN_SPONGE "NSEW"
+!#define VELOCITY_SPONGE "NSEW"
 
 /* Switch to load dynamical variables from file (mean flow) */
 !#define DYNFROMFILE
 
 #define DIAG_START 0.
-
+#define H_OVERWRITE
 #endif
