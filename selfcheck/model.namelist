@@ -5,12 +5,11 @@
   r = 1e-2,             ! linear bottom friction parameter
   k = 5e-1,             ! quadratic bottom friction parameter
   gamma_new = 0,  ! Newtonian cooling parameter (1/s)
-  freq_wind = 5.6506040e-08,         ! Frequency of wind forcing
-  Ah = 1e5,               ! horizontal eddy viscosity (m^2/s)
+  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   Nx = 61,               ! number of grid points in x-dir.
   Ny = 41,               ! number of grif points in y-dir.
-  run_length = 4e7, ! length of run in seconds
-  Nout = 200,             ! number of eq. distributed "measurements"
+  run_length = 8.67e5, ! length of run in seconds
+  Nout = 10,             ! number of eq. distributed "measurements"
   NoutChunk = 9999,     ! max lsize of output files
   dt = 25,      ! time step (s)
   meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
@@ -19,24 +18,11 @@
   lat_s = -10.     ! min. lat. of the domain (H-grid),
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "H_sc.nc" ! topography input dataset
-  in_varname_H = "H"    ! variable name of topography in input dataset
-  in_file_F1="F_sc.nc" ! forcing input dataset
-  in_varname_F1_x = "FU"! forcing variable in x-direction (u-grid)
-  in_varname_F1_y = "FV"! forcing variable in y-direction (v-grid)
-  in_file_TAU = "tau_sc.nc"    ! wind stress input dataset
-  in_varname_TAU_x="TAUX" ! wind stress component in x-direction (u-grid)
-  in_varname_TAU_y="TAUY" ! wind stress component in y-direction (v-grid)
-  in_file_REY="",	  ! Reynolds stress input dataset
-  in_varname_REY_u2="u2", ! \overbar{u'u'} (H-grid)
-  in_varname_REY_v2="v2", ! \overbar{v'v'} (H-grid)
-  in_varname_REY_uv="uv", ! \overbar{u'v'} (H-grid)
   init_cond_from_file = .true.
-  file_eta_init="eta_sc.nc"
-  varname_eta_init="ETA"
+  file_eta_init="eta_init_gauss.nc"
   file_u_init="u_sc.nc"
-  varname_u_init="U"
   file_v_init="v_sc.nc"
-  varname_v_init="V"
+  H_overwrite=300.
 &end
 &dynFromFile
   FileName_u="u_dff_sc.nc",

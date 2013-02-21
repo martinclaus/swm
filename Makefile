@@ -1,6 +1,6 @@
 FC := gfortran
 O := -O3 -fopenmp
-DEBUG = -Wall -g
+DEBUG = #-Wall #-g
 FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
 libnc = -L/home/bpeiler/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I/home/bpeiler/local/netcdf-3.6.3/include
@@ -68,10 +68,8 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(FC) $(FFLAGS) -c $<
 
-selfcheck : defineSelfcheck model
-
-defineSelfcheck :
-	$(eval defSelfCheck := -D'ISSELFCHECK')
+selfcheck : model 
+	sh runselfcheck.sh
 
 clean_all : clean
 	@rm -fv model
