@@ -5,6 +5,8 @@ FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
 libnc = -L/home/bpeiler/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I/home/bpeiler/local/netcdf-3.6.3/include
 
+DOXYGEN=/usr/bin/doxygen
+
 # conditional modules
 #cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
 ifneq ($(strip $(cl_elsolv)),)
@@ -18,7 +20,7 @@ endif
 
 modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 
-.PHONY: all clean_all clean selfcheck defineSelfcheck
+.PHONY: all clean_all clean selfcheck doc
 
 all     : model clean
 #clean
@@ -71,7 +73,18 @@ swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 selfcheck : model 
 	sh runselfcheck.sh
 
+doc : doc/Doxyfile doc/html doc/latex
+	@cd doc && $(DOXYGEN) $(<F)
+	@cd doc/latex && make
+
+doc/html :
+	mkdir -p $@
+
+doc/latex :
+	mkdir -p $@
+
 clean_all : clean
 	@rm -fv model
 clean :
 	@rm -fv model.o $(modules) $(modules:%=%.o) $(shell echo $(modules:%=%.mod) | tr A-Z a-z)
+	@rm -rfv doc/latex doc/html
