@@ -1,7 +1,7 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !> Module ElSolv_SOR
-!! @brief SOR solver for ellipitic partial differential equation
-!! @detail solves the elliptic equation del^2(chi) = B
+!> @brief SOR solver for ellipitic partial differential equation \n
+!> @detail Solves the elliptic equation del^2(chi) = B
 !! with boundary condition del(chi)*n = 0 (no normal flow through the boundary).
 !! Used method is successive overrelaxation (SOR).
 !! Uses the values of chi as initial condition (first guess) and returns the new chi.
@@ -28,10 +28,10 @@ MODULE ElSolv_SOR
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Initialise module
-    !! @detail Allocates ElSolv_SOR::ElSolvSOR_c and populates it with coefficients.
+    !> @brief Initialise module \n
+    !> @detail Allocates ElSolv_SOR::ElSolvSOR_c and populates it with coefficients.
     !! Calls ElSolv_SOR::init_oe_index_space
-    !! @par Uses:
+    !> @par Uses:
     !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v \n
     !------------------------------------------------------------------
     SUBROUTINE init_ElSolv_SOR
@@ -58,11 +58,11 @@ MODULE ElSolv_SOR
     END SUBROUTINE init_ElSolv_SOR
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Initialise checkerboard decomposition of index space
-    !! @detail Checkerboard decomposition needed to run solver in parallel.\n
+    !> @brief Initialise checkerboard decomposition of index space \n
+    !> @detail Checkerboard decomposition needed to run solver in parallel.\n
     !! Computes ElSolv_SOR::n_odd, ElSolv_SOR::n_even ElSolv_SOR::n_oe. \n
     !! Allocates ElSolv_SOR::i_oe, ElSolv_SOR::i_odd, ElSolv_SOR::i_even and populate them with data.\n
-    !! @par Uses: vars_module, ONLY : Nx, Ny
+    !> @par Uses: vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE init_oe_index_space
       USE vars_module, ONLY: Nx,Ny
@@ -91,8 +91,8 @@ MODULE ElSolv_SOR
     END SUBROUTINE init_oe_index_space
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Free memory of index space variables
-    !! @detail Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
+    !> @brief Free memory of index space variables \n
+    !> @detail Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
     !! @todo Deallocation of ElSolv_SOR::i_oe missing
     !------------------------------------------------------------------
     SUBROUTINE finish_oe_index_space
@@ -104,8 +104,8 @@ MODULE ElSolv_SOR
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Free memory of ElSolv_SOR module
-    !! @detail Deallocates ElSolv_SOR::ElSolv_SOR_c\n
-    !! Calls ElSolv_SOR::finis_oe_index_space
+    !> @detail Deallocates ElSolv_SOR::ElSolvSOR_c\n
+    !! Calls ElSolv_SOR::finish_oe_index_space
     !------------------------------------------------------------------
     SUBROUTINE finish_ElSolv_SOR
       IMPLICIT NONE
@@ -117,22 +117,30 @@ MODULE ElSolv_SOR
     END SUBROUTINE finish_ElSolv_SOR
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Solve elliptic PDE with SOR
-    !! @detail
-    !! @todo Continue documentation
+    !> @brief Solve elliptic PDE with SOR \n
+    !> @detail Solve elliptic PDE
+    !! \f$\nabla chi = B\f$
+    !! using successive overrelaxation (see Numerical Recepies, 2nd Edition, p. 858 ff).
+    !! Iteration is aborted, if the rms of the change in chi is lower than epsilon.
+    !! Index space is decomposed into odd and even points (like a checkerboard) to make use of 
+    !! parallelisation on odd/even points seperately.
+    !> @par Uses:
+    !! vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta\n
+    !! @todo Think about using a better spectral radius by guessing (or computation)
     !------------------------------------------------------------------
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
       USE vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta
       IMPLICIT NONE
-      REAL(8), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B
-      REAL(8), INTENT(in)                        :: epsilon
-      LOGICAL, INTENT(in)                        :: first_guess
-      REAL(8), DIMENSION(Nx,Ny), INTENT(inout)   :: chi
-      REAL(8)                                    :: ElSolvSOR_res           ! residual term
-      REAL(8)                                    :: ElSolvSOR_rJacobi       ! estimate of spectral radius of Jacobi iteration matrix
-      REAL(8)                                    :: ElSolvSOR_relax         ! relaxation coefficient, adjusted during iteration using Chebyshev acceleration
-      REAL(8)                                    :: anorm, anormf           ! norm of residual of initial guess and of each iteration step
-      INTEGER                                    :: max_count, l, i, j, oddeven, isw
+      REAL(8), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B             !< rhs of PDE
+      REAL(8), INTENT(in)                        :: epsilon                 !< Threshold for terminating the iteration
+      LOGICAL, INTENT(in)                        :: first_guess             !< Flag if no initial guess exist
+      REAL(8), DIMENSION(Nx,Ny), INTENT(inout)   :: chi                     !< Variable to solve for. Also initial guess
+      REAL(8)                                    :: ElSolvSOR_res           !< residual term
+      REAL(8)                                    :: ElSolvSOR_rJacobi       !< estimate of spectral radius of Jacobi iteration matrix
+      REAL(8)                                    :: ElSolvSOR_relax         !< relaxation coefficient, adjusted during iteration using Chebyshev acceleration
+      REAL(8)                                    :: anorm                   !< norm of residual term
+      INTEGER                                    :: max_count               !< maximal number of iterations
+      INTEGER                                    :: l, i, j, oddeven, isw   !< Counter variables
       
       IF (first_guess) THEN
         max_count=NINT(1000.*MAX(Nx,Ny)) ! SOR requires O(max(Nx,Ny)) numbers of iterations to reduce error to order 1e-3
@@ -190,8 +198,5 @@ MODULE ElSolv_SOR
       PRINT *,"ElSolvSOR: Maximim number of iterations used!"," Residual: ", sqrt(anorm)
     END SUBROUTINE main_ElSolv_SOR
 
-END MODULE ElSolv_SOR                                         
-
-
-
+END MODULE ElSolv_SOR
 
