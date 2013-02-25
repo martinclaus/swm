@@ -89,7 +89,7 @@ MODULE ElSolv_SOR
         END DO
       END DO
     END SUBROUTINE init_oe_index_space
-    in
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Free memory of index space variables
     !! @detail Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
