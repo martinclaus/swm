@@ -1,9 +1,15 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> Module ElSolv_SOR
+!! @brief SOR solver for ellipitic partial differential equation
+!! @detail solves the elliptic equation del^2(chi) = B
+!! with boundary condition del(chi)*n = 0 (no normal flow through the boundary).
+!! Used method is successive overrelaxation (SOR).
+!! Uses the values of chi as initial condition (first guess) and returns the new chi.
+!! @todo Think about implementing open boundary boundary condition del(chi)*n = - u*n
+!! @par Include Files:
+!! ElSolv_SOR.h \n
+!------------------------------------------------------------------
 MODULE ElSolv_SOR
-! solves the elliptic equation del^2(chi) = B
-! with boundary condition del(chi)*n = 0 (no normal flow through the boundary)
-! Used method is SOR
-! Uses the values of chi as initial condition (first guess) and returns the new chi
-! TODO: Think about implementing open boundary boundary condition del(chi)*n = - u*n
 #include "ElSolv_SOR.h"
   IMPLICIT NONE
   SAVE
@@ -11,15 +17,23 @@ MODULE ElSolv_SOR
   
   PUBLIC init_ElSolv_SOR,finish_ElSolv_SOR,main_ElSolv_SOR
 
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: ElSolvSOR_c ! Spatial dependent coefficient matrix for elliptic solver SOR
-  INTEGER(1), PARAMETER                  :: ElSolvSOR_Ncoeff=5 ! number of numerical coefficients of elliptic solver SOR
-  INTEGER, DIMENSION(:,:), ALLOCATABLE   :: i_odd, i_even ! index spaces of odd/even grid points (Checkerboard decomposition)
-  INTEGER, DIMENSION(:,:,:), ALLOCATABLE :: i_oe
-  INTEGER                                :: n_odd, n_even
-  INTEGER, DIMENSION(2)                  :: n_oe
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: ElSolvSOR_c         !< Spatial dependent coefficient matrix for elliptic solver SOR. Size: Nx, Ny, ElSolvSOR_Ncoeff
+  INTEGER(1), PARAMETER                  :: ElSolvSOR_Ncoeff=5  !< number of numerical coefficients of elliptic solver SOR
+  INTEGER, DIMENSION(:,:), ALLOCATABLE   :: i_odd               !< index spaces of odd grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
+  INTEGER, DIMENSION(:,:), ALLOCATABLE   :: i_even              !< index spaces of even grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
+  INTEGER, DIMENSION(:,:,:), ALLOCATABLE :: i_oe                !< index decomposition in odd and even indecies. Size: 2, Nx*Ny/2, 2
+  INTEGER                                :: n_odd               !< Number of odd grid points, i.e. i+j even
+  INTEGER                                :: n_even              !< Number of even grid points, i.e. i+j odd
+  INTEGER, DIMENSION(2)                  :: n_oe                !< Vector containing amount of odd and even grid points @todo There is some memory wasted here
 
   CONTAINS
-
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Initialise module
+    !! @detail Allocates ElSolv_SOR::ElSolvSOR_c and populates it with coefficients.
+    !! Calls ElSolv_SOR::init_oe_index_space
+    !! @par Uses:
+    !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v \n
+    !------------------------------------------------------------------
     SUBROUTINE init_ElSolv_SOR
       USE vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
       IMPLICIT NONE
@@ -43,6 +57,13 @@ MODULE ElSolv_SOR
       print *, 'initElSolv_SOR done'
     END SUBROUTINE init_ElSolv_SOR
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Initialise checkerboard decomposition of index space
+    !! @detail Checkerboard decomposition needed to run solver in parallel.\n
+    !! Computes ElSolv_SOR::n_odd, ElSolv_SOR::n_even ElSolv_SOR::n_oe. \n
+    !! Allocates ElSolv_SOR::i_oe, ElSolv_SOR::i_odd, ElSolv_SOR::i_even and populate them with data.\n
+    !! @par Uses: vars_module, ONLY : Nx, Ny
+    !------------------------------------------------------------------
     SUBROUTINE init_oe_index_space
       USE vars_module, ONLY: Nx,Ny
       IMPLICIT NONE
@@ -68,7 +89,12 @@ MODULE ElSolv_SOR
         END DO
       END DO
     END SUBROUTINE init_oe_index_space
-    
+    in
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Free memory of index space variables
+    !! @detail Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
+    !! @todo Deallocation of ElSolv_SOR::i_oe missing
+    !------------------------------------------------------------------
     SUBROUTINE finish_oe_index_space
       IMPLICIT NONE
       INTEGER   :: alloc_error
@@ -76,6 +102,11 @@ MODULE ElSolv_SOR
       if(alloc_error.ne.0) print *,"Deallocation failed"
     END SUBROUTINE finish_oe_index_space
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Free memory of ElSolv_SOR module
+    !! @detail Deallocates ElSolv_SOR::ElSolv_SOR_c\n
+    !! Calls ElSolv_SOR::finis_oe_index_space
+    !------------------------------------------------------------------
     SUBROUTINE finish_ElSolv_SOR
       IMPLICIT NONE
       INTEGER :: alloc_error
@@ -85,6 +116,11 @@ MODULE ElSolv_SOR
       CALL finish_oe_index_space
     END SUBROUTINE finish_ElSolv_SOR
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Solve elliptic PDE with SOR
+    !! @detail
+    !! @todo Continue documentation
+    !------------------------------------------------------------------
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
       USE vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta
       IMPLICIT NONE
