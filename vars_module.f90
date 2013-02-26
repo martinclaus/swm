@@ -1,11 +1,13 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!> Module vars_module
-!! @brief Module contains commonly used variables \n
-!! @detail Module initialise and hold commonly used variables like physical constants, model parameters,
-!! filenames and variable names of input datasets, domain size, dimension vectors, index vectors, etc.\n
+!> @brief This module contains commonly used variables
+!!
+!! Module initialises and holds commonly used variables like physical constants, model parameters,
+!! filenames and variable names of input datasets, domain size, dimension vectors, index vectors, etc.
+!!
 !! @par Include Files:
-!! io.h \n
-!! @par Note: Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
+!! io.h
+!!
+!! @note Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
@@ -99,7 +101,7 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: H_v           !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in model:initDomain
   REAL(8), DIMENSION(:,:), ALLOCATABLE :: H_eta         !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
 
-  ! nearest neighbor indices, derived from domain specs                                
+  ! nearest neighbour indices, derived from domain specs
   INTEGER, DIMENSION(:), ALLOCATABLE :: ip1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
   INTEGER, DIMENSION(:), ALLOCATABLE :: im1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
   INTEGER, DIMENSION(:), ALLOCATABLE :: jp1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
@@ -120,8 +122,9 @@ MODULE vars_module
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Initialise vars_module \n
-    !! @detail Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
+    !> @brief Initialise vars_module
+    !!
+    !! Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
     !------------------------------------------------------------------
     SUBROUTINE initVars
       IMPLICIT NONE

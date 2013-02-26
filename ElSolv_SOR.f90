@@ -1,13 +1,16 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!> Module ElSolv_SOR
-!> @brief SOR solver for ellipitic partial differential equation \n
-!> @detail Solves the elliptic equation del^2(chi) = B
-!! with boundary condition del(chi)*n = 0 (no normal flow through the boundary).
+!> @brief SOR solver for ellipitic partial differential equation
+!!
+!! Solves the elliptic equation \f$ \nabla^2 \chi = B \f$
+!! with boundary condition \f$ \nabla^2 \chi \cdot n = 0\f$ (no normal flow through the boundary).
 !! Used method is successive overrelaxation (SOR).
 !! Uses the values of chi as initial condition (first guess) and returns the new chi.
-!! @todo Think about implementing open boundary boundary condition del(chi)*n = - u*n
+!!
 !! @par Include Files:
-!! ElSolv_SOR.h \n
+!! ElSolv_SOR.h
+!!
+!! @see Numerical Recepies, 2nd Edition, p. 858 ff
+!! @todo Think about implementing open boundary boundary condition \f$ \nabla^2 \chi \cdot n = - u\cdot n \f$
 !------------------------------------------------------------------
 MODULE ElSolv_SOR
 #include "ElSolv_SOR.h"
@@ -28,11 +31,13 @@ MODULE ElSolv_SOR
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Initialise module \n
-    !> @detail Allocates ElSolv_SOR::ElSolvSOR_c and populates it with coefficients.
+    !> @brief Initialise module
+    !!
+    !! Allocates ElSolv_SOR::ElSolvSOR_c and populates it with coefficients.
     !! Calls ElSolv_SOR::init_oe_index_space
-    !> @par Uses:
-    !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v \n
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
     !------------------------------------------------------------------
     SUBROUTINE init_ElSolv_SOR
       USE vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
@@ -58,11 +63,14 @@ MODULE ElSolv_SOR
     END SUBROUTINE init_ElSolv_SOR
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Initialise checkerboard decomposition of index space \n
-    !> @detail Checkerboard decomposition needed to run solver in parallel.\n
-    !! Computes ElSolv_SOR::n_odd, ElSolv_SOR::n_even ElSolv_SOR::n_oe. \n
-    !! Allocates ElSolv_SOR::i_oe, ElSolv_SOR::i_odd, ElSolv_SOR::i_even and populate them with data.\n
-    !> @par Uses: vars_module, ONLY : Nx, Ny
+    !> @brief Initialise checkerboard decomposition of index space
+    !!
+    !! Checkerboard decomposition needed to run solver in parallel.
+    !! Computes ElSolv_SOR::n_odd, ElSolv_SOR::n_even ElSolv_SOR::n_oe.
+    !! Allocates ElSolv_SOR::i_oe, ElSolv_SOR::i_odd, ElSolv_SOR::i_even and populate them with data.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE init_oe_index_space
       USE vars_module, ONLY: Nx,Ny
@@ -91,8 +99,10 @@ MODULE ElSolv_SOR
     END SUBROUTINE init_oe_index_space
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Free memory of index space variables \n
-    !> @detail Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
+    !> @brief Free memory of index space variables
+    !!
+    !! Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
+    !!
     !! @todo Deallocation of ElSolv_SOR::i_oe missing
     !------------------------------------------------------------------
     SUBROUTINE finish_oe_index_space
@@ -104,7 +114,8 @@ MODULE ElSolv_SOR
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Free memory of ElSolv_SOR module
-    !> @detail Deallocates ElSolv_SOR::ElSolvSOR_c\n
+    !!
+    !! Deallocates ElSolv_SOR::ElSolvSOR_c.
     !! Calls ElSolv_SOR::finish_oe_index_space
     !------------------------------------------------------------------
     SUBROUTINE finish_ElSolv_SOR
@@ -117,15 +128,19 @@ MODULE ElSolv_SOR
     END SUBROUTINE finish_ElSolv_SOR
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Solve elliptic PDE with SOR \n
-    !> @detail Solve elliptic PDE
+    !> @brief Solve elliptic PDE with SOR
+    !!
+    !! Solve elliptic PDE
     !! \f$\nabla chi = B\f$
-    !! using successive overrelaxation (see Numerical Recepies, 2nd Edition, p. 858 ff).
+    !! using successive overrelaxation.
     !! Iteration is aborted, if the rms of the change in chi is lower than epsilon.
     !! Index space is decomposed into odd and even points (like a checkerboard) to make use of 
     !! parallelisation on odd/even points seperately.
-    !> @par Uses:
+    !!
+    !! @par Uses:
     !! vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta\n
+    !!
+    !! @see Numerical Recepies, 2nd Edition, p. 858 ff
     !! @todo Think about using a better spectral radius by guessing (or computation)
     !------------------------------------------------------------------
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
