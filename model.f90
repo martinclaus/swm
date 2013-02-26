@@ -121,8 +121,9 @@ PROGRAM model
     CALL TRC_tracerStep
 #endif
 
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    ! shift model timestep
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !! shift model timestep
+    !------------------------------------------------------------------
     CALL model_advance
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -200,7 +201,7 @@ PROGRAM model
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise domain specific variables of vars_module
     !!
-    !! Follow is goin on here:
+    !! This is goin on here:
     !! - computation of nearest neighbour indices
     !! - computation of coordinate vectors of the various grids
     !! - computation of the cosines and tangents of the latitude for the various grids
