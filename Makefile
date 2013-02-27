@@ -2,8 +2,8 @@ FC := gfortran
 O := -O3 -fopenmp
 DEBUG = #-Wall #-g
 FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
-libnc = -L/home/bpeiler/local/netcdf-3.6.3/lib -lnetcdf
-includenc = -I/home/bpeiler/local/netcdf-3.6.3/include
+libnc = -L$(HOME)/local/netcdf-3.6.3/lib -lnetcdf
+includenc = -I$(HOME)/local/netcdf-3.6.3/include
 
 DOXYGEN=/usr/bin/doxygen
 
@@ -20,7 +20,7 @@ endif
 
 modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 
-.PHONY: all clean_all clean selfcheck doc
+.PHONY: all clean_all clean clean-doc selfcheck doc
 
 all     : model clean
 #clean
@@ -83,8 +83,11 @@ doc/html :
 doc/latex :
 	mkdir -p $@
 
-clean_all : clean
+clean_all : clean clean-doc
 	@rm -fv model
+
 clean :
 	@rm -fv model.o $(modules) $(modules:%=%.o) $(shell echo $(modules:%=%.mod) | tr A-Z a-z)
-	@rm -rfv doc/latex doc/html
+
+clean-doc :
+	@rm -rvf doc/latex doc/html
