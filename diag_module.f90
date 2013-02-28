@@ -1,3 +1,19 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief  Handling of diagnostics and output
+!! @author Martin Claus, mclaus@geomar.de
+!! @author Willi Rath, wrath@geomar.de
+!! @author Valentin Kratzsch
+!!
+!! This module handles diagnostics like computing averages and variance
+!! and triggers the IO operations to write data to disk.
+!!
+!! @par Includes:
+!! io.h, model.h
+!! @par Uses:
+!! io_module, vars_module
+!!
+!! @todo Maybe move diag_module::fullrec and diag_module::fullrec_mean to io_module
+!------------------------------------------------------------------
 MODULE diag_module
 #include "io.h"
 #include "model.h"
@@ -7,17 +23,48 @@ MODULE diag_module
   IMPLICIT NONE
   SAVE
 
-  ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  TYPE(fileHandle)              :: FH_eta, FH_u, FH_v, FH_H, FH_Fx, FH_Fy, FH_psi, FH_tracer, FH_gamma_n, FH_gamma_u, FH_gamma_v
-  TYPE(fileHandle)              :: FH_eta_mean, FH_u_mean, FH_v_mean, FH_psi_mean, FH_eta2_mean, FH_u2_mean, FH_v2_mean,&
-                                   FH_psi2_mean
-  REAL(8), DIMENSION(:,:), ALLOCATABLE     :: eta_mean, u_mean, v_mean, psi_mean, psi, eta2_mean, u2_mean, v2_mean, psi2_mean  
-  INTEGER                      :: rec=1, rec_mean=1
-  INTEGER                      :: fullrec=1, fullrec_mean=1 ! full number of records (including all chunks of output files). 
-                                                            ! TODO: Maybe moved to io_module some time
+  TYPE(fileHandle)                      :: FH_eta        !< Handle for snapshot output of interface displacement
+  TYPE(fileHandle)                      :: FH_u          !< Handle for snapshot output of zonal velocity
+  TYPE(fileHandle)                      :: FH_v          !< Handle for snapshot output of meridional velocity
+  TYPE(fileHandle)                      :: FH_H          !< Handle for initial output of used bathimetry
+  TYPE(fileHandle)                      :: FH_Fx         !< Handle for initial output of zonal forcing
+  TYPE(fileHandle)                      :: FH_Fy         !< Handle for initial output of meridional forcing
+  TYPE(fileHandle)                      :: FH_psi        !< Handle for snapshot output of streamfunction
+  TYPE(fileHandle)                      :: FH_tracer     !< Handle for snapshot output of tracer concentration
+  TYPE(fileHandle)                      :: FH_gamma_n    !< Handle for initial output of newtonian damping coefficient
+  TYPE(fileHandle)                      :: FH_gamma_u    !< Handle for initial output of linear zonal reyleigh friction coefficent
+  TYPE(fileHandle)                      :: FH_gamma_v    !< Handle for initial output of linear meridioal reyleigh friction coefficient
+  TYPE(fileHandle)                      :: FH_eta_mean   !< Handle for output of averaged interface displacement
+  TYPE(fileHandle)                      :: FH_u_mean     !< Handle for output of averaged zonal velocity
+  TYPE(fileHandle)                      :: FH_v_mean     !< Handle for output of averaged meridional velocity
+  TYPE(fileHandle)                      :: FH_psi_mean   !< Handle for output of averaged streamfunction
+  TYPE(fileHandle)                      :: FH_eta2_mean  !< Handle for output of averaged squared interface displacement
+  TYPE(fileHandle)                      :: FH_u2_mean    !< Handle for output of averaged squared zonal velocity
+  TYPE(fileHandle)                      :: FH_v2_mean    !< Handle for output of averaged squared meridional velocity
+  TYPE(fileHandle)                      :: FH_psi2_mean  !< Handle for output of averaged squared streamfunction
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: psi           !< Buffer for comnputation of streamfunction
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: eta_mean      !< Buffer for averaging of interface displacement
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: u_mean        !< Buffer for averaging of zonal velocity
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: v_mean        !< Buffer for averaging of meridional velocity
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: psi_mean      !< Buffer for averaging of streamfunction
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: eta2_mean     !< Buffer for averaging of squared interface displacement
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: u2_mean       !< Buffer for averaging of squared zonal velocity
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: v2_mean       !< Buffer for averaging of squared meridional velocity
+  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: psi2_mean     !< Buffer for averaging of squared streamfunction
+  INTEGER                               :: rec=1         !< Record index of snapshot output files
+  INTEGER                               :: rec_mean=1    !< Record index of mean output files
+  INTEGER                               :: fullrec=1     !< full number of records of snapshots (including all chunks of output files)
+  INTEGER                               :: fullrec_mean=1!< full number of records of mean values (including all chunks of output files)
 
   CONTAINS
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialises the module
+    !!
+    !! If required, writes input to disk, creates output files for snapshots
+    !! and, if requested, averaged fields. Allocates allocatable variables
+    !! as needed.
+    !------------------------------------------------------------------
     SUBROUTINE initDiag
       IMPLICIT NONE
       INTEGER           :: alloc_error
@@ -52,6 +99,9 @@ MODULE diag_module
 #endif
     END SUBROUTINE initDiag
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Release memory of allocated variables
+    !------------------------------------------------------------------
     SUBROUTINE finishDiag
       IMPLICIT NONE
       INTEGER           :: alloc_error
@@ -67,6 +117,21 @@ MODULE diag_module
 #endif
     END SUBROUTINE finishDiag
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Do the diagnostics
+    !!
+    !! If required, diag_module::calc_mean is called.
+    !! If snapshot output is required at this time step, this will happen
+    !!  -# If present output file has reached their maximal size, the snapshot files will
+    !!     be closed and a new set will be created. io_module::fullrecstr will be updated. diag_module::rec will be set to 1
+    !!  -# Streamfunction will be computed
+    !!  -# snapshots are written to disk
+    !!  -# diag_module::rec and diag_module::fullrec are incremented
+    !!
+    !! @par Uses:
+    !! calc_lib, ONLY : computeStreamfunction
+    !! @todo move reopening of files to diag_module::writeDiag
+    !------------------------------------------------------------------
     SUBROUTINE Diag
       USE calc_lib, ONLY : computeStreamfunction
       IMPLICIT NONE
@@ -93,6 +158,11 @@ MODULE diag_module
       END IF
     END SUBROUTINE Diag
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Create datasets for snapshot output
+    !!
+    !! Initialise the file handles for snapshot output and create the datasets.
+    !------------------------------------------------------------------
     SUBROUTINE createDatasets
       IMPLICIT NONE
       WRITE (fullrecstr, '(i12.12)') fullrec
@@ -111,7 +181,12 @@ MODULE diag_module
 #endif
     END SUBROUTINE createDatasets
 
-#ifdef WRITEMEAN
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Create datasets for time averaged fields
+    !!
+    !! Initialise file handles and create datasets for the output of 
+    !! time averaged fields.
+    !------------------------------------------------------------------
     SUBROUTINE createmeanDatasets
       IMPLICIT NONE
       WRITE (fullrecstr, '(i12.12)') fullrec
@@ -132,8 +207,10 @@ MODULE diag_module
       CALL initFH(OFILEPSI2MEAN,OVARNAMEPSI2MEAN,FH_psi2_mean)
       CALL createDS(FH_psi2_mean,lat_H,lon_H)
     END SUBROUTINE createmeanDatasets
-#endif
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief close snapshot datasets
+    !------------------------------------------------------------------
     SUBROUTINE closeDatasets
     IMPLICIT NONE
       call closeDS(FH_eta)
@@ -145,7 +222,9 @@ MODULE diag_module
 #endif
     END SUBROUTINE closeDatasets
     
-#ifdef WRITEMEAN
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief close dataset for time averaged output
+    !------------------------------------------------------------------
     SUBROUTINE closemeanDatasets
     IMPLICIT NONE
       call closeDS(FH_eta_mean)
@@ -157,8 +236,20 @@ MODULE diag_module
       call closeDS(FH_v2_mean)
       call closeDS(FH_psi2_mean)
     END SUBROUTINE closemeanDatasets
-#endif
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Write constant data to file
+    !!
+    !! Initialise file handles, create output datasets, write variables
+    !! to disk and close datasets.
+    !! Variables processed are:
+    !! - vars_module::H
+    !! - swm_module::F_x (commented out at the moment)
+    !! - swm_module::F_y (commented out at the moment)
+    !! - swm_module::gamma_n, if NEWTONIAN_COOLING is defined
+    !! - swm_module::gamma_lin_u, if LINEAR_BOTTOM_FRICTION is defined
+    !! - swm_module::gamma_lin_v, if LINEAR_BOTTOM_FRICTION is defined
+    !------------------------------------------------------------------
     SUBROUTINE writeInput
       USE swm_module, ONLY : impl_u, impl_v, impl_eta
       USE vars_module, ONLY : dt
@@ -199,6 +290,19 @@ MODULE diag_module
 #endif
     END SUBROUTINE writeInput
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief write snapshots to files
+    !!
+    !! Write snapshots to files. Processed variables are
+    !! - vars_module::eta
+    !! - vars_module::u
+    !! - vars_module::v
+    !! - diag_module::psi
+    !! - tracer_module::TRC_C1
+    !!
+    !! @par Uses:
+    !! tracer_module, ONLY : TRC_C1, TRC_N0
+    !------------------------------------------------------------------
     SUBROUTINE writeDiag
 #ifdef TRACER
       USE tracer_module, ONLY : TRC_C1, TRC_N0
@@ -213,7 +317,19 @@ MODULE diag_module
 #endif
     END SUBROUTINE
     
-#ifdef WRITEMEAN
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief write averaged fields to files
+    !!
+    !! Processed variables are
+    !! - diag_module::eta_mean
+    !! - diag_module::u_mean
+    !! - diag_module::v_mean
+    !! - diag_module::psi_mean
+    !! - diag_module::eta2_mean
+    !! - diag_module::u2_mean
+    !! - diag_module::v2_mean
+    !! - diag_module::psi2_mean
+    !------------------------------------------------------------------
     SUBROUTINE writeMean
     IMPLICIT NONE
       call putVar(FH_eta_mean, eta_mean, rec_mean, itt*dt,ocean_eta)
@@ -226,6 +342,23 @@ MODULE diag_module
       call putVar(FH_psi2_mean, psi2_mean/1e6, rec_mean, itt*dt,ocean_H)
     END SUBROUTINE writeMean
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Compute mean fields
+    !!
+    !! Adds the present time slice to the averaging buffer. If the time
+    !! exceeds the averaging period, the values are downweighted accordingly.
+    !! Processed variables are
+    !! - diag_module::eta_mean
+    !! - diag_module::u_mean
+    !! - diag_module::v_mean
+    !! - diag_module::psi_mean
+    !! - diag_module::eta2_mean
+    !! - diag_module::u2_mean
+    !! - diag_module::v2_mean
+    !! - diag_module::psi2_mean
+    !!
+    !! @todo move reopening of datasets to diag_module::writeMean
+    !------------------------------------------------------------------
     SUBROUTINE calc_mean
     IMPLICIT NONE
     REAL(8)     :: remainder
@@ -271,6 +404,5 @@ MODULE diag_module
         psi2_mean = psi2_mean + dt*psi**2
       END IF
     END SUBROUTINE
-#endif
 
 END MODULE diag_module
