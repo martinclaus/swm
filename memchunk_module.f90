@@ -31,7 +31,7 @@ MODULE memchunk_module
     LOGICAL, PRIVATE                       :: isConstant=.FALSE.      !< .TRUE. if variable is a single time slice
     REAL(8), DIMENSION(:,:,:), ALLOCATABLE, PRIVATE :: var            !< Data loaded from disk
     REAL(8), DIMENSION(:), ALLOCATABLE, PRIVATE     :: time           !< time coordinates of data. This will be computed as an integer multiple of this::dt in memoryChunk_module::getChunkFromDisk
-    REAL(8), PRIVATE                       :: tOffset=0               !< First time coordinate of the next chunk to read
+    REAL(8), PRIVATE                       :: tOffset=0               !< time coordinate of the next chunk to read
     REAL(8), PRIVATE                       :: dt=0                    !< Time step size of input data
     INTEGER, PRIVATE                       :: fileRec=1               !< Record index of dataset corresponding to first slice of this::var
     INTEGER, PRIVATE                       :: chunkCounter=1          !< Currently used time index
