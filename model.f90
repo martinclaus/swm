@@ -49,7 +49,7 @@ PROGRAM model
   print *, 'initVars done'
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !! initialize the domain, indices, land masks, friction parameters
+  !! initialize the domain, indices, land masks
   !------------------------------------------------------------------
   call initDomain
   print *, 'initDomain done'
@@ -62,7 +62,7 @@ PROGRAM model
 
 #ifdef DYNFROMFILE
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !! initialise dynFromFile module (read namelist and first chunk from file, override initial conditions from initialConditions)
+  !! initialise dynFromFile module
   !------------------------------------------------------------------
   call DFF_initDynFromFile
   print *, 'DFF_initDynFromFile done'
