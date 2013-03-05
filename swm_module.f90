@@ -1,12 +1,31 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief  Root module of the Shallow water modules
+!! @author Martin Claus, mclaus@geomar.de
+!! @authot Willi Rath, wrath@geomar.de
+!!
+!! This module controlls the integration of the shallow water equations.
+!!
+!! @par Uses:
+!! swm_damping_module\n
+!! swm_forcing_module\n
+!! swm_timestep_module\n
+!------------------------------------------------------------------
 MODULE swm_module
 USE swm_damping_module
 USE swm_forcing_module
 USE swm_timestep_module
-USE swm_lateralmixing_module
   IMPLICIT NONE
   SAVE
 
   CONTAINS
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialise module
+    !!
+    !! Allocates the dynamical variables of the module and the increment
+    !! vectors used for AB2 and EF time stepping schemes. Initialise the
+    !! submodules swm_damping_module, swm_forcing_module and swm_timestep_module.
+    !! Read initial conditions for shallow water module.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
       USE vars_module, ONLY : Nx, Ny, Ns
       IMPLICIT NONE
@@ -24,6 +43,12 @@ USE swm_lateralmixing_module
       CALL SWM_initialConditions
     END SUBROUTINE SWM_initSWM
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Release memory of shallow water module
+    !!
+    !! Calls finishing routines of all submodules and deallocate dynamical
+    !! variables and increment vectors.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_finishSWM
       IMPLICIT NONE
       INTEGER   :: alloc_error
@@ -34,12 +59,29 @@ USE swm_lateralmixing_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_finishSWM
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Timestep routine
+    !!
+    !! This routine is called inside the time loop by the main program.
+    !! It updates the forcing fields and calls the time step routine of the
+    !! time step submodule swm_timestep_module
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep
       IMPLICIT NONE
       CALL SWM_forcing_update
       CALL SWM_timestep_step
     END SUBROUTINE SWM_timestep
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Advancing routine of the shallow water module
+    !!
+    !! Shifts the dynamical variables backward in time dimension,
+    !! add information of shallow water model to host model and shift
+    !! increment vectors backward in time.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
+    !------------------------------------------------------------------
     SUBROUTINE SWM_advance
       USE vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
       IMPLICIT NONE
@@ -57,6 +99,23 @@ USE swm_lateralmixing_module
       G_eta(:,:,1:NG-1) = G_eta(:,:,2:NG)
     END SUBROUTINE SWM_advance
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Read initial condition of shallow water model
+    !!
+    !! If initial condition flag vars_module::init_cond_from_file is .TRUE.,
+    !! the initial conditions will be read from disk. The location is specified
+    !! in model.namelist. Ocean masks will be applied to the data.
+    !! If no initial conditions are defined, the model will start at rest, i.e.
+    !! all fields are zero. After initialisation swm_module::swm_advance is called
+    !! to copy initial condition to host model.
+    !!
+    !! @par Uses:
+    !! io_module, ONLY : fileHandle, readInitialCondition, initFH\n
+    !! vars_module, ONLY : file_eta_init, varname_eta_init,file_u_init, varname_u_init,
+    !! file_v_init, varname_v_init,ocean_eta, ocean_u, ocean_v,init_cond_from_file, N0p1
+    !!
+    !! @todo Read initial conditions only if the input file is defined. Drop init_cond_from_file
+    !------------------------------------------------------------------
     SUBROUTINE SWM_initialConditions
       USE io_module, ONLY : fileHandle, readInitialCondition, initFH
       USE vars_module, ONLY : file_eta_init, varname_eta_init,&

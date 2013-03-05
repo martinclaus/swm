@@ -1,3 +1,25 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief  Time stepping module of the shallow water model
+!!
+!! This module holds the dynamical variables and the increment vectors
+!! of the shallow water model and the coefficient matrices for the integration.
+!! The coefficients are computet according to the selecetd time stepping scheme
+!! and appropriate time stepping routines are supplied. The choice of the time
+!! stepping scheme is done according to the selection in model.h.
+!! If AdamsBashforth scheme is used, the shallow water equations will be linearised about
+!! a basic state, which is the inital state of the host model loaded in
+!! dynFromFile_module::DFF_initDynFromFile. If Heaps scheme is selected, the equations
+!! are linearised about a state of rest.
+!!
+!! @par Includes:
+!! model.h, swm_module.h
+!! @par Uses:
+!! swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u\n
+!! swm_forcing_module, ONLY : F_x, F_y, F_eta\n
+!! swm_lateralmixing_module
+!!
+!! @todo Replace AB_Chi by namelist entry
+!------------------------------------------------------------------
 MODULE swm_timestep_module
 #include "model.h"
 #include "swm_module.h"
@@ -8,16 +30,33 @@ MODULE swm_timestep_module
   SAVE
   PRIVATE
   
-  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step
+  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, &
+            NG, NG0, NG0m1, SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta
 
   ! constant coefficients (specific for time stepping scheme)
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, PUBLIC :: SWM_u, SWM_v, SWM_eta, &
-                                                    SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta
-  INTEGER, PARAMETER, PUBLIC                     :: NG=2, NG0=NG, NG0m1=NG0-1
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, PUBLIC :: G_u, G_v, G_eta ! explicit increment vectors
-  REAL(8), PARAMETER                             :: AB_Chi=.1_8, AB_C1=1.5_8+AB_Chi, AB_C2=.5_8+AB_Chi   ! TODO: replace AB_Chi by namelist entry
+  INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
+  INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
+  INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), PARAMETER                             :: AB_Chi=.1_8         !< AdamsBashforth displacement coefficient
+  REAL(8), PARAMETER                             :: AB_C1=1.5_8+AB_Chi  !< AdamsBashforth weight factor for present time level
+  REAL(8), PARAMETER                             :: AB_C2=.5_8+AB_Chi   !< AdamsBashforth weight factor for past time level
 
   CONTAINS
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Intialise time stepping module
+    !!
+    !! Calls the coefficient initialisation routine according to time
+    !! stepping scheme defined in module.h
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_init
 #ifdef SWM_TSTEP_HEAPS
       CALL SWM_timestep_initHeapsScheme
@@ -27,6 +66,15 @@ MODULE swm_timestep_module
 #endif
     END SUBROUTINE SWM_timestep_init
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocates the coefficent matrices
+    !!
+    !! Deallocates the coefficient matrices of the defined time stepping method.
+    !!
+    !! @todo swm_timestep_module::SWM_timestep_finishHeapsScheme and
+    !! swm_timestep_module::SWM_timestep_finishLiMeanState are identical. There is no need
+    !! to keep both of them.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_finish
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
       CALL SWM_timestep_finishLiMeanState
@@ -36,20 +84,43 @@ MODULE swm_timestep_module
 #endif
     END SUBROUTINE SWM_timestep_finish
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Time stepping routine
+    !!
+    !! Calls the selected time stepping routine according to model.h.
+    !! It will be checked if more than one timestepping routine is selected,
+    !! and if so an error will be thrown and program execution will be terminated.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_step
+      IMPLICIT NONE
+      LOGICAL       :: already_stepped
+      already_stepped=.FALSE.
 #ifdef SWM_TSTEP_EULERFW
+      CALL alreadyStepped(already_stepped)
       CALL SWM_timestep_EulerForward
 #endif
 #ifdef SWM_TSTEP_HEAPS
+      CALL alreadyStepped(already_stepped)
       CALL SWM_timestep_Heaps
 #endif
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
+      CALL alreadyStepped(already_stepped)
       CALL SWM_timestep_AdamsBashforth
 #endif
     END SUBROUTINE SWM_timestep_step
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Time stepping routine of heaps scheme
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, land_eta, land_u, land_v
+    !! @todo Write some documentation about the physics
+    !! @todo Recode the routine to use increment vectors to unify handling of coefficients, etc.
+    !!  This would make it possible to change the way, the coefficients of specific terms are
+    !!  supplied, i.e. lateral mixing.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_Heaps
-      USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, freq_wind, land_eta, land_u, land_v
+      USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, land_eta, land_u, land_v
       IMPLICIT NONE
       INTEGER :: i, j 
       REAL(8) :: v_u, u_v
@@ -156,8 +227,17 @@ MODULE swm_timestep_module
 !$OMP END PARALLEL
     END SUBROUTINE SWM_timestep_Heaps
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Time stepping routine of the AdamsBashforth scheme
+    !!
+    !! For the first time step, the explicit forward scheme is used to generate the
+    !! second initial conditon.
+    !! @par Uses:
+    !! vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
+    !! @todo Write some documentation about the physics
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_AdamsBashforth
-      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
+      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER :: i,j
       REAL(8) :: u_v,v_u
@@ -241,8 +321,15 @@ MODULE swm_timestep_module
 !$OMP END PARALLEL
     END SUBROUTINE SWM_timestep_AdamsBashforth
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  time stepping routine of the explicit forward scheme
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
+    !! @todo Add some documenation about the physics
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_EulerForward
-      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, freq_wind, itt, dt, ocean_eta, ocean_u, ocean_v
+      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
       IMPLICIT NONE
       INTEGER :: i,j
       REAL(8) :: u_v,v_u
@@ -321,6 +408,16 @@ MODULE swm_timestep_module
 !$OMP END PARALLEL
     END SUBROUTINE SWM_timestep_EulerForward
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialise the coefficients for the heaps scheme
+    !!
+    !! Allocates the coefficient operators, computes the coefficients
+    !! and, if required, calls the initialisation of the lateral mixing coefficients
+    !! and scale them with the time step length.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,cosTheta_u,cosTheta_v,dTheta, H_u, H_v
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_initHeapsScheme
       USE vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,&
                               cosTheta_u,cosTheta_v,dTheta, H_u, H_v
@@ -361,6 +458,11 @@ MODULE swm_timestep_module
 #endif
     END SUBROUTINE SWM_timestep_initHeapsScheme
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocate the coefficient matrix of the heaps scheme
+    !!
+    !! If definde, the lateral mixing coefficients will be deallocated as well.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_finishHeapsScheme
       IMPLICIT NONE
       INTEGER   :: alloc_error
@@ -371,6 +473,19 @@ MODULE swm_timestep_module
 #endif
     END SUBROUTINE SWM_timestep_finishHeapsScheme
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Intialise the coefficient matrix of a model linearised about a basic state
+    !!
+    !! This method has to be called, if the AdamsBashforth or Euler forward
+    !! time stepping scheme is used. It computes the ambient vorticity a the sum of
+    !! planetary vorticity and relative vorticity of the mean flow. If required,
+    !! the lateral mixing coefficients are initialised and added to the coefficient matrix.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, D2R, OMEGA, dLambda, dTheta,lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
+    !! @todo Think about a time dependent basic state
+    !! @todo Add input stream for basic state instead of using the initial conditions of host model
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_initLiMeanState
       USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, D2R, OMEGA, dLambda, dTheta, &
                               lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
@@ -461,6 +576,11 @@ MODULE swm_timestep_module
 #endif
     END SUBROUTINE SWM_timestep_initLiMeanState
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocate the coefficient matrix
+    !!
+    !! If definde, the lateral mixing coefficients will be deallocated as well.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_finishLiMeanState
       IMPLICIT NONE
       INTEGER :: alloc_error
@@ -470,4 +590,22 @@ MODULE swm_timestep_module
       CALL SWM_LateralMixing_finish
 #endif
     END SUBROUTINE SWM_timestep_finishLiMeanState
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Checks if the time stepping flag is .FALSE.
+    !!
+    !! If the argument evaluates to .TRUE. an error is thrown and the
+    !! program execution is terminated with stop code 3. Else the argument
+    !! is cahnged to .TRUE.
+    !------------------------------------------------------------------
+    SUBROUTINE alreadyStepped(already_stepped)
+      IMPLICIT NONE
+      LOGICAL, INTENT(inout) :: already_stepped
+      IF (already_stepped) THEN
+        PRINT *,"More than one time stepping scheme defined for SWM module."
+        STOP 3
+      ELSE
+        already_stepped = .TRUE.
+      END IF
+    END SUBROUTINE alreadyStepped
 END MODULE swm_timestep_module
