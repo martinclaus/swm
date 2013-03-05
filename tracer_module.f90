@@ -1,38 +1,43 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief  Advection-diffusive tracer module
+!! @author Martin Claus, mclaus@geomar.de
+!!
+!! Tracer model integrating advection-diffusion equation
+!! \f[
+!! C_t + \vec\nabla\cdot(C\vec u) = K_h\nabla^2C - JC - \gamma(C-C_0)
+!! \f]
+!! where \f$C\f$ is the tracer concentration, \f$K_h\f$ the 
+!! horizontal/isopycnal diffusivity, \f$J\f$ a scalar consumption rate,
+!! \f$\gamma\f$ a spatialy dependend relaxation time scale and \f$C_0\f$
+!! the concentration field to which the tracer will be restored.
+!! The module can handle only one tracer for now. The input velocity is
+!! made non-divergent to conserve tracer. The tracer concentration is located
+!! on the eta grid.
+!! @par Discretisation schemes used: \n
+!! advection: leapfrog-in-time, centred-in-space\n
+!! diffusion: explicit forward-in-time (over two time steps), centred-in-space\n
+!! relaxation and consumption: implicit backward-in-time\n
+!!
+!! @note The required second initial condition is computed with a explicit forward scheme
+!! for both, advection and diffusion.
+!!
+!! @par Convention:
+!! All module variables are prefixed with TRC_
+!!
+!! @see
+!! Diffusivity \f$K_h\f$ is spatialy invariant and isotropic.
+!! To implement a spatially dependend diffusivity, the diffusion term has
+!! to be changed to
+!! \f[
+!! K_h\nabla(K_h\nabla C)
+!! \f]
+!! Socolofsky, S. and Jirka, G. 2005
+!!
+!! @par Uses:
+!! io_module, ONLY : initFH,fileHandle
+!! @todo add AB2 time steping scheme
+!------------------------------------------------------------------
 MODULE tracer_module
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !
-    ! Tracer model integrating advection-diffusion equation
-    !
-    !                C_t + del(u*C) = D*del^2C - consumption*C - relax*(C-C0)
-    !
-    ! Scheme used to solve this equation is centered in time and space, but
-    ! uses time-step l-1 for the Laplacian operator in the diffusion term.
-    ! Only one tracer for now (can be enhanced in the future)
-    ! Input velocity field is made non-divergent to conserve tracer (Marshall et al. 2006).
-    !
-    ! CONVENTION: All module variables start with TRC_
-    !
-    !
-    ! NOTE01: Diffusivity D is assumend to be constant, else the equation to 
-    !         solve would be
-    !
-    !                C_t + del(u*C) = D*del(D*del(C))     (Socolofsky, S. and Jirka, G. 2005)
-    !
-    !
-    ! Variable names:
-    !   TRC_C1        : Tracer concentration on the eta grid points of an Arakawa C-Grid
-    !   TRC_C1_A      : Diffusivity [m^2/s]
-    !   TRC_C1_relax  : local relaxation coefficient
-    !   TRC_Coef_LF   : Coefficients of the leapfrog differencing scheme
-    !   TRC_Coef_EF   : Coefficients of the Euler-forward differencing scheme
-    !   TRC_u_nd      : Zonal component of the non-divergent flow field (possibly put this somewhere else)
-    !   TRC_v_nd      : Meridional component of the non-divergent flow field (possibly put this somewhere else)
-    !   TRC_file_C0   : File name of the tracer initial condition and relaxation field (C0), should be defined in the namelist
-    !   TRC_file_relax: File name of the relaxation coefficient field
-    !   TRC_NLEVEL_SCHEME : Order of used differencing scheme. Also number of timesteps in memory.
-    !   TRC_N0        : Index of the present time step
-    !   TRC_N0m1      : Index of the previous time step
-    !   TRC_N0p1      : Index of the next time step
     !
     ! Public module procedures:
     !   TRC_initTracer    : initialise the tracer module, i.e.
@@ -51,27 +56,51 @@ MODULE tracer_module
 
   PUBLIC :: TRC_C1, TRC_initTracer, TRC_finishTracer, TRC_tracerStep, TRC_advance, TRC_N0
 
-  INTEGER(1), PARAMETER                           :: TRC_NLEVEL_SCHEME=3, & ! how many time levels are used
-                                                     TRC_N0=2, TRC_N0p1=TRC_N0+1, TRC_N0m1=TRC_N0-1 ! Timestep indices 
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_C1  ! Tracer field
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0, & ! field to which the tracer should be relaxed
-                                                     TRC_C1_relax ! local relaxation timescale
-  REAL(8)                                         :: TRC_C1_A = 1., &! Diffusivity
-                                                     TRC_C1_cons=0. ! Consumption rate of tracer
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_LF, & ! coefficient matrix for leapfrog scheme
-                                                     TRC_Coef_EF    ! coefficient matrix for Euler Forward scheme
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_u_nd, TRC_v_nd ! non-divergent flow field
-  TYPE(fileHandle)                                :: TRC_FH_C0, TRC_FH_relax, TRC_FH_init
+  INTEGER(1), PARAMETER                           :: TRC_NLEVEL_SCHEME=3   !< Number of time levels used
+  INTEGER(1), PARAMETER                           :: TRC_N0=2              !< Index of the present time step
+  INTEGER(1), PARAMETER                           :: TRC_N0p1=TRC_N0+1     !< Index of the next time step
+  INTEGER(1), PARAMETER                           :: TRC_N0m1=TRC_N0-1     !< Index of the previous time step
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_C1                !< Tracer field. Size Nx,Ny,TRC_NLEVEL_SCHEME.
+  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0              !< Field to which the tracer should be relaxed. Size Nx, Ny
+  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_relax          !< Local relaxation timescale. Size Nx, Ny
+  REAL(8)                                         :: TRC_C1_A = 1.         !< Diffusivity \f$[m^2s^{-1}]\f$
+  REAL(8)                                         :: TRC_C1_cons=0.        !< Consumption rate of tracer
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_LF           !< Coefficient matrix for leapfrog scheme
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_EF           !< Coefficient matrix for Euler Forward scheme
+  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_u_nd              !< Zonal component of the non-divergent flow field
+  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_v_nd              !< Meridional component of the non-divergent flow field
+  TYPE(fileHandle)                                :: TRC_FH_C0             !< File handle of the tracer relaxation field (C0) defined in the namelist
+  TYPE(fileHandle)                                :: TRC_FH_relax          !< File handle of the tracer relaxation timescale (gamma) defined in the namelist
+  TYPE(fileHandle)                                :: TRC_FH_init           !< File handle of the tracer initial condition
 
   CONTAINS
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialise tracer module
+    !!
+    !! Parse namelist, allocated and initialise member attributes, read
+    !! initial conditions, initialise differential operator matrix for
+    !! leapfrog scheme and euler forward scheme.
+    !!
+    !! @par Includes:
+    !! io.h
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny,u,v,N0 \n
+    !! calc_lib, ONLY : computeNonDivergentFlowField \n
+    !!
+    !! @todo Test if call of calc_lib::computeNonDivergentFlowField is really
+    !! obsolete and, if so, remove it and the use statement of vars_module::u,
+    !! vars_module::v, vars_module::N0 and calc_lib::computeNonDivergentFlowField.
+    !!
+    !! @todo replace magic strings of var names
+    !------------------------------------------------------------------
     SUBROUTINE TRC_initTracer
 #include "io.h"
       USE vars_module, ONLY : Nx,Ny,u,v,N0
       USE calc_lib, ONLY : computeNonDivergentFlowField
       IMPLICIT NONE
-      INTEGER           :: alloc_error
-      CHARACTER(CHARLEN):: TRC_file_C0, TRC_file_relax, TRC_file_init
+      INTEGER           :: alloc_error  !< Return value of allocation calls
+      CHARACTER(CHARLEN):: TRC_file_C0, TRC_file_relax, TRC_file_init !< file names of input files
 
       ! definition of the namelist
       NAMELIST / tracer_nl / &
@@ -82,16 +111,19 @@ MODULE tracer_module
       OPEN(UNIT_TRACER_NL, file = TRACER_NL)
       READ(UNIT_TRACER_NL, nml = tracer_nl)
       CLOSE(UNIT_TRACER_NL)
-      !TODO: replace magic strings for var names
       CALL initFH(TRC_file_C0,"C0",TRC_FH_C0)
       CALL initFH(TRC_file_relax,"RELAX",TRC_FH_relax)
       CALL initFH(TRC_file_C0,"C",TRC_FH_init)
+      ! Allocate member variables
       ALLOCATE(TRC_C1(1:Nx,1:Ny,1:TRC_NLEVEL_SCHEME), TRC_C1_0(1:Nx,1:Ny), TRC_C1_relax(1:Nx,1:Ny), &
         TRC_u_nd(1:Nx,1:Ny), TRC_v_nd(1:Nx,1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in initTracer"
         STOP 1
       END IF
+      ! Initialise member variables    !!
+    !!
+
       TRC_C1 = 0._8
       TRC_C1_0 = 0._8
       TRC_C1_relax = 0._8
@@ -102,11 +134,17 @@ MODULE tracer_module
       ! setup coefficients for leapfrog scheme (need TRC_C1_A and TRC_C1_relax to be set)
       CALL TRC_initLFScheme
       CALL TRC_initEFScheme
-      ! compute second initial condition with euler forward scheme
-      CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
-      ! check if stability criteria is met
+      !< Not sure of this call is needed at all. Commented out.
+      !! @author mclaus@geomar.de
+      !! CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
     END SUBROUTINE TRC_initTracer
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocates memory of the allocatable member attributes
+    !!
+    !! Deallocates tracer_module::TRC_C1, tracer_module::TRC_C1_0,
+    !! tracer_module::TRC_C1_relax, tracer_module::TRC_u_nd, tracer_module::TRC_v_nd
+    !------------------------------------------------------------------
     SUBROUTINE TRC_finishTracer
       IMPLICIT NONE
       INTEGER       :: alloc_error
@@ -124,6 +162,14 @@ MODULE tracer_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE TRC_finishTracer
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Read initial condition, relaxation field and relaxation
+    !! time scale from field.
+    !!
+    !! Read intial condition and relaxation parameters from file and apply
+    !! the ocean mask of the eta grid (the grid where the tracer concentration is located)
+    !! the the initial condition.
+    !------------------------------------------------------------------
     SUBROUTINE TRC_readInitialConditions
       USE io_module, ONLY : readInitialCondition
       USE vars_module, ONLY : ocean_eta, Nx, Ny
@@ -136,6 +182,16 @@ MODULE tracer_module
       TRC_C1(:,:,TRC_N0) = ocean_eta * TRC_C1(:,:,TRC_N0)
     END SUBROUTINE TRC_readInitialConditions
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Time stepping routine of tracer module
+    !!
+    !! Computes non-divergent flow and calls the appropriate routine for
+    !! the time stepping scheme to use.
+    !!
+    !! @par Uses:
+    !! calc_lib, ONLY : computeNonDivergentFlowField\n
+    !! vars_module, ONLY : u,v,N0, itt
+    !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStep
       USE calc_lib, ONLY : computeNonDivergentFlowField
       USE vars_module, ONLY : u,v,N0, itt
@@ -149,14 +205,30 @@ MODULE tracer_module
       END IF
     END SUBROUTINE TRC_tracerStep
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Advancing routine of tracer module
+    !!
+    !! Shifts time slices backward in memory
+    !------------------------------------------------------------------
     SUBROUTINE TRC_advance
       IMPLICIT NONE
       TRC_C1(:,:,TRC_N0m1:TRC_N0) = TRC_C1(:,:,TRC_N0:TRC_N0p1)
     END SUBROUTINE
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Explicit forward time step
+    !!
+    !! Integrates tracer equation using an explicit forward-in-time scheme
+    !! for all terms except the relaxation and consumption. Used to generate
+    !! the second initial condition. Should not be used for a different purpose,
+    !! since the forward-in-time scheme is unstable for the advective term.
+    !! It could also be used to kill the computational mode of the leapfrog scheme
+    !! when used every n'th time step. But this is not implemented right now.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
+    !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepEulerForward
-    ! calculating new tracer field using a forward in time scheme
-    ! meant to calculate second initial condition to reduce computational mode
       USE vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
       IMPLICIT NONE
       INTEGER       :: i,j
@@ -192,8 +264,17 @@ MODULE tracer_module
 #endif 
     END SUBROUTINE TRC_tracerStepEulerForward
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Mixed Leapfrog-forward time step
+    !!
+    !! Integrates the tracer equation using a mixed scheme with leapfrog
+    !! for the advection and forward for the diffusion. Relaxation and
+    !! consumption is done with a implicit backward scheme.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
+    !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepLeapfrog
-    ! leapfrog timestepping of tracer equation
       USE vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
       IMPLICIT NONE
       INTEGER       :: i,j
@@ -229,10 +310,18 @@ MODULE tracer_module
 #endif 
    END SUBROUTINE TRC_tracerStepLeapfrog
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Checks stability of the leapfrog scheme
+    !!
+    !! Checks stability of the leapfrog scheme, throws a warning if the
+    !! stability criterion is violated.
+    !! This criterion is not absolutely correct for spherical coordinates.
+    !! It was derived in cartesian coordinates and then replaced dx and dy
+    !! with \f$\cos\theta A\delta\lambda\f$ and \f$A \delta\theta\f$.
+    !!
+    !! @todo Write down the criteria used
+    !------------------------------------------------------------------
     SUBROUTINE TRC_checkLeapfrogStability(u,v)
-    ! checks stability of the leapfrog scheme, throws a warning if not
-    ! This criterion is not absolutely correct for spherical coordinates (derived in cartesian coordinates
-    ! and then replaced dx and dy with cos(theta)*A*dLambda and A*dTheta)
       USE vars_module, ONLY : Nx,Ny,dt,A,cosTheta_u,dLambda,dTheta, itt
       IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
@@ -250,12 +339,19 @@ MODULE tracer_module
       END IF
     END SUBROUTINE TRC_checkLeapfrogStability
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Intialise the differential operator for the mixed Leapfrog scheme
+    !!
+    !! @see tracer_module::TRC_tracerStepLeapfrog
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
+    !------------------------------------------------------------------
     SUBROUTINE TRC_initLFScheme
       USE vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
       IMPLICIT NONE
       INTEGER       :: alloc_error
       INTEGER       :: i,j
-      
       ALLOCATE(TRC_Coef_LF(1:Nx,1:Ny,1:14), stat=alloc_error)
       IF(alloc_error.ne.0) THEN
         PRINT *,"Allocation error in TRC_initLFScheme"
@@ -294,6 +390,14 @@ MODULE tracer_module
       END FORALL
     END SUBROUTINE TRC_initLFScheme
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Intialise the differential operator for the explicit forward scheme
+    !!
+    !! @see tracer_module::TRC_tracerStepEulerForward
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
+    !------------------------------------------------------------------
     SUBROUTINE TRC_initEFScheme
       USE vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
       IMPLICIT NONE
@@ -338,6 +442,9 @@ MODULE tracer_module
       END FORALL
     END SUBROUTINE TRC_initEFScheme
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocates the coefficient matrix of the mixed leapfrog scheme
+    !------------------------------------------------------------------
     SUBROUTINE TRC_finishLFScheme
       IMPLICIT NONE
       INTEGER       :: alloc_error
@@ -345,6 +452,9 @@ MODULE tracer_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE TRC_finishLFScheme
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocates the coefficient matrix of the explicit forward scheme
+    !------------------------------------------------------------------
     SUBROUTINE TRC_finishEFScheme
       IMPLICIT NONE
       INTEGER       :: alloc_error
@@ -352,7 +462,7 @@ MODULE tracer_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE TRC_finishEFScheme
 
-END MODULE tracer_module                                         
+END MODULE tracer_module 
 
 
 
