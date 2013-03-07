@@ -1,3 +1,14 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief Compute the damping coefficients for the shallow water model
+!!
+!! Computes the implicit linear damping coefficients and the coefficients
+!! of the quadratic damping. If configured, sponge layers are applied
+!! to the linear damping terms of the momentum and/or the continuity
+!! equation.
+!!
+!! @par Includes:
+!! model.h, swm_module.h
+!------------------------------------------------------------------
 MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
@@ -5,14 +16,32 @@ MODULE swm_damping_module
   SAVE
   PRIVATE
   
-  PUBLIC :: SWM_damping_init, SWM_damping_finish
+  PUBLIC :: SWM_damping_init, SWM_damping_finish, &
+            impl_u, impl_v, impl_eta, &
+            gamma_sq_u, gamma_sq_v
 
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, PUBLIC   :: impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_u      !< Implicit damping term of the zonal momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_v      !< Implicit damping term of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_eta    !< Implicit damping term of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
   
   CONTAINS
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialise damping coefficients
+    !!
+    !! Alocates and computes the coefficients for implicit linear damping
+    !! and/or explicit quadratic damping. The coefficients are only computed
+    !! if either LINEAR_BOTTOM_FRICTION or QUADRATIC_BOTTOM_FRICTION is defined
+    !! in model.h. If the model is set to be BAROTROPIC, the damping coefficients
+    !! are scaled with the depth.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, ocean_u, ocean_v, H_u, H_v
+    !------------------------------------------------------------------
     SUBROUTINE SWM_damping_init
-      USE vars_module, ONLY : Nx, Ny, lat_u, lat_v, lat_eta, A, D2R, OMEGA, new_sponge_efolding, r, k, gamma_new, G, H, dt, &
-                              ocean_u, ocean_v, H_u, land_v, H_v, land_eta, gamma_new_sponge
+      USE vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, &
+                              ocean_u, ocean_v, H_u, H_v
       IMPLICIT NONE
       INTEGER :: alloc_error
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n
@@ -100,18 +129,57 @@ MODULE swm_damping_module
       END IF
     END SUBROUTINE SWM_damping_init
     
-    REAL(8) FUNCTION getSpongeLayer(gString,posString)
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parses sponge layer string and return coefficient field
+    !!
+    !! A spong layer is a region where the linear damping coefficient
+    !! decays exponentially as a function of distance from a specified
+    !! boundary. Usually the damping at the boundary is high enough to
+    !! damp out every signal that gets there. The formulation of the
+    !! damping coefficient \f$\gamma\f$ is
+    !! \f[
+    !!    \gamma = \gamma_{max}\max\left\{e^{-\frac{d}{d_s}}-e^{-\frac{d_{cutoff}}{d_s}}, 0 \right\}
+    !! \f]
+    !! where \f$\gamma_{max}\f$ is the damping coefficient at the boundary, set by
+    !! gamma_new_sponge in model.namelist, \f$d\f$ is the distance from
+    !! the boundary, \f$d_s\f$ is the e-folding scale of the sponge layer, set by
+    !! new_sponge_efolding in model.namelist, and \f$d_{cutoff}\f$ is the cutoff
+    !! radius of the sponge layer defined in swm_module.h. All quantities related to distances
+    !! are supposed to be given in the unit specified in swm_module.h. At present following
+    !! units are available:
+    !! - meters
+    !! - degrees
+    !! - Radus of deformation
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny, lat_u, lon_u, lat_v, lon_v, A, D2R, OMEGA, G, H,
+    !! gamma_new_sponge, new_sponge_efolding
+    !!
+    !! @return Field of damping coefficients related to the sponge layers
+    !------------------------------------------------------------------
+    FUNCTION getSpongeLayer(gString,posString) RESULT(gamma)
       USE vars_module, ONLY : Nx,Ny, lat_u, lon_u, lat_v, lon_v, A, D2R, OMEGA, G, H, &
                               gamma_new_sponge, new_sponge_efolding
       IMPLICIT NONE
-      CHARACTER(len=*), INTENT(in)       :: gString, posString
-      DIMENSION                          :: getSpongeLayer(Nx,Ny)
+      !> String specifying the grid to work with. First character of this string must be one of
+      !! - "U" (zonal velocity grid)
+      !! - "V" (meridional velocity grid
+      !! - "E" (Interface displacement grid)
+      CHARACTER(len=*), INTENT(in)       :: gString
+      !> String specifying the boundaries to apply a sponge layer. It should contain one or more of the characters
+      !! - "N" for norther boundary
+      !! - "S" for southern boundary
+      !! - "E" for eastern boundary
+      !! - "W" for western boundary
+      CHARACTER(len=*), INTENT(in)       :: posString
+      REAL(8)                            :: gamma(Nx,Ny) !< Field of damping coefficients related to the sponge layers
       REAL(8)                            :: lat(Ny), lon(Nx), spongeCoefficient
       INTEGER                            :: iGrid, iBoundary, iSponge(4,3)
       iSponge = RESHAPE((/1,Ny-1,2,Nx-1,&
                           2,Ny-1,1,Nx-1,&
                           1,Ny-1,1,Nx-1/),SHAPE(iSponge))
-      getSpongeLayer = 0.
+      gamma = 0.
       SELECT CASE(gString(1:1))
         CASE("u","U")
           iGrid = 1
@@ -139,50 +207,55 @@ MODULE swm_damping_module
 #endif
       IF (SCAN(posString,"Nn").NE.0) THEN
         iBoundary = 2
-        getSpongeLayer = MAX(TRANSPOSE( &
+        gamma = MAX(TRANSPOSE( &
                                SPREAD( &
                                  gamma_new_sponge * &
                                  EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-REAL(SPONGE_CUT_OFF)),&
                                  2, &
                                  Nx &
-                            )),getSpongeLayer)
+                            )),gamma)
       END IF
       IF (SCAN(posString,"Ss").NE.0) THEN
         iBoundary = 1
-        getSpongeLayer = MAX(TRANSPOSE( &
+        gamma = MAX(TRANSPOSE( &
                                SPREAD( &
                                  gamma_new_sponge * &
                                  EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-REAL(SPONGE_CUT_OFF)),&
                                  2, &
                                  Nx &
-                            )),getSpongeLayer)
+                            )),gamma)
       END IF
       IF (SCAN(posString,"Ww").NE.0) THEN
         iBoundary = 3
-        getSpongeLayer = MAX( &
+        gamma = MAX( &
                                SPREAD( &
                                  gamma_new_sponge * &
                                  EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-REAL(SPONGE_CUT_OFF)),&
                                  2, &
                                  Ny &
-                            ),getSpongeLayer)
+                            ),gamma)
       END IF
       IF (SCAN(posString,"Ee").NE.0) THEN
         iBoundary = 4
-        getSpongeLayer = MAX( &
+        gamma = MAX( &
                                SPREAD( &
                                  gamma_new_sponge * &
                                  EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-REAL(SPONGE_CUT_OFF)),&
                                  2, &
                                  Ny &
-                            ),getSpongeLayer)
+                            ),gamma)
       END IF
     END FUNCTION getSpongeLayer
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Release memory of member variables
+    !!
+    !! Release memory of allocated member variables
+    !------------------------------------------------------------------
     SUBROUTINE SWM_damping_finish
       IMPLICIT NONE
       INTEGER :: alloc_error

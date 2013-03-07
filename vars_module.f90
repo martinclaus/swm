@@ -8,6 +8,7 @@
 !! io.h
 !!
 !! @note Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
+!! @todo Replace file and variable names with filehandles
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"

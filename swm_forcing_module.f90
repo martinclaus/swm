@@ -1,3 +1,16 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief Provides forcing fields for the shallow water module
+!!
+!! Loads, process and provide the forcing fields
+!! Available forcing types are:
+!! - Windstress
+!! - Reynolds stress
+!! - arbitrary forcing (no further processing applied)
+!!
+!! @par Includes:
+!! model.h, swm_module.h, io.h
+!! @todo Unifiy handling of constant and time dependend forcing
+!------------------------------------------------------------------
 MODULE swm_forcing_module
 #include "model.h"
 #include "swm_module.h"
@@ -7,23 +20,46 @@ MODULE swm_forcing_module
   SAVE
   PRIVATE
   
-  PUBLIC :: SWM_forcing_init, SWM_forcing_finish, SWM_forcing_update
+  PUBLIC :: SWM_forcing_init, SWM_forcing_finish, SWM_forcing_update, F_x, F_y, F_eta
   
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, PUBLIC   :: F_x, F_y, F_eta
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: F_x    !< Forcing term in zonal momentum equation, Size Nx,Ny
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: F_y    !< Forcing term in meridional momentum equation, Size Nx,Ny
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: F_eta  !< Forcing term in continuity equation, Size Nx,Ny
   ! variables related to the time dependent forcing
-  CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"  ! input file name TODO: remove magic string
-  REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t   ! time vector
-  INTEGER :: TDF_itt1, TDF_itt2                 ! indices of the two buffers used for linear interpolation
-  REAL(8) :: TDF_t1, TDF_t2                     ! times of the two buffers used for linear interpolation
-  REAL(8) :: TDF_t0                             ! current model time step to which the forcing
-                                                ! is interpolated
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu1, TDF_Fu2, TDF_Fv1, TDF_Fv2
-                                                ! two buffers of forcing data
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu0, TDF_Fv0 
-                                                ! Forcing interpolated to model time (+1/2 step)
-  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_dFu, TDF_dFv 
-                                                ! Forcing increment
+  CHARACTER(CHARLEN)  :: TDF_fname="TDF_in.nc"      !< input file name of time dependen wind stress. TODO: remove magic string
+  REAL(8), DIMENSION(:), ALLOCATABLE :: TDF_t       !< time vector of time dependent wind forcing
+  INTEGER :: TDF_itt1, TDF_itt2                     !< indices of the two buffers used for linear interpolation of time dependen wind forcing
+  REAL(8) :: TDF_t1, TDF_t2                         !< times of the two buffers used for linear interpolation of time dependen wind forcing
+  REAL(8) :: TDF_t0                                 !< current model time step to which the forcing is interpolated
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu1  !< First buffer of time dependent zonal forcing, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu2  !< Second buffer of time dependent zonal forcing, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fv1  !< First buffer of time dependent meridional forcing, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fv2  !< Second buffer of time dependent meridional forcing, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fu0  !< Zonal time dependent forcing interpolated to model time, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_Fv0  !< Meridional time dependent forcing interpolated to model time, Size Nx,Ny
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_dFu  !< zonal time dependent forcing increment
+  REAL(8), DIMENSION(:, :), ALLOCATABLE :: TDF_dFv  !< meridional time dependent forcing increment
+
   CONTAINS
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Initialise forcing module
+    !!
+    !! Read constant forcing fields from file and process them accordingly.
+    !! The sum of all defined forcings of the momentum budged will be
+    !! swm_forcing_module::F_x and swm_forcing_module::F_y. If required,
+    !! the time dependent wind forcing is initialised.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1,in_file_TAU, in_file_REY,
+    !! in_file_F1, in_file_F_eta,n_varname_TAU_x, in_varname_TAU_y, in_varname_REY_u2,
+    !! in_varname_REY_v2, in_varname_REY_uv,in_varname_F1_x, in_varname_F1_y,
+    !! in_varname_F_eta, RHO0, dt, A, dLambda, dTheta, cosTheta_u, cosTheta_v,
+    !! H, H_eta, H_u, H_v, ocean_u, ocean_v, ocean_eta, land_H\n
+    !! io_module, ONLY : fileHandle, initFH, readInitialCondition
+    !!
+    !! @note If the model is not defined as BAROTROPIC, the windstress will
+    !! not be scaled with the depth
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_init
       USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, &
                               in_file_TAU, in_file_REY, in_file_F1, in_file_F_eta, &
@@ -146,13 +182,21 @@ MODULE swm_forcing_module
 #endif
     END SUBROUTINE SWM_forcing_init
     
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Updates forcing if it is time dependend
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_update
       IMPLICIT NONE
 #ifdef TDEP_FORCING
       CALL SWM_forcing_updateTdep
 #endif
     END SUBROUTINE SWM_forcing_update
-    
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Deallocates allocated memory od member attributes
+    !!
+    !! Also release memory used for time dependend wind forcing
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_finish
       IMPLICIT NONE
       INTEGER :: alloc_error
@@ -163,36 +207,16 @@ MODULE swm_forcing_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_forcing_finish
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !
-    ! Time Dependent Forcing
-    !
-    ! CONVENTION: All variables start with TDF_
-    !
-    ! LINEAR INTERPOLATION for now.
-    !
-    ! NOTE01 : We always assume the forcing time step to be greater than the
-    !   model time step!
-    !
-    ! NOTE02 : We require the first model time step and the first forcing time
-    !   step to be equal.
-    !
-    ! Variable names:
-    !   TDF_fname  : filename of forcing data
-    !   TDF_t  : time vector of the forcing data set (in model time as def. by dt*itt)
-    !   TDF_itt1 : time index (forcing time) of first buffer
-    !   TDF_itt2 : time index (forcing time) of second buffer
-    !   TDF_t1 : forcing time of first buffer used for the linear interpolation
-    !   TDF_t2 : forcing time of second buffer used for the linear interpolation
-    !   TDF_Fu1 : First time slice of zonal forcing user for the linear interpolation
-    !   TDF_Fv1 : First time slice of meridional forcing user for the linear interpolation
-    !   TDF_Fu2 : Second time slice of zonal forcing user for the linear interpolation
-    !   TDF_Fv2 : Second time slice of meridional forcing user for the linear interpolation
-    !   TDF_Fu0 : Time dependent zonal forcing linearly interpolated to model time
-    !   TDF_Fv0 : Time dependent meridional forcing linearly interpolated to model time
-    !
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !! @brief Initialise time dependent forcing
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : dt, itt, Nx, Ny, RHO0, H_u, H_v, land_u, land_v\n
+    !! io_module, ONLY : fileHandle, initFH, getVar, getAtt, getNrec, time_unit
+    !!
+    !! @note We require the first model time step and the first forcing time
+    !! step to be equal.
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_initTdep
       USE vars_module, ONLY : dt, itt, Nx, Ny, RHO0, H_u, H_v, land_u, land_v
       USE io_module, ONLY : fileHandle, initFH, getVar, getAtt, getNrec, time_unit
@@ -254,6 +278,15 @@ MODULE swm_forcing_module
       TDF_Fv0 = TDF_Fv1
     END SUBROUTINE SWM_forcing_initTdep
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !! @brief Updates time dependent forcing
+    !!
+    !! Linearly interpolates the data from disk onto model time step
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : dt, itt, RHO0, H_u, H_v, land_u, land_v\n
+    !! io_module, ONLY : fileHandle, initFH, getVar
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_updateTdep
       USE vars_module, ONLY : dt, itt, RHO0, H_u, H_v, land_u, land_v
       USE io_module, ONLY : fileHandle, initFH, getVar
@@ -291,6 +324,9 @@ MODULE swm_forcing_module
       END IF
     END SUBROUTINE SWM_forcing_updateTdep
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  release momory of allocated member variables required for time dependend wind forcing
+    !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_finishTdep
       IMPLICIT NONE
       INTEGER :: alloc_error

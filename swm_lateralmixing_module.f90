@@ -1,14 +1,46 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief Computes the coefficients of the lateral mixing of momentum term
+!!
+!! The lateral mixing of momentum is described in sperical coordinates with
+!! consideration of conservation of momentum by
+!! \f[
+!!  F_u = A_h\left[\frac1{A^2\cos^2\theta H}\frac{\partial^2uH}{\partial\lambda^2}+\frac1{A^2\cos\theta H}\frac{\partial}{\partial\theta}\left(\cos\theta\frac{\partial uH}{\partial\theta}\right)
+!!  +\frac1{A^2H}\left((1-\tan^2\theta)uH-\frac{2\tan\theta}{\cos\theta}\frac{\partial vH}{\partial\lambda}\right)\right]
+!!\f]
+!! \f[
+!!  F_v=A_h\left[\frac1{A^2\cos^2\theta H}\frac{\partial^2vH}{\partial\lambda^2}+\frac1{A^2\cos\theta H}\frac{\partial}{\partial\theta}\left(\cos\theta\frac{\partial vH}{\partial\theta}\right)
+!!  +\frac1{A^2H}\left((1-\tan^2\theta)vH-\frac{2\tan\theta}{\cos\theta}\frac{\partial uH}{\partial\lambda}\right)\right]
+!!\f]
+!! where \f$A\f$ is the radius of the Earth, \f$A_h\f$ the eddy diffusivity, \f$H\f$ the
+!! (equivalent) depth, \f$\theta\f$ the latitude, \f$\lambda\f$ the longitude, \f$u\f$
+!! the zonal velocity and \f$v\f$ the meridional velocity. The boundary condition used is free-slip.
+!! @see Bryan (1969)
+!! @todo get a proper reference for Bryan (1969)
+!! @note If BAROTROPIC is not defined, all the factors of H in the equations above are droped
+!! @par Includes:
+!! model.h
+!------------------------------------------------------------------
 MODULE swm_lateralmixing_module
 #include "model.h"
   IMPLICIT NONE
   SAVE
   PRIVATE
   
-  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish
+  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, lat_mixing_u, lat_mixing_v
 
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, PUBLIC :: lat_mixing_u, lat_mixing_v
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 9,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 9,Nx,Ny
 
   CONTAINS
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief initalise lateral mixing coefficients
+    !!
+    !! Allocate and initialise lateral mixing coefficients. If the model is
+    !! not defined as BAROTROPIC, the factors of H are droped. Boundary condition is free-slip.
+    !! @par Uses:
+    !! vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v,ocean_H,
+    !! ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v
+    !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_init
       USE vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v, &
                               ocean_H,ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v
@@ -69,6 +101,9 @@ MODULE swm_lateralmixing_module
       lat_mixing_v = Ah*lat_mixing_v
     END SUBROUTINE SWM_LateralMixing_init
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Release memory allocated by this module
+    !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_finish
       IMPLICIT NONE
       INTEGER   :: alloc_error
