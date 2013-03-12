@@ -4,6 +4,8 @@ DEBUG = #-Wall #-g
 FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
 libnc = -L$(HOME)/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I$(HOME)/local/netcdf-3.6.3/include
+libud = -L$(HOME)/local/udunits-1.12.11/lib -ludunits
+includeud = -I$(HOME)/local/udunits-1.12.11/include
 
 DOXYGEN=/usr/bin/doxygen
 
@@ -18,7 +20,7 @@ else
   $(info Elliptic solver used by calc_lib module: none) 
 endif
 
-modules = vars_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
+modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 
 .PHONY: all clean_all clean clean-doc selfcheck doc
 
@@ -26,7 +28,7 @@ all     : model clean
 #clean
 
 model   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o model $^ $(libnc)
+	$(FC) $(FFLAGS) -o model $^ $(libnc) $(libud)$
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o model.h io.h
 	$(FC) $(FFLAGS) -c $<
@@ -34,13 +36,16 @@ model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o mod
 vars_module.o : vars_module.f90 io.h
 	$(FC) $(FFLAGS) -c $<
 
+calendar_module.o : calendar_module.f90 calendar.h
+	$(FC) $(FFLAGS) -c $< $(includeud)
+
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o swm_lateralmixing_module.o
 	$(FC) $(FFLAGS) -c $<
 
 diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
 	$(FC) $(FFLAGS) -c $<
 
-io_module.o : io_module.f90 io.h vars_module.o
+io_module.o : io_module.f90 io.h vars_module.o calendar_module.o
 	$(FC) $(FFLAGS) -c $< $(includenc)
 
 ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o model.h

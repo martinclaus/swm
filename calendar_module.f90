@@ -25,7 +25,7 @@ MODULE calendar_module
   !! provides a description of the udunits operations and its structure
   !------------------------------------------------------------------
     TYPE, PUBLIC ::     calendar
-        UD_POINTER, PRIVATE ::  ptr
+        UD_POINTER, PRIVATE ::  ptr=0.0_8
     END TYPE calendar
     
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -77,7 +77,8 @@ MODULE calendar_module
             TYPE(calendar), INTENT(inout)       :: cal
             
             cal%ptr = UTMAKE()
-        END SUBROUTINE
+        END SUBROUTINE MakeCal
+        
         
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Sets a calendar with an origin
@@ -171,20 +172,17 @@ MODULE calendar_module
         !! Prints the origin and the stepsize of the calendar to the default output unit
         !! @note Always prints stepsize in seconds, no matter what the actual stepsize is
         !------------------------------------------------------------------
-        SUBROUTINE EncCal(cal)
+        CHARACTER*80 FUNCTION EncCal(cal) RESULT(encstr)
             IMPLICIT NONE
 #include "udunits.inc"
             TYPE(calendar)      :: cal
             INTEGER             :: status
-            CHARACTER*80        :: encstr
             
             status = UTENC(cal%ptr, encstr)
             IF (status .NE. 0) THEN
                 PRINT *, "UTENC ERROR: ", status
-            ELSE
-                PRINT *, "ENCODED: ", encstr
             ENDIF
-        END SUBROUTINE EncCal
+        END FUNCTION EncCal
         
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Frees the space for the calendar
@@ -217,12 +215,13 @@ MODULE calendar_module
         !! the same amount.
         !! tocal does not change
         !------------------------------------------------------------------
-        SUBROUTINE cvtCal(fromcal, tocal)
+        SUBROUTINE cvtCal(fromcal, tocal, stepsize)
             IMPLICIT NONE
 #include "udunits.inc"
             TYPE(calendar), intent(inout)       :: fromcal
             TYPE(calendar), intent(in)          :: tocal
             INTEGER                             :: status
+            REAL(8), INTENT(out), OPTIONAL      :: stepsize
             REAL(8)                             :: slope, intercept
             
             !slope contains the conversion between the time steps
@@ -238,6 +237,10 @@ MODULE calendar_module
             
             CALL UTCPY(tocal%ptr, fromcal%ptr)
             CALL UTSCAL(fromcal%ptr, slope, fromcal%ptr)
+            
+            IF (PRESENT(stepsize)) THEN
+                stepsize = slope
+            ENDIF
         END SUBROUTINE cvtCal
         
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -305,4 +308,13 @@ MODULE calendar_module
                 STOP 1
             ENDIF            
         END SUBROUTINE CalcDate
+        
+        SUBROUTINE ScaleCal(cal, amount)
+            IMPLICIT NONE
+#include "udunits.inc"
+            TYPE(calendar), INTENT(inout)       :: cal
+            REAL(8), INTENT(in)                 :: amount
+            
+            CALL UTSCAL(cal%ptr, amount, cal%ptr)
+        END SUBROUTINE ScaleCal        
 END MODULE calendar_module

@@ -14,6 +14,7 @@
 MODULE io_module
 #include "io.h"
   USE netcdf
+  USE calendar_module
   IMPLICIT NONE
   SAVE
 
@@ -40,6 +41,7 @@ MODULE io_module
     INTEGER, PRIVATE      :: timevid=DEF_TIMEVID    !< NetCDF variable ID of time dimension variable
     INTEGER, PRIVATE      :: nrec=DEF_NREC          !< Length of record variable
     LOGICAL, PRIVATE      :: isOpen = .FALSE.       !< Flag, if the file is open at the moment
+    TYPE(calendar), PRIVATE :: calendar             !< Calendar the fileHandle uses
   END TYPE fileHandle
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
@@ -48,6 +50,7 @@ MODULE io_module
   CHARACTER(FULLREC_STRLEN)   :: fullrecstr=""      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
+  TYPE(calendar)        :: modelCalendar !< Internal Calendar of the model
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Creates a dataset
   !!
@@ -117,12 +120,15 @@ MODULE io_module
     !! Parses output_nl namelist
     !------------------------------------------------------------------
     SUBROUTINE initIO
+      USE vars_module, ONLY : ref_cal
       namelist / output_nl / &
         oprefix, & ! output prefix used to specify directory
         osuffix    ! suffix to name model run
       open(UNIT_OUTPUT_NL, file = OUTPUT_NL)
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
+      CALL MakeCal(modelCalendar)
+      CALL SetCal(modelCalendar, ref_cal)
     END SUBROUTINE initIO
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -264,6 +270,7 @@ MODULE io_module
       call check(nf90_put_var(FH%ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
       call check(nf90_put_var(FH%ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
       FH%nrec = 0
+      CALL SetCal(FH%calendar, time_unit)
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
@@ -551,6 +558,7 @@ MODULE io_module
     !!
     !! A file handle is manually created (not initialised by io_module::initFH)
     !! and used to read data from time dimension variable
+    !! @todo Scaling with time(1)? Or which value of time should be used?
     !------------------------------------------------------------------
     SUBROUTINE getTimeVar(FH,time,tstart,tlen)
       TYPE(fileHandle), INTENT(inout)        :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
@@ -558,6 +566,7 @@ MODULE io_module
       INTEGER, INTENT(in), OPTIONAL          :: tstart        !< Index to start reading
       INTEGER, INTENT(in), OPTIONAL          :: tlen          !< Length of chunk to read
       TYPE(fileHandle)                       :: FH_time       !< Temporarily used file handle of time coordinate variable
+      REAL(8)                                :: steps
       FH_time = FH
       FH_time%varid = FH%timevid
       IF (PRESENT(tstart)) THEN
@@ -569,6 +578,8 @@ MODULE io_module
       ELSE
         CALL getVar1Dhandle(FH_time,time)
       END IF
+      CALL ScaleCal(FH%calendar, time(1))
+      CALL CvtCal(FH%calendar, modelCalendar, steps)
     END SUBROUTINE getTimeVar
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -609,6 +620,7 @@ MODULE io_module
         FH = fileHandle(fileName,varname)
         CALL touch(FH)
       END IF
+      CALL MakeCal(FH%calendar)
     END SUBROUTINE initFH
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

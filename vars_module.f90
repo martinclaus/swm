@@ -51,6 +51,8 @@ MODULE vars_module
   CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
   CHARACTER(CHARLEN)     :: file_v_init="v_init.nc"     !< File containing initial condition for meridional velocity. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
+  CHARACTER(CHARLEN)     :: model_start="0000-00-00 00:00:00" !< Start date and time of the model
+  CHARACTER(CHARLEN)     :: ref_cal="seconds since 0000-00-00 00:00:00"
 
   LOGICAL                :: init_cond_from_file=.FALSE. !< States if initial condition is loaded from disk
 
@@ -142,7 +144,8 @@ MODULE vars_module
         in_file_F_eta, in_varname_F_eta, & ! specification of input heating file
         in_file_REY, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv,& ! specification of input Reynold stress file
         in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
-        file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file ! specification of initial condition fields, need to have time axis
+        file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file, & ! specification of initial condition fields, need to have time axis
+        model_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)
       read(UNIT_MODEL_NL, nml = model_nl)
@@ -184,6 +187,8 @@ MODULE vars_module
       allocate(cosTheta_u(1:Ny))
       allocate(tanTheta_v(1:Ny))
       allocate(tanTheta_u(1:Ny))
+      ! set reference calendar
+      ref_cal = "seconds since " // TRIM(model_start)
       ! start time loop
       itt = 0
       ! init dynamical variables
