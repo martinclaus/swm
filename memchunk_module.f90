@@ -36,6 +36,7 @@ MODULE memchunk_module
     INTEGER, PRIVATE                       :: fileRec=1               !< Record index of dataset corresponding to first slice of this::var
     INTEGER, PRIVATE                       :: chunkCounter=1          !< Currently used time index
     INTEGER, PRIVATE                       :: chunkSize=1             !< Length of time chunk.
+    INTEGER                                :: nFpC     !< how often does the file completely fit into the chunk
   END TYPE
 
   CONTAINS
@@ -97,6 +98,7 @@ MODULE memchunk_module
       memChunk%var = 0.
       memChunk%time = 0.
       CALL getChunkFromDisk(memChunk)
+      memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec),1)
       memChunk%isInitialised = .TRUE.
     END SUBROUTINE initMemChunk
 
@@ -166,13 +168,11 @@ MODULE memchunk_module
       INTEGER                                :: nend     !< last record to read in this recoursion level
       INTEGER                                :: len2     !< length of stride to read in this recoursion level
       INTEGER                                :: nrec     !< length of dataset
-      INTEGER                                :: nFpC     !< how often does the file completely fit into the chunk @todo This could go into memoryChunk type, since it does not change. It is less or equal to one anyway.
       INTEGER                                :: nstart2  !< New start index for recursive function call
       nrec = getNrec(memChunk%FH)
-      nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec),1)
       ! if start index is out of bound, rewind file
       IF (nstart.GT.nrec) THEN
-        nstart = nstart -nFpC*nrec
+        nstart = nstart - memChunk%nFpC*nrec
       END IF
       IF(nstart.EQ.0) nstart = nrec
       ! truncate end index if out of bound

@@ -53,6 +53,8 @@ MODULE calendar_module
     CONTAINS
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Initialises the UDUNITS package
+        !! @todo Is there another way to provide the Path to the udunits.dat than to
+        !!       define it in a header file?
         !------------------------------------------------------------------
         SUBROUTINE OpenCal
             IMPLICIT NONE
