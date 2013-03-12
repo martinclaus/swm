@@ -16,7 +16,7 @@ MODULE io_module
   USE netcdf
   IMPLICIT NONE
   SAVE
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to store variables associated with a variable of
   !! a netcdf dataset
@@ -47,7 +47,7 @@ MODULE io_module
   CHARACTER(CHARLEN)          :: osuffix=""         !< suffix of output filenames. Appended to the file name by io_module::getFname
   CHARACTER(FULLREC_STRLEN)   :: fullrecstr=""      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Creates a dataset
   !!
@@ -60,7 +60,7 @@ MODULE io_module
     MODULE PROCEDURE createDS3old
     MODULE PROCEDURE createDS3handle
   END INTERFACE createDS
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Writes a time slice to a file
   !!
@@ -71,7 +71,7 @@ MODULE io_module
   INTERFACE putVar
     MODULE PROCEDURE putVar3Dold, putVar3Dhandle, putVar2Dold
   END INTERFACE
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Opens a dataset and retrieve ID of requested variable
   !!
@@ -82,7 +82,7 @@ MODULE io_module
   INTERFACE openDS
     MODULE PROCEDURE openDSHandle, openDSold
   END INTERFACE openDS
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Closes a dataset
   !!
@@ -93,14 +93,14 @@ MODULE io_module
   INTERFACE closeDS
     MODULE PROCEDURE closeDSold, closeDShandle
   END INTERFACE closeDS
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read time slice of a variable from a dataset
   !------------------------------------------------------------------
   INTERFACE getVar
     MODULE PROCEDURE getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
   END INTERFACE getVar
-  
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read attribute from a variable in a dataset
   !!
@@ -109,7 +109,7 @@ MODULE io_module
   INTERFACE getAtt
     MODULE PROCEDURE getCHARAtt
   END INTERFACE
-  
+
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise io_module
@@ -124,7 +124,7 @@ MODULE io_module
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
     END SUBROUTINE initIO
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Wrapper for handling return values produced by
     !! netCDF library calls
@@ -191,7 +191,7 @@ MODULE io_module
       call check(nf90_create(getFname(fileNameStem),NF90_CLOBBER,ncid),&
                  __LINE__, getFname(fileNameStem))
       ! create dimensions
-      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid))
       call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
       ! define variables
       ! longitude vector
@@ -238,7 +238,7 @@ MODULE io_module
                  __LINE__,FH%filename)
       FH%isOpen = .TRUE.
       ! create dimensions
-      call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid))
       call check(nf90_def_dim(FH%ncid,YAXISNAME,Ny,lat_dimid))
       call check(nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
       ! define variables
@@ -291,7 +291,7 @@ MODULE io_module
       ! create file
       call check(nf90_create(getFname(fileNameStem), NF90_CLOBBER, ncid))
       ! create dimensions
-      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid)) 
+      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid))
       call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
       call check(nf90_def_dim(ncid,TAXISNAME,NF90_UNLIMITED,time_dimid))
       ! define variables
@@ -388,7 +388,7 @@ MODULE io_module
       INTEGER, INTENT(in) :: ncid               !< netCDF file ID
       CALL check(nf90_close(ncid))
     END SUBROUTINE closeDSold
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Write a time slice to disk
     !!
@@ -439,7 +439,7 @@ MODULE io_module
       CALL check(nf90_put_var(ncid, varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
       CALL check(nf90_put_var(ncid, timevid,time,start=(/rec/)))
     END SUBROUTINE putVar3Dold
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Write a 2D (spatial) dataset
     !!
@@ -475,7 +475,7 @@ MODULE io_module
       wasOpen = FH%isOpen
       call openDS(FH)
       call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)),&
-                 __LINE__,TRIM(FH%filename))              
+                 __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
@@ -483,7 +483,7 @@ MODULE io_module
           WHERE ( var .eq. missing_value ) missmask = 1
         IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
           WHERE ( var .eq. missing_value ) missmask = 1
-      END IF  
+      END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar3Dhandle
 
@@ -507,7 +507,7 @@ MODULE io_module
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,1/)))              
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,1/)))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
@@ -515,10 +515,10 @@ MODULE io_module
           WHERE ( var .eq. missing_value ) missmask = 1
         IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
           WHERE ( var .eq. missing_value ) missmask = 1
-      END IF  
+      END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar2Dhandle
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Read a chunk of a timeseries from disk
     !!
@@ -570,7 +570,7 @@ MODULE io_module
         CALL getVar1Dhandle(FH_time,time)
       END IF
     END SUBROUTINE getTimeVar
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Open and closes a dataset
     !!
@@ -592,7 +592,7 @@ MODULE io_module
         END IF
       END IF
     END SUBROUTINE touch
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise a fileHandle variable
     !!
@@ -610,7 +610,7 @@ MODULE io_module
         CALL touch(FH)
       END IF
     END SUBROUTINE initFH
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Retrun the length of the record/time dimension
     !!
@@ -624,7 +624,7 @@ MODULE io_module
       getNrec = FH%nrec
       RETURN
     END FUNCTION getNrec
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Constructs a file name from a file name stem
     !!
@@ -638,7 +638,7 @@ MODULE io_module
       getFname = trim(trim(oprefix)//fullrecstr//'_'//trim(fname)//trim(osuffix))
       RETURN
     END FUNCTION getFname
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Checks if file handle is initialised
     !!
@@ -650,7 +650,31 @@ MODULE io_module
       isSetFH = (LEN_TRIM(FH%filename) .NE. 0)
       RETURN
     END FUNCTION isSetFH
-    
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns filename member of a fileHandle object
+    !!
+    !! Returns the file name. If the Object is not initialised, the return
+    !! value will be an empty string.
+    !------------------------------------------------------------------
+    CHARACTER(CHARLEN) FUNCTION getFileNameFH(FH) RESULT(fname)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout)   :: FH
+      fname = FH%filename
+    END FUNCTION getFileNameFH
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns varname member of a fileHandle object
+    !!
+    !! Returns the variable name. If the Object is not initialised, the return
+    !! value will be an empty string.
+    !------------------------------------------------------------------
+    CHARACTER(CHARLEN) FUNCTION getVarNameFH(FH) RESULT(varname)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout)   :: FH
+      varname = FH%varname
+    END FUNCTION getVarNameFH
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Inquires a character attribute of a given variable
     !!
