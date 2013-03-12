@@ -38,6 +38,17 @@ MODULE calendar_module
         MODULE PROCEDURE SetCalByDate
         MODULE PROCEDURE SetCalByString
     END INTERFACE SetCal
+    
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Calculates the number of steps needed to reach a date
+  !! 
+  !! Returns the number of steps the calendar needs to reach the given date.
+  !! This takes in account the origin of the calendar and its stepsize
+  !------------------------------------------------------------------     
+    INTERFACE CalcSteps
+        MODULE PROCEDURE CalcStepsByCal
+        MODULE PROCEDURE CalcStepsByDate
+    END INTERFACE CalcSteps
         
     CONTAINS
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -197,7 +208,8 @@ MODULE calendar_module
         !> @brief Converts one calendar to another
         !!
         !! @param fromcal The calendar to be converted
-        !! @param tocal The reference-calendar 
+        !! @param tocal The reference-calendar
+        !! 
         !! Sets the origin of fromcal to that of tocal and adjusts the stepsize of fromcal,
         !! meaning the stepsize of fromcal will be in the scale of tocal but will be still
         !! the same amount.
@@ -232,7 +244,7 @@ MODULE calendar_module
         !! Returns the number of steps the calendar needs to reach the given date.
         !! This takes in account the origin of the calendar and its stepsize
         !------------------------------------------------------------------
-        REAL(8) FUNCTION CalcSteps (cal, year, month, day, hour, minute, second)
+        REAL(8) FUNCTION CalcStepsByDate (cal, year, month, day, hour, minute, second) RESULT(steps)
             IMPLICIT NONE
 #include "udunits.inc"
             INTEGER                     :: status
@@ -240,12 +252,35 @@ MODULE calendar_module
             REAL                        :: second
             TYPE(calendar)              :: cal
             
-            status = UTICALTIME(year, month, day, hour, minute, second, cal%ptr, CalcSteps)
+            status = UTICALTIME(year, month, day, hour, minute, second, cal%ptr, steps)
             IF (status .NE. 0) THEN
                 PRINT *, "UTICALTIME ERROR: ", status
                 STOP 1
             ENDIF
-        END FUNCTION CalcSteps
+        END FUNCTION CalcStepsByDate
+        
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Calculates the number of steps needed to reach a date
+        !! 
+        !! @param cal1 The calendar which steps are to be calculated
+        !! @param cal2 The calendar which gives the date to be reached
+        !! 
+        !! Returns the number of steps the calendar needs to reach the date given
+        !! by the origin of another calendar.
+        !! This takes in account the origin of the calendar and its stepsize
+        !------------------------------------------------------------------        
+        REAL(8) FUNCTION CalcStepsByCal (cal1, cal2) RESULT(steps)
+            IMPLICIT NONE
+#include "udunits.inc"
+            TYPE(calendar), intent(in)  :: cal1, cal2
+            TYPE(calendar)              :: temp_cal
+            INTEGER                     :: year, month, day, hour, minute
+            REAL                        :: second
+            
+            CALL CalcDate(cal2, 0, year, month, day, hour, minute, second)
+            
+            steps = CalcStepsByDate(cal1, year, month, day, hour, minute, second)
+        END FUNCTION CalcStepsByCal
         
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Calculates the date reached after a number of steps
