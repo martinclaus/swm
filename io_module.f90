@@ -335,6 +335,7 @@ MODULE io_module
     SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH      !< Initialised file handle pointing to a existing variable in a dataset
+      TYPE(fileHandle)                 :: FH_time
       INTEGER    :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
@@ -355,6 +356,15 @@ MODULE io_module
                      __LINE__,FH%filename)
       ELSE ! no time axis in dataset
         FH%nrec = 1
+      END IF
+      ! Set calendar
+      IF (.NOT.isSetCal(FH%calendar)) THEN
+        IF (FH%nrec.NE.1) THEN ! dataset is not constant in time
+          FH_time = getTimeFH(FH)
+          CALL setCal(FH%calendar,getAtt(FH_time,NUG_ATT_UNITS)
+        ELSE ! datset has no non-singleton time axis
+          CALL setCal(FH%calendar,time_unit)
+        END IF
       END IF
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
@@ -567,8 +577,7 @@ MODULE io_module
       INTEGER, INTENT(in), OPTIONAL          :: tlen          !< Length of chunk to read
       TYPE(fileHandle)                       :: FH_time       !< Temporarily used file handle of time coordinate variable
       REAL(8)                                :: steps
-      FH_time = FH
-      FH_time%varid = FH%timevid
+      FH_time = getTimeFH(FH)
       IF (PRESENT(tstart)) THEN
         IF(PRESENT(tlen)) THEN
           CALL getVar1Dhandle(FH_time,time,tstart,tlen)
@@ -581,6 +590,19 @@ MODULE io_module
       CALL ScaleCal(FH%calendar, time(1))
       CALL CvtCal(FH%calendar, modelCalendar, steps)
     END SUBROUTINE getTimeVar
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns a fileHandle object pointing to the time variable of
+    !! the dataset associated with FH
+    !!
+    !! A file handle is manually created (not initialised by io_module::initFH)
+    !! which can be used to read data from time dimension variable
+    !------------------------------------------------------------------
+    TYPE(fileHandle) FUNCTION getTimeFH(FH) RESULT(timeFH)
+      TYPE(fileHandle), INTENT(in)      :: FH
+      timeFH = FH
+      timeFH%varid = timeFH%timevid
+    END FUNCTION
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Open and closes a dataset

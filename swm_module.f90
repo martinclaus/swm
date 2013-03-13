@@ -1,7 +1,7 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !> @brief  Root module of the Shallow water modules
 !! @author Martin Claus, mclaus@geomar.de
-!! @authot Willi Rath, wrath@geomar.de
+!! @author Willi Rath, wrath@geomar.de
 !!
 !! This module controlls the integration of the shallow water equations.
 !!
@@ -58,7 +58,7 @@ USE swm_timestep_module
       DEALLOCATE(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_finishSWM
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Timestep routine
     !!

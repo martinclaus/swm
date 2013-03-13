@@ -6,14 +6,14 @@
 !! \f[
 !! C_t + \vec\nabla\cdot(C\vec u) = K_h\nabla^2C - JC - \gamma(C-C_0)
 !! \f]
-!! where \f$C\f$ is the tracer concentration, \f$K_h\f$ the 
+!! where \f$C\f$ is the tracer concentration, \f$K_h\f$ the
 !! horizontal/isopycnal diffusivity, \f$J\f$ a scalar consumption rate,
 !! \f$\gamma\f$ a spatialy dependend relaxation time scale and \f$C_0\f$
 !! the concentration field to which the tracer will be restored.
 !! The module can handle only one tracer for now. The input velocity is
 !! made non-divergent to conserve tracer. The tracer concentration is located
 !! on the eta grid.
-!! @par Discretisation schemes used: \n
+!! @par Discretisation schemes used:
 !! advection: leapfrog-in-time, centred-in-space\n
 !! diffusion: explicit forward-in-time (over two time steps), centred-in-space\n
 !! relaxation and consumption: implicit backward-in-time\n
@@ -100,7 +100,7 @@ MODULE tracer_module
         TRC_file_C0, TRC_file_relax, &
         TRC_C1_cons, &! Consumption rate of tracer
         in_varname_C0,in_varname_C,in_varname_relax ! variable names of input data
-      ! read the namelist and close again  
+      ! read the namelist and close again
       OPEN(UNIT_TRACER_NL, file = TRACER_NL)
       READ(UNIT_TRACER_NL, nml = tracer_nl)
       CLOSE(UNIT_TRACER_NL)
@@ -129,7 +129,7 @@ MODULE tracer_module
       ! Setup up imlicit terms
       CALL TRC_initImplTerms
     END SUBROUTINE TRC_initTracer
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Deallocates memory of the allocatable member attributes
     !!
@@ -199,7 +199,7 @@ MODULE tracer_module
         CALL TRC_tracerStepEulerForward
       END IF
     END SUBROUTINE TRC_tracerStep
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Advancing routine of tracer module
     !!
@@ -236,7 +236,7 @@ MODULE tracer_module
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i,j)&
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-#endif 
+#endif
       YSPACE: DO j=1,Ny
         XSPACE: DO i=1,Nx
           IF (land_eta(i,j) .EQ. 1_1) CYCLE XSPACE
@@ -265,9 +265,9 @@ MODULE tracer_module
 #ifdef TRC_PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
-#endif 
+#endif
     END SUBROUTINE TRC_tracerStepEulerForward
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Mixed Leapfrog-forward time step
     !!
@@ -287,8 +287,8 @@ MODULE tracer_module
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
-#endif 
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+#endif
       YSPACE: DO j=1,Ny
         XSPACE: DO i=1,Nx
           IF (land_eta(i,j) .EQ. 1_1) CYCLE XSPACE
@@ -311,9 +311,9 @@ MODULE tracer_module
 #ifdef TRC_PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
-#endif 
+#endif
     END SUBROUTINE TRC_tracerStepLeapfrog
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Adams-Bashforth time step
     !!
@@ -383,11 +383,11 @@ MODULE tracer_module
       IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
       REAL(8)                               :: a_sq, b, c
-      
+
       a_sq = dt**2 * (MAXVAL(u)/(MINVAL(cosTheta_u)*A*dLambda) + MAXVAL(v)/(A*dTheta))**2 / &
        (1._8+2._8*dt*(TRC_C1_cons+MINVAL(TRC_C1_relax)))
       b = 8._8 * dt * TRC_C1_A * (1._8/(MINVAL(cosTheta_u)*A*dLambda)**2 + 1._8/(A*dTheta)**2)
-      
+
       IF (1._8 - b - a_sq .LE. 0._8) THEN
        WRITE &
        (*,'("WARNING: Stability criteria of relaxed Tracer equation not met.",/,'// &
@@ -395,7 +395,7 @@ MODULE tracer_module
        "Timestep","Criterion","b","a_sq",itt,1._8 - b - a_sq,b,a_sq
       END IF
     END SUBROUTINE TRC_checkLeapfrogStability
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Intialise the differential operator for the mixed Leapfrog scheme
     !!
@@ -447,7 +447,7 @@ MODULE tracer_module
         TRC_Coef_LF(i,j,14) = 2*dt*TRC_C1_relax(i,j)*TRC_C1_0(i,j)/(1.+2.*dt*(TRC_C1_cons+TRC_C1_relax(i,j)))
       END FORALL
     END SUBROUTINE TRC_initLFScheme
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Intialise the differential operator for the Euler forward
     !! and Adams-Bashforth scheme
@@ -462,7 +462,7 @@ MODULE tracer_module
       IMPLICIT NONE
       INTEGER       :: alloc_error
       INTEGER       :: i,j
-      
+
       ALLOCATE(TRC_Coef_AB(1:13,1:Nx,1:Ny), stat=alloc_error)
       IF(alloc_error.ne.0) THEN
         PRINT *,"Allocation error in TRC_initABScheme"
@@ -487,7 +487,7 @@ MODULE tracer_module
                                         /(dTheta**2*A**2*cosTheta_u(j)))
       END FORALL
     END SUBROUTINE TRC_initABScheme
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise the implicit terms for the Euler-forward and
     !! Adams-Bashforth schemes
@@ -522,7 +522,7 @@ MODULE tracer_module
       DEALLOCATE(TRC_Coef_LF, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE TRC_finishLFScheme
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Deallocates the coefficient matrix of the Euler-forward
     !! and Adams-Bashforth scheme
@@ -572,7 +572,7 @@ MODULE tracer_module
 #endif
     END SUBROUTINE TRC_getVelocity
 
-END MODULE tracer_module 
+END MODULE tracer_module
 
 
 
