@@ -4,15 +4,21 @@
 !!
 !! This module provides the memoryChunk type, used to provide a buffer of data from disk.
 !!
+!! @par Includes:
+!! io.h
+!!
 !! @par Uses:
 !! io_module
 !------------------------------------------------------------------
 MODULE memchunk_module
+#include "io.h"
   USE io_module
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: initMemChunk, getChunkData, isConstant, isSetChunk, getChunkSize, isPersistent, isInitialised, finishMemChunk
+  PUBLIC :: memoryChunk, initMemChunk, getChunkData, isConstant, isSetChunk,&
+            getChunkSize, isPersistent, isInitialised, finishMemChunk, getFileNameMC,&
+            getVarNameMC
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to handle data requests from disk
@@ -24,7 +30,7 @@ MODULE memchunk_module
   !! For now, only dataset with regularly spaced time axis are supported propperly.
   !! If the time axis is irregular, it will be assumed that \f$dt=(t_{last}-t_{first})/(n_t-1)\f$.
   !------------------------------------------------------------------
-  TYPE, PUBLIC :: memoryChunk
+  TYPE :: memoryChunk
     TYPE(fileHandle), PRIVATE              :: FH                      !< File handle pointing to a existing file.
     LOGICAL, PRIVATE                       :: isInitialised=.FALSE.   !< .TRUE. if the object is properly initialised, i.e. if this::FH it points to an existing variable in an existing file.
     LOGICAL, PRIVATE                       :: isPersistent=.FALSE.    !< .TRUE. if complete variable fits into chunksize. No dynamic reloading of data needed.
@@ -40,7 +46,7 @@ MODULE memchunk_module
   END TYPE
 
   CONTAINS
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialises a memchunk_module::memoryChunk
     !!
@@ -82,7 +88,8 @@ MODULE memchunk_module
       ELSE IF (chunkSize.GE.nrec+1) THEN ! chunk size too large, persistent chunk is cheaper and faster
         memChunk%isPersistent = .TRUE.
         memChunk%chunkSize    = nrec+1
-        IF(chunksize.GT.nrec+1) PRINT *,"Memory chunksize changed to increase efficiency"
+        IF(chunksize.GT.nrec+1) PRINT *,"INFO: Chunksize of ",&
+          TRIM(getFileNameMC(memChunk)),":",TRIM(getVarNameMC(memChunk))," changed to increase efficiency"
       ELSE
         memChunk%chunkSize    = chunkSize
       END IF
@@ -141,8 +148,9 @@ MODULE memchunk_module
         memChunk%fileRec = memChunk%fileRec + memChunk%chunkSize - 1
         memChunk%tOffset = memChunk%tOffset - memChunk%dt
       END IF
-      IF (.NOT.isPersistent(memChunk).OR..NOT.isSetChunk(memChunk)) &
+      IF (.NOT.isPersistent(memChunk).OR..NOT.isInitialised(memChunk)) THEN
         CALL getVarChunkFromDisk(memChunk,memChunk%var,memChunk%fileRec,memChunk%chunkSize)
+      END IF
       IF (.NOT.isConstant(memChunk)) THEN
         DO i=1,memChunk%chunkSize
           memChunk%time(i) = memChunk%tOffset
@@ -178,10 +186,10 @@ MODULE memchunk_module
       ! truncate end index if out of bound
       nend = MIN(nstart+len-1,nrec)
       ! set length to at ! least one
-      len2 = MAX(nend-nstart,0) + 1 
+      len2 = MAX(nend-nstart,0) + 1
       ! read chunk from file
       call getVar(memChunk%FH,var(:,:,:len2),nstart,len2)
-      ! check if there is something left to read 
+      ! check if there is something left to read
       IF (len2.LT.len) THEN
         nstart2 = 1
         CALL getVarChunkFromDisk(memChunk,var(:,:,len2+1:),nstart2,len-len2)
@@ -322,4 +330,29 @@ MODULE memchunk_module
       TYPE(memoryChunk), INTENT(in) :: memChunk
       isInit = memChunk%isInitialised
     end FUNCTION isInitialised
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Get the file name used to initialise the memoryChunk object
+    !!
+    !! Retruns the file name of the memoryChunk object. If the object is not
+    !! initialised, the return value will be an empty string.
+    !------------------------------------------------------------------
+    CHARACTER(CHARLEN) FUNCTION getFileNameMC(memChunk) RESULT(fname)
+      IMPLICIT NONE
+      TYPE(memoryChunk), INTENT(inout)   :: memChunk
+      fname = getFileNameFH(memChunk%FH)
+    END FUNCTION getFileNameMC
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Get the variable name used to initialise the memoryChunk object
+    !!
+    !! Retruns the variable name of the memoryChunk object. If the object is not
+    !! initialised, the return value will be an empty string.
+    !------------------------------------------------------------------
+    CHARACTER(CHARLEN) FUNCTION getVarNameMC(memChunk) RESULT(varname)
+      IMPLICIT NONE
+      TYPE(memoryChunk), INTENT(inout)   :: memChunk
+      varname = getVarNameFH(memChunk%FH)
+    END FUNCTION getVarNameMC
+
 END MODULE memchunk_module

@@ -1,23 +1,26 @@
-FC := gfortran
+FC:=gfortran
+SED:=/bin/sed
 O := -O3 -fopenmp
 DEBUG = #-Wall #-g
-FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $O
+FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(HOME)/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I$(HOME)/local/netcdf-3.6.3/include
 libud = -L$(HOME)/local/udunits-1.12.11/lib -ludunits
 includeud = -I$(HOME)/local/udunits-1.12.11/include
+udunitsdef = -D'UNITSPATH="$(HOME)/local/udunits-1.12.11/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrKind)'
+include_dir = -Iinclude
 
 DOXYGEN=/usr/bin/doxygen
 
 # conditional modules
 #cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
 ifneq ($(strip $(cl_elsolv)),)
-  $(info Elliptic solver used by calc_lib module: $(strip $(cl_elsolv))) 
+  $(info Elliptic solver used by calc_lib module: $(strip $(cl_elsolv)))
   cl_elsolv.o := $(cl_elsolv:%=%.o)
   defClElSolv := $(cl_elsolv:%=-D'CALC_LIB_ELLIPTIC_SOLVER=%')
   defClElSolv += $(cl_elsolv:%=-D'CALC_LIB_ELLIPTIC_SOLVER_HEADER="%.h"')
 else
-  $(info Elliptic solver used by calc_lib module: none) 
+  $(info Elliptic solver used by calc_lib module: none)
 endif
 
 modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
@@ -28,7 +31,7 @@ all     : model clean
 #clean
 
 model   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o model $^ $(libnc) $(libud)$
+	$(FC) $(FFLAGS) -o $@ $^ $(libnc) $(libud)$
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o model.h io.h
 	$(FC) $(FFLAGS) -c $<
@@ -36,8 +39,12 @@ model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o mod
 vars_module.o : vars_module.f90 io.h
 	$(FC) $(FFLAGS) -c $<
 
-calendar_module.o : calendar_module.f90 calendar.h
-	$(FC) $(FFLAGS) -c $< $(includeud)
+calendar_module.o : calendar_module.f90 calendar.h include/udunits.inc
+	$(FC) $(FFLAGS) $(udunitsdef) -c $< $(include_dir)
+
+include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
+	@echo Convert F77 udunits interface to F90
+	@$(SED) -e 's/^C/!/' -e '/#define UD_POINTER/d' $< > $@
 
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o swm_lateralmixing_module.o
 	$(FC) $(FFLAGS) -c $<
@@ -75,12 +82,18 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(FC) $(FFLAGS) -c $<
 
-selfcheck : model 
+selfcheck : model
 	sh runselfcheck.sh
 
 doc : doc/Doxyfile doc/html doc/latex
 	@cd doc && $(DOXYGEN) $(<F)
 	@cd doc/latex && make
+
+
+# create folder if needed
+
+"include"  :
+	mkdir -p $@
 
 doc/html :
 	mkdir -p $@

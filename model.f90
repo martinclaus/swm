@@ -37,16 +37,16 @@ PROGRAM model
 #endif
   IMPLICIT NONE
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !! initialise io module (read output suffix and prefix from namelist)
-  !------------------------------------------------------------------
-  call initIO
-  print *, 'initIO done'
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! initialize the variables (namelist input, allocation etc.)
   !------------------------------------------------------------------
   call initVars
   print *, 'initVars done'
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !! initialise io module (read output suffix and prefix from namelist)
+  !------------------------------------------------------------------
+  call initIO
+  print *, 'initIO done'
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! initialize the domain, indices, land masks
@@ -113,7 +113,7 @@ PROGRAM model
 #ifdef SWM
     call SWM_timestep
 #endif
-    
+
 #ifdef TRACER
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! time step tracer
@@ -125,7 +125,7 @@ PROGRAM model
     !! shift model timestep
     !------------------------------------------------------------------
     CALL model_advance
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! write fields to file and do diagnostics
     !------------------------------------------------------------------
@@ -136,7 +136,7 @@ PROGRAM model
     !------------------------------------------------------------------
     if (mod(REAL(itt), Nt / 100.) .LT. 1.) then
       write (*, '(A,"itt = ",I10," (", F5.1,"% of ", I10,") done")', ADVANCE='NO') ACHAR(13),itt,100.0*itt/Nt,Nt
-    end if  
+    end if
 
   END DO TIME
 
@@ -148,7 +148,7 @@ PROGRAM model
   !! Close opened files
   !------------------------------------------------------------------
   call finishDiag
-  
+
   call finishCalcLib
 
 #ifdef SWM
@@ -158,7 +158,9 @@ PROGRAM model
 #ifdef DYNFROMFILE
   call DFF_finishDynFromFile
 #endif
-  
+
+  call finishIO
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! Normal programm termination
   !------------------------------------------------------------------
@@ -265,7 +267,7 @@ PROGRAM model
       WHERE(H .LE. 0.) H = 0._8
       H(:,1)  = 0._8
       H(:,Ny) = 0._8
-      
+
       !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       !! interpolate topography on all grids
       !------------------------------------------------------------------
@@ -274,7 +276,7 @@ PROGRAM model
         H_v(i,j) = ( H(i,j) + H(ip1(i),j) ) / 2._8
         H_eta(i,j) = ( H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j)) ) / 4._8
       END FORALL
-      
+
       !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       !! create landmasks
       !------------------------------------------------------------------

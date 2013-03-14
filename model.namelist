@@ -1,4 +1,4 @@
-&model_nl 
+&model_nl
   A = 6.371e6,          ! radius of the earth (m)
   OMEGA = 7.272205e-05, ! 1/day (1/s)
   G = 7.295125222248319e-05,           ! gravitational acceleration (m/s^2)
@@ -8,10 +8,9 @@
   gamma_new = 0,        ! Newtonian cooling parameter (1/s)
   new_sponge_efolding=2e-1, ! efolding scale of sponge layers
   gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
-  freq_wind = 8.436071429e-8,         ! Frequency of wind forcing
   Nx = 271,             ! number of grid points in x-dir.
   Ny = 101,             ! number of grif points in y-dir.
-  run_length = 5.9584e8,     ! length of run in seconds 
+  run_length = 5.9584e8,     ! length of run in seconds
   Nout = 500,            ! number of eq. distributed "measurements"
   NoutChunk = 10001,    ! max lsize of output files
   dt = 1.25e3,
@@ -21,5 +20,4 @@
   lat_e = 10.           ! max. lat. of the domain (H-grid)
   in_file_H = "H.nc" ! topography input data
   in_varname_H = "H"    ! variable name of topography in input dataset
-  in_file_tau = "tau_54.nc"
 &end

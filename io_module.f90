@@ -127,9 +127,21 @@ MODULE io_module
       open(UNIT_OUTPUT_NL, file = OUTPUT_NL)
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
+      time_unit = ref_cal
+      CALL OpenCal
       CALL MakeCal(modelCalendar)
-      CALL SetCal(modelCalendar, ref_cal)
+      CALL setCal(modelCalendar, time_unit)
     END SUBROUTINE initIO
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  finish io_module
+    !!
+    !! Terminates usage of udunits package
+    !------------------------------------------------------------------
+    SUBROUTINE finishIO
+      IMPLICIT NONE
+      CALL CloseCal
+    END SUBROUTINE finishIO
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Wrapper for handling return values produced by
@@ -270,7 +282,7 @@ MODULE io_module
       call check(nf90_put_var(FH%ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
       call check(nf90_put_var(FH%ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
       FH%nrec = 0
-      CALL SetCal(FH%calendar, time_unit)
+      CALL setCal(FH%calendar, time_unit)
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
@@ -334,8 +346,9 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE openDSHandle(FH)
       IMPLICIT NONE
-      TYPE(fileHandle), INTENT(inout)  :: FH      !< Initialised file handle pointing to a existing variable in a dataset
-      TYPE(fileHandle)                 :: FH_time
+      TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
+      TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
+      character(CHARLEN)               :: t_string  !< String of time unit
       INTEGER    :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
@@ -349,9 +362,9 @@ MODULE io_module
                      __LINE__,FH%filename)
           IF (FH%timedid .EQ. NF90_NOTIMEDIM) &
             CALL check(nf90_inq_dimid(FH%ncid,TAXISNAME,dimid=FH%timedid),__LINE__,FH%filename)
-        END IF
-        CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
+          CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
                    __LINE__,trim(FH%filename))
+        END IF
         IF(FH%timevid.EQ.DEF_TIMEVID) CALL check(nf90_inq_varid(FH%ncid,TAXISNAME,FH%timevid), &
                      __LINE__,FH%filename)
       ELSE ! no time axis in dataset
@@ -359,9 +372,14 @@ MODULE io_module
       END IF
       ! Set calendar
       IF (.NOT.isSetCal(FH%calendar)) THEN
-        IF (FH%nrec.NE.1) THEN ! dataset is not constant in time
+        IF (FH%nrec.NE.1 .AND. FH%timevid.NE.DEF_TIMEVID) THEN ! dataset is not constant in time and has a time axis
           FH_time = getTimeFH(FH)
-          CALL setCal(FH%calendar,getAtt(FH_time,NUG_ATT_UNITS)
+          t_string = getAtt(FH_time,NUG_ATT_UNITS)
+          IF (LEN_TRIM(t_string).EQ.0) THEN
+            t_string = time_unit
+            PRINT *,"WARING: Input dataset ",TRIM(FH%filename)," has no time axis. Assumed time axis: ",TRIM(t_string)
+          END IF
+          CALL setCal(FH%calendar,t_string)
         ELSE ! datset has no non-singleton time axis
           CALL setCal(FH%calendar,time_unit)
         END IF
@@ -567,8 +585,8 @@ MODULE io_module
     !> @brief Returns time coordinates of a variable time axis
     !!
     !! A file handle is manually created (not initialised by io_module::initFH)
-    !! and used to read data from time dimension variable
-    !! @todo Scaling with time(1)? Or which value of time should be used?
+    !! and used to read data from time dimension variable. The time is converted
+    !! to the internal model calendar.
     !------------------------------------------------------------------
     SUBROUTINE getTimeVar(FH,time,tstart,tlen)
       TYPE(fileHandle), INTENT(inout)        :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
@@ -576,7 +594,6 @@ MODULE io_module
       INTEGER, INTENT(in), OPTIONAL          :: tstart        !< Index to start reading
       INTEGER, INTENT(in), OPTIONAL          :: tlen          !< Length of chunk to read
       TYPE(fileHandle)                       :: FH_time       !< Temporarily used file handle of time coordinate variable
-      REAL(8)                                :: steps
       FH_time = getTimeFH(FH)
       IF (PRESENT(tstart)) THEN
         IF(PRESENT(tlen)) THEN
@@ -587,8 +604,8 @@ MODULE io_module
       ELSE
         CALL getVar1Dhandle(FH_time,time)
       END IF
-      CALL ScaleCal(FH%calendar, time(1))
-      CALL CvtCal(FH%calendar, modelCalendar, steps)
+      ! convert to model time unit
+      CALL convertTime(FH%calendar,modelCalendar,time)
     END SUBROUTINE getTimeVar
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -602,6 +619,7 @@ MODULE io_module
       TYPE(fileHandle), INTENT(in)      :: FH
       timeFH = FH
       timeFH%varid = timeFH%timevid
+      timeFH%timevid = DEF_TIMEVID
     END FUNCTION
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -640,9 +658,9 @@ MODULE io_module
       TYPE(fileHandle), intent(out)   :: FH             !< File handle to be returned
       IF (LEN_TRIM(fileName) .NE. 0 .AND. LEN_TRIM(varname) .NE. 0) THEN
         FH = fileHandle(fileName,varname)
+        CALL MakeCal(FH%calendar)
         CALL touch(FH)
       END IF
-      CALL MakeCal(FH%calendar)
     END SUBROUTINE initFH
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
