@@ -19,4 +19,9 @@
 #ifndef SPONGE_SCALE_UNIT
 #define SPONGE_SCALE_UNIT SCU_RADIUS_OF_DEFORMATION
 #endif
+
+/* Maxuimum number of forcing variables */
+#define SWM_MAX_FORCING_INPUT 16
+/* Default chunksize for memoryChunk member of SWM_forcingStream objects */
+#define SWM_DEF_FORCING_CHUNKSIZE 100
 #endif
