@@ -10,18 +10,19 @@ Header file for shallow water model. Meant to set different physics.
 
 /* Switch for Shallow Water Model */
 #define SWM
+#define BAROTROPIC
 /* Switches for timestepping (only use one at a time) */
 #define SWM_TSTEP_ADAMSBASHFORTH
 !#define SWM_TSTEP_HEAPS
 /* Switches for forcing */
-!#define TAU_SCALE 9.949307700452987e+01
+#define TAU_SCALE 1e-2
 /* Switches for damping */
 #define LINEAR_BOTTOM_FRICTION
 #define LATERAL_MIXING
 #define NEWTONIAN_COOLING
 /* Sponge layers */
-!#define NEWTONIAN_SPONGE "NSEW"
-!#define VELOCITY_SPONGE "NSEW"
+#define NEWTONIAN_SPONGE "NSEW"
+#define VELOCITY_SPONGE "NSEW"
 
 /* Switch to load dynamical variables from file (mean flow) */
 !#define DYNFROMFILE

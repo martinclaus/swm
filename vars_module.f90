@@ -30,7 +30,7 @@ MODULE vars_module
   REAL(8)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
   REAL(8)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
   REAL(8)                :: H_overwrite = 1.                 !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
-  
+
   CHARACTER(CHARLEN)     :: in_file_H="H_in.nc"         !< Input filename for bathimetry
   CHARACTER(CHARLEN)     :: in_varname_H="H"            !< Variable name of bathimetry in input dataset
   CHARACTER(CHARLEN)     :: in_file_F1=""               !< Input filename for arbitrary forcing
@@ -51,8 +51,7 @@ MODULE vars_module
   CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
   CHARACTER(CHARLEN)     :: file_v_init="v_init.nc"     !< File containing initial condition for meridional velocity. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
-  CHARACTER(CHARLEN)     :: model_start="0000-00-00 00:00:00" !< Start date and time of the model
-  CHARACTER(CHARLEN)     :: ref_cal="seconds since 0000-00-00 00:00:00"
+  CHARACTER(CHARLEN)     :: model_start="0000-01-01 00:00:00" !< Start date and time of the model
 
   LOGICAL                :: init_cond_from_file=.FALSE. !< States if initial condition is loaded from disk
 
@@ -99,10 +98,10 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
   ! constant fieds H, allocated during initialization
-  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H             !< Size Nx,Ny \n Bathimetry on H grid.
-  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H_u           !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in model:initDomain
-  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H_v           !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in model:initDomain
-  REAL(8), DIMENSION(:,:), ALLOCATABLE :: H_eta         !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H     !< Size Nx,Ny \n Bathimetry on H grid.
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in model:initDomain
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in model:initDomain
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
 
   ! nearest neighbour indices, derived from domain specs
   INTEGER, DIMENSION(:), ALLOCATABLE :: ip1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
@@ -111,17 +110,18 @@ MODULE vars_module
   INTEGER, DIMENSION(:), ALLOCATABLE :: jm1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
 
   ! land/ocean mask, allocated/created during initialization
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_H     !< Size Nx,Ny \n Landmask of H grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_u     !< Size Nx,Ny \n Landmask of u grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_v     !< Size Nx,Ny \n Landmask of v grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: land_eta   !< Size Nx,Ny \n Landmask of eta grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: ocean_H    !< Size Nx,Ny \n Oceanmask of H grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: ocean_u    !< Size Nx,Ny \n Oceanmask of u grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: ocean_v    !< Size Nx,Ny \n Oceanmask of v grid. Computed in model:initDomain
-  INTEGER(1), DIMENSION(:,:), ALLOCATABLE :: ocean_eta  !< Size Nx,Ny \n Oceanmask of eta grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: land_H     !< Size Nx,Ny \n Landmask of H grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: land_u     !< Size Nx,Ny \n Landmask of u grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: land_v     !< Size Nx,Ny \n Landmask of v grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: land_eta   !< Size Nx,Ny \n Landmask of eta grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: ocean_H    !< Size Nx,Ny \n Oceanmask of H grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: ocean_u    !< Size Nx,Ny \n Oceanmask of u grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: ocean_v    !< Size Nx,Ny \n Oceanmask of v grid. Computed in model:initDomain
+  INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: ocean_eta  !< Size Nx,Ny \n Oceanmask of eta grid. Computed in model:initDomain
 
   ! runtime variables
   INTEGER(8) :: itt                                     !< time step index
+  CHARACTER(CHARLEN)     :: ref_cal                     !< unit string of internal model calendar
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -144,7 +144,7 @@ MODULE vars_module
         in_file_F_eta, in_varname_F_eta, & ! specification of input heating file
         in_file_REY, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv,& ! specification of input Reynold stress file
         in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
-        file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file, & ! specification of initial condition fields, need to have time axis
+        file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file,& ! specification of initial condition fields, need to have time axis
         model_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)

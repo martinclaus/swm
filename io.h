@@ -25,12 +25,14 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OUTPUT_NL "output.namelist"
 #define TRACER_NL "model.namelist"
 #define DYNFROMFILE_NL "model.namelist"
+#define SWM_FORCING_NL "model.namelist"
 
 /* Namlist unit identifier */
 #define UNIT_MODEL_NL 17
 #define UNIT_OUTPUT_NL 18
 #define UNIT_TRACER_NL 19
 #define UNIT_DYNFROMFILE_NL 20
+#define UNIT_SWM_FORCING_NL 21
 
 /* Attribute conventions from NetCDF Users' Guide (10.06.2011) */
 #define NUG_ATT_UNITS "units"
@@ -43,7 +45,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define NUG_ATT_SCALE "scale_factor"
 #define NUG_ATT_OFFSET "add_offset"
 
-/* Switches for output control */ 
+/* Switches for output control */
 !#define WRITEINPUT
 !#define WRITEMEAN
 #define TAXISNAME "TIME"
@@ -51,7 +53,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define YAXISNAME "LATITUDE"
 #define XUNIT     "degrees_east"
 #define YUNIT     "degrees_north"
-#define TUNIT     "seconds since 0000-01-01 00:00"
+#define TUNIT     "seconds since 0000-01-01 00:00:00"
 #define OFILEETA   "eta_out.nc"
 #define OFILEU     "u_out.nc"
 #define OFILEV     "v_out.nc"
