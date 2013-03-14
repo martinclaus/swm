@@ -70,7 +70,7 @@ dynFromFile_module.o : dynFromFile_module.f90 io_module.o vars_module.o calc_lib
 memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o
 	$(FC) $(FFLAGS) -c $<
 
-swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o io_module.o
+swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o io_module.o memchunk_module.o
 	$(FC) $(FFLAGS) -c $<
 
 swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h vars_module.o io_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o
@@ -92,7 +92,7 @@ doc : doc/Doxyfile doc/html doc/latex
 
 # create folder if needed
 
-"include"  :
+include/  :
 	mkdir -p $@
 
 doc/html :
