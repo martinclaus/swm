@@ -36,6 +36,13 @@ PROGRAM model
   USE tracer_module
 #endif
   IMPLICIT NONE
+
+#ifdef CUDA_ENABLED
+  integer*4 :: iii
+  integer*4, parameter :: NNN=8
+  real*4, Dimension(NNN) :: aaa, bbb
+#endif
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! initialize the variables (namelist input, allocation etc.)
   !------------------------------------------------------------------
@@ -114,6 +121,10 @@ PROGRAM model
     call SWM_timestep
 #endif
 
+#ifdef CUDA_ENABLED
+    call CU_timestep
+#endif
+
 #ifdef TRACER
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! time step tracer
@@ -159,6 +170,10 @@ PROGRAM model
   call DFF_finishDynFromFile
 #endif
 
+#ifdef CUDA_ENABLED
+  call CU_finish
+#endif
+
   call finishIO
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -190,6 +205,9 @@ PROGRAM model
 #endif
 #ifdef SWM
       CALL SWM_advance
+#endif
+#ifdef CUDA_ENABLED
+      CALL CU_advance
 #endif
 #ifdef TRACER
       CALL TRC_advance
