@@ -22,7 +22,7 @@ MODULE calc_lib
   LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
 
   CONTAINS
-  
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise calc_lib module
     !!
@@ -48,7 +48,7 @@ MODULE calc_lib
       call CALC_LIB_ELLIPTIC_SOLVER_INIT
 #endif
     END SUBROUTINE initCalcLib
-      
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of calc_lib module
     !!
@@ -64,7 +64,7 @@ MODULE calc_lib
       DEALLOCATE(chi, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE finishCalcLib
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Prepare calc_lib module for next time step
     !!
@@ -74,7 +74,7 @@ MODULE calc_lib
       IMPLICIT NONE
       chi_computed=.FALSE.
     END SUBROUTINE advanceCalcLib
-  
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief 1D linear interpolation, usually in time.
     !!
@@ -258,9 +258,9 @@ MODULE calc_lib
 #endif
       FORALL (i=1:Nx, j=2:Ny) &
         psi(i,j) = (-1)*SUM( &
-#ifdef BAROTROPIC        
+#ifdef BAROTROPIC
                             H_v(i:Nx,j) * &
-#endif 
+#endif
                             v_nd(i:Nx,j))*A*cosTheta_v(j)*dLambda &
                       - SUM( &
 #ifdef BAROTROPIC
@@ -268,7 +268,7 @@ MODULE calc_lib
 #endif
                             u_nd(i,1:jm1(j)))*A*dTheta
     END SUBROUTINE computeStreamfunction
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Computes velocities from a given streamfunction
     !!
@@ -286,11 +286,11 @@ MODULE calc_lib
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u   !< Zonal velocity
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_v   !< Meridional velocity
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_eta !< Interface displacement, set to zero at the moment
+      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
       INTEGER   :: i,i_bound(2),j,j_bound(2),l,l_bound(2)
       evSF_u = evSF_zonal(evSF_psi)
       evSF_v = evSF_meridional(evSF_psi)
-      evSF_eta = 0._8
+      IF (PRESENT(evSF_eta)) evSF_eta = 0._8
     END SUBROUTINE evaluateStreamfunction
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -319,7 +319,7 @@ MODULE calc_lib
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2) 
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2)
       YSPACE: DO j=1,j_bound
         XSPACE: DO i=1,i_bound
           IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE
@@ -350,7 +350,7 @@ MODULE calc_lib
     !! vars_module, ONLY : ip1,ocean_H,ocean_v,H_v,A,dLambda,cosTheta_v
     !! @note If BAROTROPIC is not defined, the H_u factor will be droped from the equation above.
     !------------------------------------------------------------------
-    FUNCTION evSF_meridional(evSF_psi)  
+    FUNCTION evSF_meridional(evSF_psi)
       USE vars_module, ONLY : ip1,ocean_H,ocean_v,H_v,A,dLambda,cosTheta_v
       IMPLICIT NONE
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to process
@@ -363,7 +363,7 @@ MODULE calc_lib
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2) 
+!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2)
       YSPACE: DO j=1,j_bound
         XSPACE: DO i=1,i_bound
           IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE

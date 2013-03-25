@@ -173,9 +173,6 @@ PROGRAM model
     !!
     !! Resets the dynamical variables (vars_module::u, vars_module::v, vars_module::eta)
     !! and calls advance routines of used modules
-    !!
-    !! @bug dynFromFile_module::DFF_advance is commented out at the moment, because the model is only used to provide basic state.
-    !! Seperate handling of basic state input is needed.
     !------------------------------------------------------------------
     SUBROUTINE model_advance
       IMPLICIT NONE
@@ -188,9 +185,9 @@ PROGRAM model
       !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       !! advance each module to write new information at time N0
       !------------------------------------------------------------------
-!#ifdef DYNFROMFILE
-!      CALL DFF_advance
-!#endif
+#ifdef DYNFROMFILE
+      CALL DFF_advance
+#endif
 #ifdef SWM
       CALL SWM_advance
 #endif

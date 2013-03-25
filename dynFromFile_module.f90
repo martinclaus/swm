@@ -13,21 +13,19 @@
 !! @par Includes:
 !!      io.h
 !! @par Uses:
-!!      io_module::fileHandle \n
 !!      memchunk_module, ONLY: memoryChunk
 !! @par Convention:
 !!      All member variables and procedure names are prefixed with DFF
 !------------------------------------------------------------------
 MODULE dynFromFile_module
 #include "io.h"
-  USE io_module, ONLY: fileHandle
   USE memchunk_module, ONLY: memoryChunk
   IMPLICIT NONE
   SAVE
   PRIVATE
-  
+
   PUBLIC :: DFF_initDynFromFile, DFF_finishDynFromFile, DFF_timestep, DFF_advance
-  
+
   TYPE(memoryChunk) :: DFF_eta_chunk                    !< Input stream associated with a dataset containing interace displacement
   TYPE(memoryChunk) :: DFF_u_chunk                      !< Input stream associated with a dataset containing zonal velocity
   TYPE(memoryChunk) :: DFF_v_chunk                      !< Input stream associated with a dataset containing meridional
@@ -38,7 +36,7 @@ MODULE dynFromFile_module
   LOGICAL           :: DFF_psi_input                    !< .TRUE. if dynFromFile_module::DFF_psi_chunk is initialised
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: DFF_psi_u   !< Zonal velocity computed from streamfunction
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: DFF_psi_v   !< Meridional velocity computed from streamfunction
-  
+
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Initialise module
@@ -68,7 +66,7 @@ MODULE dynFromFile_module
         FileName_u, FileName_v, FileName_eta, FileName_psi, & ! Filenames of input files of dynamical variables
         varname_eta, varname_u, varname_v, varname_psi, & ! Variable names in input files
         DFF_Nt_chunksize ! Number of timesteps to read at once
-      ! read the namelist and close again  
+      ! read the namelist and close again
       open(UNIT_DYNFROMFILE_NL, file = DYNFROMFILE_NL)
       read(UNIT_DYNFROMFILE_NL, nml = dynFromFile)
       close(UNIT_DYNFROMFILE_NL)
@@ -92,7 +90,7 @@ MODULE dynFromFile_module
       ! set initial conditions
       CALL DFF_advance
     END SUBROUTINE DFF_initDynFromFile
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Deallocate allocated memory
     !!
@@ -114,7 +112,7 @@ MODULE dynFromFile_module
       CALL finishMemChunk(DFF_eta_chunk)
       CALL finishMemChunk(DFF_psi_chunk)
     END SUBROUTINE DFF_finishDynFromFile
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Does nothing
     !!
@@ -124,7 +122,7 @@ MODULE dynFromFile_module
       IMPLICIT NONE
       ! Nothing to do while timestepping
     END SUBROUTINE DFF_timestep
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Add data from files to model fields
     !!
@@ -150,7 +148,7 @@ MODULE dynFromFile_module
         v(:,:,N0) = v(:,:,N0) + ocean_v * DFF_psi_v(:,:,1)
       END IF
     END SUBROUTINE DFF_advance
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Get streamfunction from file and compute velocity field
     !!

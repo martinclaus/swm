@@ -33,7 +33,7 @@ all     : model clean
 model   : $(modules:%=%.o) model.o
 	$(FC) $(FFLAGS) -o $@ $^ $(libnc) $(libud)$
 
-model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o model.h io.h
+model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
 	$(FC) $(FFLAGS) -c $<
 
 vars_module.o : vars_module.f90 io.h
@@ -46,7 +46,7 @@ include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
 	@$(SED) -e 's/^C/!/' -e '/#define UD_POINTER/d' $< > $@
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o swm_lateralmixing_module.o
+swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o
 	$(FC) $(FFLAGS) -c $<
 
 diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
@@ -64,16 +64,16 @@ tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o ca
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
 	$(FC) $(FFLAGS) $(defClElSolv) -c $<
 
-dynFromFile_module.o : dynFromFile_module.f90 io_module.o vars_module.o calc_lib.o memchunk_module.o
+dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o
 	$(FC) $(FFLAGS) -c $<
 
-memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o
+memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o vars_module.o
 	$(FC) $(FFLAGS) -c $<
 
-swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o io_module.o memchunk_module.o
+swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o
 	$(FC) $(FFLAGS) -c $<
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h vars_module.o io_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o
 	$(FC) $(FFLAGS) -c $<
 
 swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o

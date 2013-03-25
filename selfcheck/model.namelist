@@ -28,15 +28,19 @@
   model_start="1945-01-01 12:00"
 &end
 
+!basic state
+&swm_bs_nl filename="bs_sc.nc" varname="PSI" chunksize=1 &end
+
 !Forcing Files
 &swm_forcing_nl filename="taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
 &swm_forcing_nl filename="tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
 
 &dynFromFile
-  FileName_u="u_dff_sc.nc",
-  FileName_v="v_dff_sc.nc",
-  FileName_eta="eta_dff_sc.nc", ! Filenames of input files of dynamical variables
-  DFF_Nt_chunksize=57 ! Number of timesteps to read at once
+!  FileName_u="u_dff_sc.nc",
+!  FileName_v="v_dff_sc.nc",
+!  FileName_eta="eta_dff_sc.nc", ! Filenames of input files of dynamical variables
+!  FileName_psi="bs_sc.nc",
+!  DFF_Nt_chunksize=57 ! Number of timesteps to read at once
 &end
 &tracer_nl
   TRC_C1_A = 1e2     ! horizontal tracer diffusivity

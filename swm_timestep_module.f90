@@ -7,31 +7,32 @@
 !! and appropriate time stepping routines are supplied. The choice of the time
 !! stepping scheme is done according to the selection in model.h.
 !! If AdamsBashforth scheme is used, the shallow water equations will be linearised about
-!! a basic state, which is the inital state of the host model loaded in
-!! dynFromFile_module::DFF_initDynFromFile. If Heaps scheme is selected, the equations
-!! are linearised about a state of rest.
+!! a basic state, which is the streamfunction located in a dataset specified by the SWM_bs_nl namelist.
+!! If Heaps scheme is selected, the equations are linearised about a state of rest.
 !!
 !! @par Includes:
 !! model.h, swm_module.h
 !! @par Uses:
 !! swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u\n
 !! swm_forcing_module, ONLY : F_x, F_y, F_eta\n
-!! swm_lateralmixing_module
+!! swm_lateralmixing_module \n
+!! memchunk_module, ONLY : memoryChunk
 !!
 !! @todo Replace AB_Chi by namelist entry
 !------------------------------------------------------------------
 MODULE swm_timestep_module
 #include "model.h"
 #include "swm_module.h"
+#include "io.h"
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
   USE swm_lateralmixing_module
+  USE memchunk_module, ONLY : memoryChunk
   IMPLICIT NONE
-  SAVE
   PRIVATE
-  
-  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, &
-            NG, NG0, NG0m1, SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta
+
+  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
+            SWM_u, SWM_v, SWM_eta
 
   ! constant coefficients (specific for time stepping scheme)
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
@@ -49,20 +50,60 @@ MODULE swm_timestep_module
   REAL(8), PARAMETER                             :: AB_Chi=.1_8         !< AdamsBashforth displacement coefficient
   REAL(8), PARAMETER                             :: AB_C1=1.5_8+AB_Chi  !< AdamsBashforth weight factor for present time level
   REAL(8), PARAMETER                             :: AB_C2=.5_8+AB_Chi   !< AdamsBashforth weight factor for past time level
+  TYPE(memoryChunk)                              :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
+
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Intialise time stepping module
     !!
+    !! Reads namelist SWM_bs_nl defining the basic state and initialise its memchunk.
     !! Calls the coefficient initialisation routine according to time
-    !! stepping scheme defined in module.h
+    !! stepping scheme defined in module.h.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : Nx, Ny \n
+    !! memchunk_module, ONLY : initMemChunk
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_init
+      USE vars_module, ONLY : Nx, Ny
+      USE memchunk_module, ONLY : initMemChunk
+      CHARACTER(CHARLEN)  :: filename="", varname=""
+      INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat
+      LOGICAL             :: timestepInitialised=.FALSE.
+      namelist / swm_bs_nl / filename, varname, chunksize
+
+      ALLOCATE(G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=stat)
+      IF (stat .ne. 0) THEN
+        WRITE(*,*) "Allocation error in SWM_timestep_init:",stat
+        STOP 1
+      END IF
+
 #ifdef SWM_TSTEP_HEAPS
+      IF (timestepInitialised) THEN
+        PRINT *,"ERROR: Multiple time stepping schemes defined"
+        STOP 1000
+      END IF
       CALL SWM_timestep_initHeapsScheme
+      timestepInitialised = .TRUE.
 #endif
+
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
+      ! read the basic state namelist and close again
+      IF (timestepInitialised) THEN
+        PRINT *,"ERROR: Multiple time stepping schemes defined"
+        STOP 1000
+      END IF
+      open(UNIT_MODEL_NL, file = MODEL_NL)
+      read(UNIT_MODEL_NL, nml = swm_bs_nl, iostat=stat)
+      close(UNIT_MODEL_NL)
+      IF (stat .NE. 0) THEN
+        PRINT *,"ERROR loading basic state namelist SWM_BS_nl"
+        STOP 1
+      END IF
+      CALL initMemChunk(filename,varname,chunksize,SWM_MC_bs_psi)
       CALL SWM_timestep_initLiMeanState
+      timestepInitialised = .TRUE.
 #endif
     END SUBROUTINE SWM_timestep_init
 
@@ -71,18 +112,42 @@ MODULE swm_timestep_module
     !!
     !! Deallocates the coefficient matrices of the defined time stepping method.
     !!
+    !! @par Uses:
+    !! memchunk_module, ONLY : finishMemChunk
+    !!
     !! @todo swm_timestep_module::SWM_timestep_finishHeapsScheme and
     !! swm_timestep_module::SWM_timestep_finishLiMeanState are identical. There is no need
     !! to keep both of them.
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_finish
+      USE memchunk_module, ONLY : finishMemChunk
+      IMPLICIT NONE
+      INTEGER   :: alloc_error
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
       CALL SWM_timestep_finishLiMeanState
+      CALL finishMemChunk(SWM_MC_bs_psi)
 #endif
 #ifdef SWM_TSTEP_HEAPS
       CALL SWM_timestep_finishHeapsScheme
 #endif
+      DEALLOCATE(G_u, G_v, G_eta, stat=alloc_error)
+      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_timestep_finish
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Time stepping advancing routine
+    !!
+    !! Prepares SWM_timestep_module for the next timestep.
+    !! Shifts increment vectors back in memory.
+    !------------------------------------------------------------------
+    SUBROUTINE SWM_timestep_advance
+      IMPLICIT NONE
+      ! Shift explicit increment vectors
+      G_u(:,:,1:NG-1) = G_u(:,:,2:NG)
+      G_v(:,:,1:NG-1) = G_v(:,:,2:NG)
+      G_eta(:,:,1:NG-1) = G_eta(:,:,2:NG)
+    END SUBROUTINE SWM_timestep_advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Time stepping routine
@@ -122,12 +187,12 @@ MODULE swm_timestep_module
     SUBROUTINE SWM_timestep_Heaps
       USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, land_eta, land_u, land_v
       IMPLICIT NONE
-      INTEGER :: i, j 
+      INTEGER :: i, j
       REAL(8) :: v_u, u_v
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       YSPACE1: DO j=1,Ny   ! loop over y dimension
         XSPACE1: DO i=1,Nx ! loop over x dimension
           IF (land_eta(i,j) == 1) cycle XSPACE1 !skip this grid point, because it is land
@@ -139,7 +204,7 @@ MODULE swm_timestep_module
                                 FETADEP &
 #endif
                             ) &
-                          )                                                                     & 
+                          )                                                                     &
                           / impl_eta(i,j)                                                         ! / (1+dt*gamma_new)
         ENDDO XSPACE1
       ENDDO YSPACE1
@@ -155,7 +220,7 @@ MODULE swm_timestep_module
           SWM_u(i,j,N0p1) = ( SWM_Coef_u(1,i,j)*SWM_u(i,j,N0)                                             &
                           + SWM_Coef_u(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_u(11,i,j)*SWM_eta(im1(i),j,N0p1) &
                           + SWM_Coef_u(6,i,j)*SWM_v(i,j,N0)                               &
-                          + SWM_Coef_u(7,i,j)*SWM_v(im1(i),j,N0)                        &                      
+                          + SWM_Coef_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
                           + SWM_Coef_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
                           + SWM_Coef_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -168,7 +233,7 @@ MODULE swm_timestep_module
                           + lat_mixing_u(4,i,j)*SWM_u(i,jp1(j),N0)                        &
                           + lat_mixing_u(5,i,j)*SWM_u(i,jm1(j),N0)                        &
                           + lat_mixing_u(6,i,j)*SWM_v(i,j,N0)                             &
-                          + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &                      
+                          + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
                           + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
                           + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #endif
@@ -179,12 +244,12 @@ MODULE swm_timestep_module
                             )&
 #ifdef TDEP_FORCING
                           + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
-#endif                      
+#endif
                           ) / impl_u(i,j)                                        ! implicit linear friction
         ENDDO XSPACE2
       ENDDO YSPACE2
 !$OMP END DO
-!$OMP DO PRIVATE(i,j)& 
+!$OMP DO PRIVATE(i,j)&
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       YSPACE3: DO j=1,Ny   ! loop over y dimension
         XSPACE3: DO i=1,Nx ! loop over x dimension
@@ -195,7 +260,7 @@ MODULE swm_timestep_module
           SWM_v(i,j,N0p1) = ( SWM_Coef_v(1,i,j)*SWM_v(i,j,N0)                 &
                           + SWM_Coef_v(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_v(11,i,j)*SWM_eta(i,jm1(j),N0p1)        &
                           + SWM_Coef_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0p1)             &
-                          + SWM_Coef_v(7,i,j)*SWM_u(i,jm1(j),N0p1)                  & 
+                          + SWM_Coef_v(7,i,j)*SWM_u(i,jm1(j),N0p1)                  &
                           + SWM_Coef_v(8,i,j)*SWM_u(i,j,N0p1)                       &
                           + SWM_Coef_v(9,i,j)*SWM_u(ip1(i),j,N0p1)                  &
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -208,7 +273,7 @@ MODULE swm_timestep_module
                           + lat_mixing_v(4,i,j)*SWM_v(i,jp1(j),N0)                  &
                           + lat_mixing_v(5,i,j)*SWM_v(i,jm1(j),N0)                  &
                           + lat_mixing_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0)           &
-                          + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                & 
+                          + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                &
                           + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
                           + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
 #endif
@@ -219,7 +284,7 @@ MODULE swm_timestep_module
                             )&
 #ifdef TDEP_FORCING
                           + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
-#endif                      
+#endif
                           ) / impl_v(i,j)                                        ! implicit linear friction
         ENDDO XSPACE3
       ENDDO YSPACE3
@@ -248,7 +313,7 @@ MODULE swm_timestep_module
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       YSPACE: DO j=1,Ny   ! loop over y dimension
         XSPACE: DO i=1,Nx ! loop over x dimension
           ! eta equation
@@ -286,7 +351,7 @@ MODULE swm_timestep_module
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fu0(i,j) &                                             ! time dep. forcing
-#endif                      
+#endif
                           )
             ! Integrate
             SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*(AB_C1*G_u(i,j,NG0) - AB_C2*G_u(i,j,NG0m1)))/impl_u(i,j)
@@ -310,7 +375,7 @@ MODULE swm_timestep_module
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fv0(i,j) &                                             ! time dep. forcing
-#endif                      
+#endif
                            )
            ! Integrate
            SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*(AB_C1*G_v(i,j,NG0) - AB_C2*G_v(i,j,NG0m1)))/impl_v(i,j)
@@ -336,7 +401,7 @@ MODULE swm_timestep_module
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2) 
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       YSPACE: DO j=1,Ny   ! loop over y dimension
         XSPACE: DO i=1,Nx ! loop over x dimension
           ! eta equation
@@ -350,7 +415,7 @@ MODULE swm_timestep_module
                              + F_eta(i,j) &
 #ifdef FETADEP
                                 FETADEP &
-#endif 
+#endif
                              )
             ! Integrate
             SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*G_eta(i,j,NG0))/impl_eta(i,j)
@@ -374,10 +439,10 @@ MODULE swm_timestep_module
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fu0(i,j) &                                             ! time dep. forcing
-#endif                      
+#endif
                            )
             ! Integrate
-            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j) 
+            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j)
           END IF U
           V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -389,7 +454,7 @@ MODULE swm_timestep_module
                                   SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
                                 SWM_Coef_v(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
-                           - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction 
+                           - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef FYDEP
@@ -397,7 +462,7 @@ MODULE swm_timestep_module
 #endif
 #ifdef TDEP_FORCING
                            + TDF_Fv0(i,j) &                                             ! time dep. forcing
-#endif                      
+#endif
                            )
             ! Integrate
             SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*G_v(i,j,NG0))/impl_v(i,j)
@@ -482,18 +547,23 @@ MODULE swm_timestep_module
     !! the lateral mixing coefficients are initialised and added to the coefficient matrix.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, D2R, OMEGA, dLambda, dTheta,lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
+    !! vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, A, G, D2R, OMEGA, dLambda, dTheta, lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H\n
+    !! calc_lib, ONLY : evaluateStreamfunction
+    !! memchunk_module, ONLY : getChunkData
     !! @todo Think about a time dependent basic state
-    !! @todo Add input stream for basic state instead of using the initial conditions of host model
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_initLiMeanState
-      USE vars_module, ONLY : N0, Nx, Ny, ip1, im1, jp1, jm1, u, v, A, G, D2R, OMEGA, dLambda, dTheta, &
+      USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, A, G, D2R, OMEGA, dLambda, dTheta, &
                               lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
+      USE calc_lib, ONLY : evaluateStreamfunction
+      USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
-      REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v
+      REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v, u_bs, v_bs
+      REAL(8), DIMENSION(:,:,:), ALLOCATABLE ::  psi_bs
       ALLOCATE(SWM_Coef_eta(1:9,1:Nx, 1:Ny), SWM_Coef_v(1:11, 1:Nx, 1:Ny), SWM_Coef_u(1:11, 1:Nx, 1:Ny),&
-               U_v(1:Nx, 1:Ny), V_u(1:Nx, 1:Ny), f(1:Nx, 1:Ny), f_u(1:Nx, 1:Ny), f_v(1:Nx, 1:Ny), stat=alloc_error)
+               U_v(1:Nx, 1:Ny), V_u(1:Nx, 1:Ny), f(1:Nx, 1:Ny), f_u(1:Nx, 1:Ny), f_v(1:Nx, 1:Ny), &
+               psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny),v_bs(1:Nx,1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
         STOP 1
@@ -507,14 +577,20 @@ MODULE swm_timestep_module
       f_v = 0._8
       U_v = 0._8
       V_u = 0._8
+      psi_bs = 0._8
+      u_bs   = 0._8
+      v_bs   = 0._8
+      ! get basic state
+      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
+      CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       ! compute ambient vorticity
       FORALL (i=1:Nx, j=1:Ny)
         f(i,j) =  2*OMEGA*SIN(D2R*lat_H(j)) & ! coriolis parameter
                 + ocean_H(i,j)/(A*cosTheta_v(j))*(&
-                  (v(i,j,N0)-v(im1(i),j,N0))/dLambda &
-                  - (cosTheta_u(j)*u(i,j,N0) - cosTheta_u(jm1(j))*u(i,jm1(j),N0))/dTheta)
-        U_v(i,j) = .25_8*(u(i,j,N0)+u(ip1(i),j,N0)+u(ip1(i),jm1(j),N0)+u(i,jm1(j),N0))
-        V_u(i,j) = .25_8*(v(im1(i),jp1(j),N0)+v(im1(i),j,N0)+v(i,j,N0)+v(i,jp1(j),N0))
+                  (v_bs(i,j)-v_bs(im1(i),j))/dLambda &
+                  - (cosTheta_u(j)*u_bs(i,j) - cosTheta_u(jm1(j))*u_bs(i,jm1(j)))/dTheta)
+        U_v(i,j) = .25_8*(u_bs(i,j)+u_bs(ip1(i),j)+u_bs(ip1(i),jm1(j))+u_bs(i,jm1(j)))
+        V_u(i,j) = .25_8*(v_bs(im1(i),jp1(j))+v_bs(im1(i),j)+v_bs(i,j)+v_bs(i,jp1(j)))
       END FORALL
       FORALL (i=1:Nx, j=1:Ny)
         f_u(i,j) = .5_8 * (f(i,j)+f(i,jp1(j)))
@@ -523,12 +599,12 @@ MODULE swm_timestep_module
 
       FORALL (i=1:Nx, j=1:Ny)
         ! eta coefficients
-        SWM_Coef_eta(1,i,j) = -(u(ip1(i),j,N0)-u(i,j,N0))/(2.*A*cosTheta_u(j)*dLambda) &
-                              -(cosTheta_v(jp1(j))*v(i,jp1(j),N0)-cosTheta_v(j)*v(i,j,N0))/(2.*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(2,i,j) = - u(ip1(i),j,N0) / (2.*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(3,i,j) =   u(i     ,j,N0) / (2.*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v(i,jp1(j),N0))/(2.*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v(i,j,N0))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(1,i,j) = -(u_bs(ip1(i),j)-u_bs(i,j))/(2.*A*cosTheta_u(j)*dLambda) &
+                              -(cosTheta_v(jp1(j))*v_bs(i,jp1(j))-cosTheta_v(j)*v_bs(i,j))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(2,i,j) = - u_bs(ip1(i),j) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(3,i,j) =   u_bs(i     ,j) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v_bs(i,jp1(j)))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v_bs(i,j))/(2.*A*cosTheta_u(j)*dTheta)
         SWM_Coef_eta(6,i,j) = -(H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(7,i,j) =  (H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(8,i,j) = -(cosTheta_v(jp1(j))*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
@@ -536,38 +612,38 @@ MODULE swm_timestep_module
         ! u coefficients
         SWM_Coef_u(1,i,j)   =  (cosTheta_u(j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j))) &
                                  - cosTheta_u(j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j)))*V_u(i,j)
-        SWM_Coef_u(2,i,j)   = - u(ip1(i),j,N0)/(2.*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(3,i,j)   =   u(im1(i),j,N0)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(2,i,j)   = - u_bs(ip1(i),j)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(3,i,j)   =   u_bs(im1(i),j)/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(4,i,j)   = - cosTheta_u(jp1(j))*V_u(i,j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j)))
         SWM_Coef_u(5,i,j)   =   cosTheta_u(jm1(j))*V_u(i,j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j))
         SWM_Coef_u(6,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
-                                 - (v(i,j,N0))/(2.*A*dLambda*cosTheta_u(j))
+                                 - (v_bs(i,j))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(7,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
-                                 + (v(im1(i),j,N0))/(2.*A*dLambda*cosTheta_u(j))
+                                 + (v_bs(im1(i),j))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(8,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
-                                 + (v(im1(i),jp1(j),N0))/(2.*A*dLambda*cosTheta_u(j))
+                                 + (v_bs(im1(i),jp1(j)))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(9,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
-                                 - (v(i,jp1(j),N0))/(2.*A*dLambda*cosTheta_u(j))
+                                 - (v_bs(i,jp1(j)))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(10,i,j)  = - g / (A*cosTheta_u(j)*dLambda)
         SWM_Coef_u(11,i,j)  =   g / (A*cosTheta_u(j)*dLambda)
         ! v coefficients
         SWM_Coef_v(1,i,j)   =  ((ocean_H(ip1(i),j)-ocean_H(i,j))*U_v(i,j))/(2.*A*dLambda*cosTheta_v(j))
         SWM_Coef_v(2,i,j)   =  (-U_v(i,j)*ocean_H(ip1(i),j))/(2.*A*dLambda*cosTheta_v(j))
         SWM_Coef_v(3,i,j)   =  (U_v(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j))
-        SWM_Coef_v(4,i,j)   =  (-v(i,jp1(j),N0))/(2.*A*dTheta)
-        SWM_Coef_v(5,i,j)   =  (v(i,jm1(j),N0))/(2.*A*dTheta)
+        SWM_Coef_v(4,i,j)   =  (-v_bs(i,jp1(j)))/(2.*A*dTheta)
+        SWM_Coef_v(5,i,j)   =  (v_bs(i,jm1(j)))/(2.*A*dTheta)
         SWM_Coef_v(6,i,j)   = - f_v(i,j)/4. - (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 + (u(ip1(i),jm1(j),N0))/(2.*A*dTheta)
+                                 + (u_bs(ip1(i),jm1(j)))/(2.*A*dTheta)
         SWM_Coef_v(7,i,j)   = - f_v(i,j)/4. - (ocean_H(i,j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 + (u(i,jm1(j),N0))/(2.*A*dTheta)
+                                 + (u_bs(i,jm1(j)))/(2.*A*dTheta)
         SWM_Coef_v(8,i,j)   = - f_v(i,j)/4. + (ocean_H(i,j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 - (u(i,j,N0))/(2.*A*dTheta)
+                                 - (u_bs(i,j))/(2.*A*dTheta)
         SWM_Coef_v(9,i,j)   = - f_v(i,j)/4. + (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 - (u(ip1(i),j,N0))/(2.*A*dTheta)
+                                 - (u_bs(ip1(i),j))/(2.*A*dTheta)
         SWM_Coef_v(10,i,j)  = - g / (A*dTheta)
         SWM_Coef_v(11,i,j)  =   g / (A*dTheta)
       END FORALL
-      DEALLOCATE(U_v, V_u, f, f_u, f_v, stat=alloc_error)
+      DEALLOCATE(U_v, V_u, f, f_u, f_v, psi_bs, u_bs, v_bs, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
 #ifdef LATERAL_MIXING
       CALL SWM_LateralMixing_init
@@ -575,7 +651,7 @@ MODULE swm_timestep_module
       SWM_Coef_v(1:9,:,:) = SWM_Coef_v(1:9,:,:) + lat_mixing_v
 #endif
     END SUBROUTINE SWM_timestep_initLiMeanState
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Deallocate the coefficient matrix
     !!

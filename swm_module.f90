@@ -29,10 +29,9 @@ USE swm_timestep_module
     SUBROUTINE SWM_initSWM
       USE vars_module, ONLY : Nx, Ny, Ns
       IMPLICIT NONE
-      INTEGER :: alloc_error ! spatial coordinates
+      INTEGER :: alloc_error, stat ! return status
       ! allocate what's necessary
-      ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),&
-               G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=alloc_error)
+      ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_init:",alloc_error
         STOP 1
@@ -55,7 +54,7 @@ USE swm_timestep_module
       CALL SWM_timestep_finish
       CALL SWM_forcing_finish
       CALL SWM_damping_finish
-      DEALLOCATE(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, stat=alloc_error)
+      DEALLOCATE(SWM_u, SWM_v, SWM_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_finishSWM
 
@@ -93,10 +92,7 @@ USE swm_timestep_module
       u(:,:,N0)     = u(:,:,N0) + SWM_u(:,:,N0)
       v(:,:,N0)     = v(:,:,N0) + SWM_v(:,:,N0)
       eta(:,:,N0)   = eta(:,:,N0) + SWM_eta(:,:,N0)
-      ! Shift explicit increment vectors
-      G_u(:,:,1:NG-1) = G_u(:,:,2:NG)
-      G_v(:,:,1:NG-1) = G_v(:,:,2:NG)
-      G_eta(:,:,1:NG-1) = G_eta(:,:,2:NG)
+      CALL SWM_timestep_advance
     END SUBROUTINE SWM_advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
