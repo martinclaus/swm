@@ -37,12 +37,6 @@ PROGRAM model
 #endif
   IMPLICIT NONE
 
-#ifdef CUDA_ENABLED
-  integer*4 :: iii
-  integer*4, parameter :: NNN=8
-  real*4, Dimension(NNN) :: aaa, bbb
-#endif
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! initialize the variables (namelist input, allocation etc.)
   !------------------------------------------------------------------
