@@ -149,13 +149,6 @@ MODULE diag_module
           WRITE (fullrecstr, '(i12.12)') fullrec
           rec = 1  
         END IF
-
-#ifdef CUDA_ENABLED
-        call CU_copyToHost_u(u(:,:,N0));
-        call CU_copyToHost_v(v(:,:,N0));
-        call CU_copyToHost_eta(eta(:,:,N0));
-#endif
-
         ! calculate streamfunction
         call computeStreamfunction(psi)
         ! write output

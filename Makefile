@@ -2,7 +2,7 @@ FC:=gfortran
 SED:=/bin/sed
 O := -O3 -fopenmp
 DEBUG = #-Wall #-g
-FFLAGS = -cpp -ffree-line-length-none $(cl_defCudaEnabled) $(DEBUG) $(O)
+FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(HOME)/local/netcdf-3.6.3/lib -lnetcdf
 includenc = -I$(HOME)/local/netcdf-3.6.3/include
 libud = -L$(HOME)/local/udunits-1.12.11/lib -ludunits
@@ -23,16 +23,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-#cl_cuda := cuda_module # comment this line out to disable cuda
-ifneq ($(strip $(cl_cuda)),)
-  cl_cuda_o := $(cl_elsolv:%=%.o)
-  cl_nvcc := nvcc
-  cl_cuff := 
-  cl_cudaLib := -L $(HOME)/local/cuda-5.0/lib64 -lcudart
-  cl_defCudaEnabled = -D'CUDA_ENABLED'
-endif
-
-modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module $(cl_cuda)
+modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 
 .PHONY: all clean_all clean clean-doc selfcheck doc
 
@@ -40,7 +31,7 @@ all     : model clean
 #clean
 
 model   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o $@ $^ $(libnc) $(libud) $(cl_cudaLib)
+	$(FC) $(FFLAGS) -o $@ $^ $(libnc) $(libud)$
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
 	$(FC) $(FFLAGS) -c $<
@@ -91,9 +82,6 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(FC) $(FFLAGS) -c $<
 
-cuda_module.o : cuda_module.cu cuda_module.h
-	$(cl_nvcc) $(cl_cuff) -c $<
-	
 selfcheck : model
 	sh runselfcheck.sh
 
