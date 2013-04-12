@@ -47,7 +47,7 @@ udunitsdef = -D'UNITSPATH="$(UDDIR)/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrK
 selfcheck_dir = selfcheck/
 DOXYGEN = @DOXYGEN@
 
-COMPILE = $(FC) $(FFLAGS) $(includenc) $(includeud) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(includeud) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 VPATH = include:src:build
 
@@ -71,7 +71,7 @@ all     : $(bin_PROGRAMS)
 #clean
 
 model$(EXEEXT)   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(libnc) $(libud) 
+	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) 
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
 	$(COMPILE)
@@ -79,7 +79,7 @@ vars_module.o : vars_module.f90 io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h include/udunits.inc
-	$(FC) $(FFLAGS) $(includeud) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(FC) $(FFLAGS) $(CPPFLAGS) $(includeud) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
