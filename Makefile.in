@@ -1,18 +1,53 @@
-FC:=gfortran
-SED:=/bin/sed
-O := -O3 -fopenmp
+@SET_MAKE@
+
+FC = @FC@
+FCFLAGS = @FCFLAGS@
+FCFLAGS_f90 = @FCFLAGS_f90@
+FC_MODEXT = @FC_MODEXT@
+FC_MODINC = @FC_MODINC@
+FC_MODOUT = @FC_MODOUT@
+CPPFLAGS = @CPPFLAGS@
+
+OPENMP_FCFLAGS = @OPENMP_FCFLAGS@
+
+SED = @SED@
+
+LDFLAGS = @LDFLAGS@
+LIBOBJS = @LIBOBJS@
+LIBS = @LIBS@
+
+SET_MAKE = @SET_MAKE@
+
+EXEEXT = @EXEEXT@
+
+bindir = bin/
+builddir = build/
+docdir = doc/
+includedir = include/
+prefix = ./
+srcdir = src/
+
+UDDIR = @UDDIR@
+NETDIR = @NETDIR@
+
+bin_PROGRAMS = model$(EXEEXT)
+model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90
+
+O := -O3 $(OPENMP_FCFLAGS) 
 DEBUG = #-Wall #-g
-FFLAGS = -cpp -ffree-line-length-none $(defSelfCheck) $(DEBUG) $(O)
-libnc = -L$(HOME)/local/netcdf-3.6.3/lib -lnetcdf
-includenc = -I$(HOME)/local/netcdf-3.6.3/include
-libud = -L$(HOME)/local/udunits-1.12.11/lib -ludunits
-includeud = -I$(HOME)/local/udunits-1.12.11/include
-udunitsdef = -D'UNITSPATH="$(HOME)/local/udunits-1.12.11/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrKind)'
-include_dir = -Iinclude
-include_h = -Iinclude -Ibuild
-build_dir = build/
+FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
+libnc = -L$(NETDIR)/lib -lnetcdf
+includenc = -I$(NETDIR)/include
+libud = -L$(UDDIR)/lib -ludunits
+includeud = -I$(UDDIR)/include
+udunitsdef = -D'UNITSPATH="$(UDDIR)/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrKind)'
+#include_dir = -Iinclude
+#include_h = -Iinclude -Ibuild
+#build_dir = build/
 selfcheck_dir = selfcheck/
-DOXYGEN=/usr/bin/doxygen
+DOXYGEN = @DOXYGEN@
+
+COMPILE = $(FC) $(FFLAGS) $(includenc) $(includeud) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 VPATH = include:src:build
 
@@ -28,71 +63,70 @@ else
 endif
 
 modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
-objects = $(modules:%=$(build_dir)%.o)
+objects = $(modules:%=$(builddir)%.o)
 
-.PHONY: all clean_all clean clean-doc selfcheck doc
+.PHONY: all clean_all clean clean-doc selfcheck doc distclean clean-conf
 
-all     : model
+all     : $(bin_PROGRAMS)
 #clean
 
-model   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(build_dir)$@ $(objects) $(build_dir)model.o $(libnc) $(libud)$
+model$(EXEEXT)   : $(modules:%=%.o) model.o
+	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(libnc) $(libud) 
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
-
+	$(COMPILE)
 vars_module.o : vars_module.f90 io.h
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h include/udunits.inc
-	$(FC) $(FFLAGS) $(udunitsdef) -c $< $(include_dir) $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(FC) $(FFLAGS) $(includeud) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
 	@$(SED) -e 's/^C/!/' -e '/#define UD_POINTER/d' $< > $@
 
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 io_module.o : io_module.f90 io.h vars_module.o calendar_module.o
-	$(FC) $(FFLAGS) -c $< $(includenc) $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o model.h
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o calc_lib.o model.h
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
-	$(FC) $(FFLAGS) $(defClElSolv) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o vars_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
-	$(FC) $(FFLAGS) -c $< $(include_h) -J$(build_dir) -o$(build_dir)$@
+	$(COMPILE)
 
 selfcheck : model
-	sh $(selfcheck_dir)/runselfcheck.sh
+	$(SHELL) $(selfcheck_dir)/runselfcheck.sh
 
 doc : doc/Doxyfile doc/html doc/latex
-	@cd doc && $(DOXYGEN) $(<F)
-	@cd doc/latex && make
+	@cd $(docdir) && $(DOXYGEN) $(<F)
+	@cd $(docdir)/latex && $(MAKE)
 
 
 # create folder if needed
@@ -106,10 +140,18 @@ doc/html :
 doc/latex :
 	mkdir -p $@
 
+distclean : clean clean-doc clean-conf
+
+clean-conf: 
+	@rm -fv config.status
+	@rm -fv config.log
+	@rm -fv Makefile
+	@rm -fv $(includedir)udunits.inc
+
 clean_all : clean clean-doc
 
 clean :
-	@rm -fv $(build_dir)*
+	@rm -fv $(builddir)*
 
 clean-doc :
-	@rm -rvf doc/latex doc/html
+	@rm -rvf $(docdir)latex $(docdir)html
