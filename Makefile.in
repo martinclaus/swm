@@ -47,7 +47,7 @@ udunitsdef = -D'UNITSPATH="$(UDDIR)/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrK
 selfcheck_dir = selfcheck/
 DOXYGEN = @DOXYGEN@
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(includeud) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 VPATH = include:src:build
 
@@ -78,8 +78,8 @@ model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o cal
 vars_module.o : vars_module.f90 io.h
 	$(COMPILE)
 
-calendar_module.o : calendar_module.f90 calendar.h include/udunits.inc
-	$(FC) $(FFLAGS) $(CPPFLAGS) $(includeud) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+calendar_module.o : calendar_module.f90 calendar.h udunits.inc
+	$(FC) $(FFLAGS) $(CPPFLAGS) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
@@ -122,7 +122,7 @@ swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(COMPILE)
 
 selfcheck : model
-	$(SHELL) $(selfcheck_dir)/runselfcheck.sh
+	$(SHELL) $(selfcheck_dir)runselfcheck.sh
 
 doc : doc/Doxyfile doc/html doc/latex
 	@cd $(docdir) && $(DOXYGEN) $(<F)
@@ -140,18 +140,18 @@ doc/html :
 doc/latex :
 	mkdir -p $@
 
-distclean : clean clean-doc clean-conf
+distclean : clean clean-doc clean-conf clean-selfcheck
 
 clean-conf: 
 	@rm -fv config.status
 	@rm -fv config.log
 	@rm -fv Makefile
-	@rm -fv $(includedir)udunits.inc
-
-clean_all : clean clean-doc
 
 clean :
-	@rm -fv $(builddir)*
+	@rm -fv $(builddir)* include/udunits.inc
 
 clean-doc :
-	@rm -rvf $(docdir)latex $(docdir)html
+	@rm -rvf $(docdir)latex $(docdir)html $(docdir)doxygen_objdb_*
+
+clean-selfcheck :
+	@rm -rf $(selfcheck_dir)output/new_*
