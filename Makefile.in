@@ -20,12 +20,15 @@ SET_MAKE = @SET_MAKE@
 
 EXEEXT = @EXEEXT@
 
-bindir = bin/
-builddir = build/
-docdir = doc/
-includedir = include/
-prefix = ./
-srcdir = src/
+prefix = $(CURDIR)/
+bindir = $(prefix)bin/
+builddir = $(prefix)build/
+docdir = $(prefix)doc/
+includedir = $(prefix)include/
+srcdir = $(prefix)src/
+selfcheck_dir = $(prefix)selfcheck/
+
+include_modelHeader = $(includedir)
 
 UDDIR = @UDDIR@
 NETDIR = @NETDIR@
@@ -33,21 +36,20 @@ NETDIR = @NETDIR@
 bin_PROGRAMS = model$(EXEEXT)
 model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90
 
-O := -O3 $(OPENMP_FCFLAGS) 
+O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(NETDIR)/lib -lnetcdf
-includenc = -I$(NETDIR)/include
+includenc = $(FC_MODINC)$(NETDIR)/include
 libud = -L$(UDDIR)/lib -ludunits
-includeud = -I$(UDDIR)/include
+includeud = $(FC_MODINC)$(UDDIR)/include
 udunitsdef = -D'UNITSPATH="$(UDDIR)/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrKind)'
 #include_dir = -Iinclude
 #include_h = -Iinclude -Ibuild
 #build_dir = build/
-selfcheck_dir = selfcheck/
 DOXYGEN = @DOXYGEN@
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 VPATH = include:src:build
 
@@ -71,15 +73,16 @@ all     : $(bin_PROGRAMS)
 #clean
 
 model$(EXEEXT)   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) 
+	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud)
 
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
 	$(COMPILE)
+
 vars_module.o : vars_module.f90 io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h udunits.inc
-	$(FC) $(FFLAGS) $(CPPFLAGS) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(FC) $(FFLAGS) $(CPPFLAGS) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
@@ -101,7 +104,7 @@ tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o ca
 	$(COMPILE)
 
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
-	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o
 	$(COMPILE)
@@ -121,8 +124,7 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
 	$(COMPILE)
 
-selfcheck : model
-	$(SHELL) $(selfcheck_dir)runselfcheck.sh
+include $(selfcheck_dir)Makefile
 
 doc : doc/Doxyfile doc/html doc/latex
 	@cd $(docdir) && $(DOXYGEN) $(<F)
@@ -142,7 +144,7 @@ doc/latex :
 
 distclean : clean clean-doc clean-conf clean-selfcheck
 
-clean-conf: 
+clean-conf:
 	@rm -fv config.status
 	@rm -fv config.log
 	@rm -fv Makefile
@@ -154,4 +156,4 @@ clean-doc :
 	@rm -rvf $(docdir)latex $(docdir)html $(docdir)doxygen_objdb_*
 
 clean-selfcheck :
-	@rm -rf $(selfcheck_dir)output/new_*
+	@rm -rf $(selfcheck_dir)/*/output/new_*
