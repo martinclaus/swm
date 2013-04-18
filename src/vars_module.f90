@@ -22,36 +22,24 @@ MODULE vars_module
   REAL(8)                :: OMEGA = 7.272205e-5              !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
   REAL(8)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
   REAL(8)                :: RHO0 = 1024                      !< reference density of sea water \f$[kg m^{-3}]\f$
-  REAL(8)                :: r=2e-3                           !< linear friction parameter \f$[ms^{-1}]\f$
-  REAL(8)                :: k=2e-1                           !< quadratic friction parameter
-  REAL(8)                :: Ah=1e3                           !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
+  REAL(8)                :: r=0.                             !< linear friction parameter \f$[ms^{-1}]\f$
+  REAL(8)                :: k=0.                             !< quadratic friction parameter
+  REAL(8)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
   REAL(8)                :: missval=MISS_VAL_DEF             !< missing value for CDF outfiles
-  REAL(8)                :: gamma_new=2.314e-8               !< Newtonian cooling coefficient \f$[s^{-1}]\f$
+  REAL(8)                :: gamma_new=0.                     !< Newtonian cooling coefficient \f$[s^{-1}]\f$
   REAL(8)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
   REAL(8)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
-  REAL(8)                :: H_overwrite = 1.                 !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+  REAL(8)                :: H_overwrite = 0.                 !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
 
-  CHARACTER(CHARLEN)     :: in_file_H="H_in.nc"         !< Input filename for bathimetry
+  CHARACTER(CHARLEN)     :: in_file_H=""                !< Input filename for bathimetry
   CHARACTER(CHARLEN)     :: in_varname_H="H"            !< Variable name of bathimetry in input dataset
-  CHARACTER(CHARLEN)     :: in_file_F1=""               !< Input filename for arbitrary forcing
-  CHARACTER(CHARLEN)     :: in_varname_F1_x="FU"        !< Variable name of zonal forcing in input dataset
-  CHARACTER(CHARLEN)     :: in_varname_F1_y="FV"        !< Variable name of meridional forcing in input dataset
-  CHARACTER(CHARLEN)     :: in_file_TAU=""              !< Input filename for windstress
-  CHARACTER(CHARLEN)     :: in_varname_TAU_x="TAUX"     !< Variable name of zonal windstress in input dataset
-  CHARACTER(CHARLEN)     :: in_varname_TAU_y="TAUY"     !< Variable name of meridional windstress in input dataset
-  CHARACTER(CHARLEN)     :: in_file_F_eta=""            !< Input filename for heating
-  CHARACTER(CHARLEN)     :: in_varname_F_eta="FETA"     !< Variable name of heating in input dataset
-  CHARACTER(CHARLEN)     :: in_file_REY=""              !< Input filename for Eddy momentum flux forcing
-  CHARACTER(CHARLEN)     :: in_varname_REY_u2="u2"      !< Variable name of \f$\overline{{u'}^2}\f$ in input dataset
-  CHARACTER(CHARLEN)     :: in_varname_REY_v2="v2"      !< Variable name of \f$\overline{{v'}^2}\f$ in input dataset
-  CHARACTER(CHARLEN)     :: in_varname_REY_uv="uv"      !< Variable name of \f$\overline{u'v'}\f$ in input dataset
-  CHARACTER(CHARLEN)     :: file_eta_init="eta_init.nc" !< File containing initial condition for interface displacement. Last timestep of dataset used.
+  CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
-  CHARACTER(CHARLEN)     :: file_u_init="u_init.nc"     !< File containing initial condition for zonal velocity. Last timestep of dataset used.
+  CHARACTER(CHARLEN)     :: file_u_init=""              !< File containing initial condition for zonal velocity. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
-  CHARACTER(CHARLEN)     :: file_v_init="v_init.nc"     !< File containing initial condition for meridional velocity. Last timestep of dataset used.
+  CHARACTER(CHARLEN)     :: file_v_init=""              !< File containing initial condition for meridional velocity. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
-  CHARACTER(CHARLEN)     :: model_start="0000-01-01 00:00:00" !< Start date and time of the model
+  CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
   LOGICAL                :: init_cond_from_file=.FALSE. !< States if initial condition is loaded from disk
 
@@ -140,11 +128,9 @@ MODULE vars_module
         dt, meant_out, & ! time step and mean step
         lon_s, lon_e, lat_s, lat_e, & ! domain specs
         in_file_H, in_varname_H, & ! specification of input topography file
-        in_file_TAU, in_varname_TAU_x, in_varname_TAU_y, & !  specification of input wind stress file
-        in_file_F_eta, in_varname_F_eta, & ! specification of input heating file
-        in_file_REY, in_varname_REY_u2, in_varname_REY_v2, in_varname_REY_uv,& ! specification of input Reynold stress file
-        in_file_F1, in_varname_F1_x, in_varname_F1_y, & ! specification of input forcing file
-        file_eta_init,varname_eta_init,file_u_init,varname_u_init,file_v_init, varname_v_init, init_cond_from_file,& ! specification of initial condition fields, need to have time axis
+        file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
+        file_u_init,varname_u_init,file_v_init, & ! Initial condition for zonal velocity
+        varname_v_init, init_cond_from_file, & ! Initial condition for meridionl velocity
         model_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)
