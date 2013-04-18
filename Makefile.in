@@ -65,7 +65,7 @@ endif
 modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
 objects = $(modules:%=$(builddir)%.o)
 
-.PHONY: all clean_all clean clean-doc selfcheck doc distclean clean-conf
+.PHONY: all clean clean-selfcheck clean-doc selfcheck doc distclean clean-conf
 
 all     : $(bin_PROGRAMS)
 #clean

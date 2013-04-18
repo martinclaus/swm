@@ -41,8 +41,6 @@ MODULE vars_module
   CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
   CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
-  LOGICAL                :: init_cond_from_file=.FALSE. !< States if initial condition is loaded from disk
-
   INTEGER, PARAMETER     :: Ndims = 3                   !< Number of dimensions
   INTEGER                :: Nx = 100                    !< Number of grid points in zonal direction
   INTEGER                :: Ny = 100                    !< Number of grid points in meridional direction
@@ -129,8 +127,8 @@ MODULE vars_module
         lon_s, lon_e, lat_s, lat_e, & ! domain specs
         in_file_H, in_varname_H, & ! specification of input topography file
         file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
-        file_u_init,varname_u_init,file_v_init, & ! Initial condition for zonal velocity
-        varname_v_init, init_cond_from_file, & ! Initial condition for meridionl velocity
+        file_u_init,varname_u_init, & ! Initial condition for zonal velocity
+        file_v_init, varname_v_init, & ! Initial condition for meridionl velocity
         model_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)

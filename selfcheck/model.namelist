@@ -20,10 +20,7 @@
   lat_s = -10.     ! min. lat. of the domain (H-grid),
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "H_sc.nc" ! topography input dataset
-  init_cond_from_file = .true.
   file_eta_init="eta_init_gauss.nc"
-  file_u_init="u_sc.nc"
-  file_v_init="v_sc.nc"
   H_overwrite=3.
   model_start="1945-01-01 12:00"
 &end

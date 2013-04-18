@@ -98,7 +98,7 @@ USE swm_timestep_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Read initial condition of shallow water model
     !!
-    !! If initial condition flag vars_module::init_cond_from_file is .TRUE.,
+    !! If initial condition files are specified,
     !! the initial conditions will be read from disk. The location is specified
     !! in model.namelist. Ocean masks will be applied to the data.
     !! If no initial conditions are defined, the model will start at rest, i.e.
@@ -108,35 +108,31 @@ USE swm_timestep_module
     !! @par Uses:
     !! io_module, ONLY : fileHandle, readInitialCondition, initFH\n
     !! vars_module, ONLY : file_eta_init, varname_eta_init,file_u_init, varname_u_init,
-    !! file_v_init, varname_v_init,ocean_eta, ocean_u, ocean_v,init_cond_from_file, N0p1
-    !!
-    !! @todo Read initial conditions only if the input file is defined. Drop init_cond_from_file
+    !! file_v_init, varname_v_init,ocean_eta, ocean_u, ocean_v, N0p1
     !------------------------------------------------------------------
     SUBROUTINE SWM_initialConditions
-      USE io_module, ONLY : fileHandle, readInitialCondition, initFH
+      USE io_module, ONLY : fileHandle, readInitialCondition, initFH, isSetFH
       USE vars_module, ONLY : file_eta_init, varname_eta_init,&
                               file_u_init, varname_u_init,&
                               file_v_init, varname_v_init,&
                               ocean_eta, ocean_u, ocean_v,&
-                              init_cond_from_file, N0p1
+                              N0p1
       IMPLICIT NONE
       TYPE(fileHandle) :: FH
-      ! initial conditions of dynamic fields
-      IF (init_cond_from_file) THEN
-        CALL initFH(file_eta_init,varname_eta_init,FH)
-        call readInitialCondition(FH,SWM_eta(:,:,N0p1))
-        CALL initFH(file_u_init,varname_u_init,FH)
-        call readInitialCondition(FH,SWM_u(:,:,N0p1))
-        CALL initFH(file_v_init,varname_v_init,FH)
-        call readInitialCondition(FH,SWM_v(:,:,N0p1))
-        SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
-        SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
-        SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)
-      ELSE
-        SWM_eta = 0.
-        SWM_u = 0.
-        SWM_v = 0.
-      END IF
+      ! init with undisturbed state of rest
+      SWM_eta = 0.
+      SWM_u = 0.
+      SWM_v = 0.
+      ! load initial conditions of dynamic fields if present
+      CALL initFH(file_eta_init,varname_eta_init,FH)
+      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_eta(:,:,N0p1))
+      CALL initFH(file_u_init,varname_u_init,FH)
+      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_u(:,:,N0p1))
+      CALL initFH(file_v_init,varname_v_init,FH)
+      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_v(:,:,N0p1))
+      SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
+      SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
+      SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)
       CALL SWM_advance
    END SUBROUTINE SWM_initialConditions
 END MODULE swm_module
