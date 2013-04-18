@@ -44,3 +44,7 @@
   TRC_file_C0 = "C0_sc.nc"
   TRC_file_relax = "Crelax_sc.nc"
 &end
+&output_nl
+  oprefix = "output/new_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+&end

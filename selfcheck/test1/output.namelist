@@ -1,4 +1,0 @@
-&output_nl
-  oprefix = "output/new_",  ! output prefix used to specify directory
-  osuffix = "",  ! suffix to name model run
-&end
