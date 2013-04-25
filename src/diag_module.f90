@@ -21,7 +21,45 @@ MODULE diag_module
   USE io_module
   USE vars_module
   IMPLICIT NONE
-  SAVE
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Type to handle diagnostic task
+  !!
+  !! A diagnostic task is a task which will output data to disk.
+  !! It will be configured in a diag_nl namelist.
+  !------------------------------------------------------------------
+  TYPE :: diagTask
+    INTEGER             :: ID=0         !< Task index, starting at 1, incrementing by 1
+    TYPE(fileHandle)    :: FH           !< File handle to variable in output dataset
+    INTEGER             :: rec=0        !< Index of last record in file.
+    CHARACTER(CHARLEN)  :: type=""      !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
+    INTEGER             :: frequency=1  !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+    CHARACTER(CHARLEN)  :: period="1M"  !< Sampling period for AVERAGE output.
+    CHARACTER(CHARLEN)  :: process="A"  !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+    CHARACTER(CHARLEN)  :: varname=""   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+    REAL(8), DIMENSION(:,:), POINTER     :: varData=>null()
+    INTEGER(1), DIMENSION(:,:), POINTER     :: oceanMask=>null()
+    REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer !< Buffer used for processing the data
+    INTEGER             :: bufferCount=0!< Counter, counting time steps added to buffer
+    INTEGER             :: nstep=1      !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
+  END TYPE diagTask
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Linked list to store diagnostic task
+  !!
+  !! This is a linked list construct which stores the diagnostics tasks.
+  !! The list is populated during initialisation and each diag_nl namelist
+  !! will be represented by a node in the list pointing to the diag_module::diagTask
+  !! object associated with it.
+  !! At each timestep, it will be itterated through the list and the task are processed.
+  !------------------------------------------------------------------
+  TYPE :: listNode
+    TYPE(listNode), POINTER :: next=>null()  !< Next item in the list
+    TYPE(listNode), POINTER :: prev=>null()  !< Previous itme in the list
+    TYPE(diagTask), POINTER :: task=>null()  !< current task object
+  END TYPE listNode
+
+  TYPE(listNode), POINTER :: diagTaskList=>null()  !< Head node of the diagnostics task list
 
   TYPE(fileHandle)                      :: FH_eta        !< Handle for snapshot output of interface displacement
   TYPE(fileHandle)                      :: FH_u          !< Handle for snapshot output of zonal velocity
@@ -42,7 +80,7 @@ MODULE diag_module
   TYPE(fileHandle)                      :: FH_u2_mean    !< Handle for output of averaged squared zonal velocity
   TYPE(fileHandle)                      :: FH_v2_mean    !< Handle for output of averaged squared meridional velocity
   TYPE(fileHandle)                      :: FH_psi2_mean  !< Handle for output of averaged squared streamfunction
-  REAL(8), DIMENSION(:,:), ALLOCATABLE  :: psi           !< Buffer for comnputation of streamfunction
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET  :: psi           !< Buffer for comnputation of streamfunction
   REAL(8), DIMENSION(:,:), ALLOCATABLE  :: eta_mean      !< Buffer for averaging of interface displacement
   REAL(8), DIMENSION(:,:), ALLOCATABLE  :: u_mean        !< Buffer for averaging of zonal velocity
   REAL(8), DIMENSION(:,:), ALLOCATABLE  :: v_mean        !< Buffer for averaging of meridional velocity
@@ -68,6 +106,8 @@ MODULE diag_module
     SUBROUTINE initDiag
       IMPLICIT NONE
       INTEGER           :: alloc_error
+      CALL initDiagTaskList
+
 #ifdef WRITEINPUT
       CALL writeInput
 #endif
@@ -75,12 +115,6 @@ MODULE diag_module
       CALL createmeanDatasets
 #endif
       CALL createDatasets
-      ! allocate and initialise diagnostic fields
-      ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        PRINT *, "Deallocation failed in",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
 #ifdef WRITEMEAN
       ALLOCATE(eta_mean(1:Nx, 1:Ny), u_mean(1:Nx, 1:Ny), v_mean(1:Nx, 1:Ny), psi_mean(1:Nx, 1:Ny), &
           eta2_mean(1:Nx, 1:Ny), u2_mean(1:Nx, 1:Ny), v2_mean(1:Nx, 1:Ny), psi2_mean(1:Nx, 1:Ny), stat=alloc_error)
@@ -118,7 +152,7 @@ MODULE diag_module
     END SUBROUTINE finishDiag
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Do the diagnostics
+    !> @brief Do the diagnostics
     !!
     !! If required, diag_module::calc_mean is called.
     !! If snapshot output is required at this time step, this will happen
@@ -135,9 +169,16 @@ MODULE diag_module
     SUBROUTINE Diag
       USE calc_lib, ONLY : computeStreamfunction
       IMPLICIT NONE
+      TYPE(listNode), POINTER :: currentNode=>null()
 #ifdef DIAG_START
       IF (itt*dt .lt. DIAG_START) RETURN
 #endif
+      currentNode=>diagTaskList
+      DO
+        currentNode => currentNode%next
+        IF (associated(currentNode,diagTaskList)) EXIT
+        CALL processTask(currentNode%task)
+      END DO
 #ifdef WRITEMEAN
       CALL calc_mean
 #endif
@@ -147,7 +188,7 @@ MODULE diag_module
           CALL closeDatasets
           CALL createDatasets
           WRITE (fullrecstr, '(i12.12)') fullrec
-          rec = 1  
+          rec = 1
         END IF
         ! calculate streamfunction
         call computeStreamfunction(psi)
@@ -157,7 +198,7 @@ MODULE diag_module
         fullrec = fullrec + 1
       END IF
     END SUBROUTINE Diag
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Create datasets for snapshot output
     !!
@@ -184,7 +225,7 @@ MODULE diag_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Create datasets for time averaged fields
     !!
-    !! Initialise file handles and create datasets for the output of 
+    !! Initialise file handles and create datasets for the output of
     !! time averaged fields.
     !------------------------------------------------------------------
     SUBROUTINE createmeanDatasets
@@ -221,7 +262,7 @@ MODULE diag_module
       call closeDS(FH_tracer)
 #endif
     END SUBROUTINE closeDatasets
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief close dataset for time averaged output
     !------------------------------------------------------------------
@@ -265,7 +306,7 @@ MODULE diag_module
 !      CALL createDS(FH_Fx,lat_u,lon_u)
 !      CALL putVar(FH=FH_Fx, varData=F_x, ocean_mask=ocean_u)
 !      CALL closeDS(FH_Fx)
-      
+
 !      CALL initFH(OFILEFY,OVARNAMEFY,FH_Fy)
 !      CALL createDS(FH_Fy,lat_v,lon_v)
 !      CALL putVar(FH=FH_Fy, varData=F_y, ocean_mask=ocean_v)
@@ -289,7 +330,7 @@ MODULE diag_module
       CALL closeDS(FH_gamma_v)
 #endif
     END SUBROUTINE writeInput
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief write snapshots to files
     !!
@@ -316,7 +357,7 @@ MODULE diag_module
       call putVar(FH_tracer,TRC_C1(:,:,TRC_N0), rec, itt*dt,ocean_eta)
 #endif
     END SUBROUTINE
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief write averaged fields to files
     !!
@@ -362,14 +403,14 @@ MODULE diag_module
     SUBROUTINE calc_mean
     IMPLICIT NONE
     REAL(8)     :: remainder
-     remainder=(mod(dt*itt, meant_out)) 
+     remainder=(mod(dt*itt, meant_out))
      IF (remainder<dt .AND. itt .ne. 0) then
         IF (rec_mean .gt. NoutChunk) then
           ! close files and create new set of output files
           CALL closemeanDatasets
           CALL createmeanDatasets
           WRITE (fullrecstr, '(i12.12)') fullrec_mean
-          rec_mean = 1  
+          rec_mean = 1
         END IF
         eta_mean = (eta_mean + (dt-remainder)*eta(:,:,N0))/meant_out
         u_mean = (u_mean + (dt-remainder)*u(:,:,N0))/meant_out
@@ -379,9 +420,9 @@ MODULE diag_module
         u2_mean = (u2_mean + (dt-remainder)*(u(:,:,N0)))**2/meant_out
         v2_mean = (v2_mean + (dt-remainder)*(v(:,:,N0)))**2/meant_out
         psi2_mean = (psi2_mean + (dt-remainder)*psi**2)/meant_out
-        
+
         CALL writeMean
-        
+
         eta_mean = remainder*eta(:,:,N0)
         u_mean = remainder*u(:,:,N0)
         v_mean = remainder*v(:,:,N0)
@@ -393,7 +434,7 @@ MODULE diag_module
 
         fullrec_mean = fullrec_mean + 1
         rec_mean = rec_mean + 1
-      ELSE 
+      ELSE
         eta_mean = eta_mean +dt*eta(:,:,N0)
         u_mean = u_mean + dt*u(:,:,N0)
         v_mean = v_mean + dt*v(:,:,N0)
@@ -403,6 +444,250 @@ MODULE diag_module
         v2_mean = v2_mean + dt*(v(:,:,N0))**2
         psi2_mean = psi2_mean + dt*psi**2
       END IF
+    END SUBROUTINE
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Allocates and initialise diagTaskList
+    !------------------------------------------------------------------
+    SUBROUTINE initDiagTaskList
+      IMPLICIT NONE
+      INTEGER :: alloc_error
+      !< allocate memory for task list
+      ALLOCATE(diagTaskList, stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
+        STOP 1
+      END IF
+      diagTaskList%next => diagTaskList
+      diagTaskList%prev => diagTaskList
+      CALL readDiagTaskList
+      CALL printTaskSummary(diagTaskList)
+    END SUBROUTINE initDiagTaskList
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Reads diag_nl namelists from file and populates diagTaskList
+    !------------------------------------------------------------------
+    SUBROUTINE readDiagTaskList
+      IMPLICIT NONE
+      INTEGER             :: io_stat=0, nlist=0
+      TYPE(fileHandle)    :: FH
+      CHARACTER(CHARLEN)  :: filename    !< Name and path of output file
+      CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
+      CHARACTER(CHARLEN)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
+      INTEGER             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      CHARACTER(CHARLEN)  :: period      !< Sampling period for AVERAGE output.
+      CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+      CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+      !< Read namelist
+      OPEN(UNIT_DIAG_NL, file="model.namelist", iostat=io_stat)
+      DO WHILE ( io_stat .EQ. 0 )
+        CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process)
+        IF (io_stat.EQ.0) THEN
+          !< create and add task
+          CALL initFH(filename,ovarname,FH)
+          CALL addToList(initDiagTask(FH,type,frequency,period, process, varname), diagTaskList)
+        END IF
+      END DO
+      CLOSE(UNIT_DIAG_NL)
+    END SUBROUTINE readDiagTaskList
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Creates and returns a diagTask object
+    !!
+    !! @todo simplify, when vars register is finished
+    !------------------------------------------------------------------
+    TYPE(diagTask) FUNCTION initDiagTask(FH,type,frequency, period, process, varname) RESULT(task)
+    IMPLICIT NONE
+      TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
+      CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
+      INTEGER, intent(in)             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      CHARACTER(CHARLEN), intent(in)  :: period      !< Sampling period for AVERAGE output.
+      CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+      CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+      POINTER :: task
+      REAL(8), POINTER, DIMENSION(:) :: lat=>null(), lon=>null()
+      INTEGER :: alloc_error
+      ALLOCATE(task, stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
+        STOP 1
+      END IF
+      task%FH = FH
+      task%type = type
+      task%frequency = frequency
+      task%period = period
+      task%process = process
+      task%varname = varname
+      PRINT *, "Init new task ..."
+      !< Create dataset
+      SELECT CASE (task%varname(len_trim(task%varname):len_trim(task%varname)))
+        CASE ("U","u") !< U, SWM_u
+          lat=>lat_u
+          lon=>lon_u
+          task%oceanMask => ocean_u
+          task%varData => u(:,:,N0)
+        CASE ("V","v") !< V, SWM_v
+          lat=>lat_v
+          lon=>lon_v
+          task%oceanMask => ocean_v
+          task%varData => v(:,:,N0)
+        CASE ("A","a") !< ETA, SWM_eta
+          lat=>lat_eta
+          lon=>lon_eta
+          task%oceanMask => ocean_eta
+          task%varData => eta(:,:,N0)
+        CASE ("I","i") !< PSI
+          lat=>lat_H
+          lon=>lon_H
+          task%oceanMask => ocean_H
+          IF(.NOT.ALLOCATED(psi)) ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
+          IF (alloc_error .ne. 0) THEN
+            PRINT *, "Deallocation failed in",__FILE__,__LINE__,alloc_error
+            STOP 1
+          END IF
+          task%varData => psi
+        CASE DEFAULT
+          PRINT *, "ERROR: Diagnostics for variable "//TRIM(task%varname)//" not supported at the moment!"
+          STOP 2
+      END SELECT
+      CALL createDS(task%FH,lon,lat)
+      !< Setup task object, allocate memory if needed
+      SELECT CASE (task%type(1:1))
+        CASE ("S","s")
+          task%nstep = MAX(INT(Nt / task%frequency),1)
+        CASE ("A","a")
+          ALLOCATE(task%buffer(Nx,Ny), stat=alloc_error)
+          IF (alloc_error .ne. 0) THEN
+            PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
+            STOP 1
+          END IF
+          task%buffer = 0.
+          task%bufferCount = 0
+      END SELECT
+      PRINT *, ALLOCATED(task%buffer), task%bufferCount
+      PRINT *, "DONE"
+      RETURN
+    END FUNCTION initDiagTask
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Reads a diag_nl
+    !!
+    !! First sets the default values of the task object, then reads the namelist.
+    !! Values not given, are guessed from input (like ovarname).
+    !!
+    !! @todo Replace magic strings/numbers by cpp macros
+    !------------------------------------------------------------------
+    SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process)
+      IMPLICIT NONE
+      INTEGER, INTENT(out)             :: io_stat   !< Status of the read statement
+      INTEGER, INTENT(inout)           :: nlist     !< Number of lists processed
+      CHARACTER(CHARLEN), INTENT(out)  :: filename  !< Name and path of output file
+      CHARACTER(CHARLEN), INTENT(out)  :: ovarname  !< Name of output variable
+      CHARACTER(CHARLEN), INTENT(out)  :: type      !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
+      INTEGER, INTENT(out)             :: frequency !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      CHARACTER(CHARLEN), INTENT(out)  :: period    !< Sampling period for AVERAGE output.
+      CHARACTER(CHARLEN), INTENT(out)  :: process   !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+      CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+      NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process
+      !< Set default values
+      filename="out.nc"
+      ovarname="var"
+      type="S"
+      frequency=1
+      period="1M"
+      process="A"
+      varname=""
+      !< read list
+      nlist=nlist+1
+      READ(UNIT_DIAG_NL, nml=diag_nl, iostat=io_stat)
+      IF (io_stat.GT.0) THEN
+        WRITE (*,'("ERROR: There is a problem in diag_nl",X,I2,". Check if your datatypes are correct!")') nlist
+        STOP 1
+      END IF
+      IF (ovarname.EQ."var") ovarname = varname
+    END SUBROUTINE readDiagNL
+
+    SUBROUTINE addToList(task, list)
+      implicit none
+      TYPE(diagTask), POINTER, INTENT(in) :: task   !< Task to append to list
+      TYPE(listNode), POINTER, INTENT(in) :: list   !< Pointer to list head
+      TYPE(listNode), POINTER             :: current !< Pointer to current list node
+      current => EOL(list)
+      ALLOCATE(current%next)
+      current%next%prev => current
+      current%next%next => list
+      current => current%next
+      current%task => task
+      IF(ASSOCIATED(current%prev%task)) THEN
+        current%task%ID = current%prev%task%ID + 1
+      ELSE
+        current%task%ID = 1
+      END IF
+    END SUBROUTINE addToList
+
+    TYPE(listNode) FUNCTION EOL(list) RESULT(lastNode)
+      IMPLICIT NONE
+      TYPE(listNode), POINTER, INTENT(in) :: list
+      POINTER :: lastNode
+      IF (.NOT.ASSOCIATED(list)) THEN
+        PRINT *,"ERROR: Diagnostoc task list not allocated!"
+        STOP 1
+      END IF
+      lastNode => list
+      DO
+        IF (ASSOCIATED(lastNode%next, list)) EXIT
+        lastNode => lastNode%next
+      END DO
+      RETURN
+    END FUNCTION EOL
+
+    SUBROUTINE processTask(task)
+      IMPLICIT NONE
+      TYPE(diagTask), POINTER, INTENT(in) :: task
+      REAL(8), DIMENSION(:,:), POINTER :: varData=>null()
+      IF (mod(itt, task%nstep).NE.0) RETURN !< check if task have to be processed
+      SELECT CASE (task%type(1:1))
+        CASE ("S","s") !< Snapshot output
+          task%rec = task%rec+1
+          CALL putVar(task%FH,task%varData, task%rec, itt*dt, task%oceanMask)
+      END SELECT
+    END SUBROUTINE processTask
+
+    SUBROUTINE printTaskSummary(list)
+      TYPE(listNode), POINTER, INTENT(in) :: list
+      TYPE(listNode), POINTER :: currentNode
+      currentNode => list
+      DO
+        currentNode => currentNode%next
+        IF (associated(currentNode,list)) exit
+        CALL printTask(currentNode%task)
+      END DO
+    END SUBROUTINE printTaskSummary
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Print information about a diag task
+    !------------------------------------------------------------------
+    SUBROUTINE printTask(task)
+      IMPLICIT NONE
+      TYPE(diagTask), POINTER, INTENT(in)    :: task  !< Task to print information about
+      CHARACTER(CHARLEN) :: formatedString, formatedInteger
+      IF (.NOT.associated(task)) THEN
+        PRINT *,"ERROR: Try to print non-existent diagnostic task!"
+        STOP 1
+      END IF
+      formatedString = '("**",X,A10,X,A80,/)'
+      formatedInteger = '("**",X,A10,X,I4)'
+      WRITE (*,'(A52)') "** Diag task info **********************************"
+      WRITE (*,'('//formatedInteger//',/,6'//formatedString//','//formatedInteger//')') &
+        "ID:", task%ID, &
+        "Varname:", task%varname, &
+        "Filename:", getFileNameFH(task%FH), &
+        "OVarname:", getVarNameFH(task%FH), &
+        "Type:", task%type, &
+        "Process:", task%process, &
+        "Period:", task%period, &
+        "Frequency:", task%frequency
+      WRITE (*,'(A52)') "****************************************************"
     END SUBROUTINE
 
 END MODULE diag_module

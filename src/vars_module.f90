@@ -59,14 +59,14 @@ MODULE vars_module
   REAL(8)                :: dTheta                      !< Meridional grid resolution. Computed in vars_module::initVars. \f$[rad]\f$
 
   ! dimensions, derived from domain specs during initialization
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lat_u           !< Size Ny \n Meridional coordinates of u grid \f$[^\circ N}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lat_v           !< Size Ny \n Meridional coordinates of v grid \f$[^\circ N}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lat_eta         !< Size Ny \n Meridional coordinates of eta grid \f$[^\circ N}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lat_H           !< Size Ny \n Meridional coordinates of H grid \f$[^\circ N}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lon_u           !< Size Nx \n Zonal coordinates of u grid \f$[^\circ E}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lon_v           !< Size Nx \n Zonal coordinates of v grid \f$[^\circ E}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lon_eta         !< Size Nx \n Zonal coordinates of eta grid \f$[^\circ E}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: lon_H           !< Size Nx \n Zonal coordinates of H grid \f$[^\circ E}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lat_u           !< Size Ny \n Meridional coordinates of u grid \f$[^\circ N}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lat_v           !< Size Ny \n Meridional coordinates of v grid \f$[^\circ N}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lat_eta         !< Size Ny \n Meridional coordinates of eta grid \f$[^\circ N}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lat_H           !< Size Ny \n Meridional coordinates of H grid \f$[^\circ N}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_u           !< Size Nx \n Zonal coordinates of u grid \f$[^\circ E}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_v           !< Size Nx \n Zonal coordinates of v grid \f$[^\circ E}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_eta         !< Size Nx \n Zonal coordinates of eta grid \f$[^\circ E}\$f. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_H           !< Size Nx \n Zonal coordinates of H grid \f$[^\circ E}\$f. Computed in model::initDomain
   REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_v      !< Size Ny \n Cosine of latitude of v grid. Computed in model::initDomain
   REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_u      !< Size Ny \n Cosine of latitude of u grid. Computed in model::initDomain
   REAL(8), DIMENSION(:), ALLOCATABLE :: tanTheta_v      !< Size Ny \n Tangens of latitude of v grid. Computed in model::initDomain
@@ -79,9 +79,9 @@ MODULE vars_module
   INTEGER(1), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
 
   ! dynamic fields u, v, eta, allocated during initialization
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
   ! constant fieds H, allocated during initialization
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H     !< Size Nx,Ny \n Bathimetry on H grid.

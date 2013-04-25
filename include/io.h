@@ -26,6 +26,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define TRACER_NL MODEL_NL
 #define DYNFROMFILE_NL MODEL_NL
 #define SWM_FORCING_NL MODEL_NL
+#define DIAG_NL MODEL_NL
 
 /* Namlist unit identifier */
 #define UNIT_MODEL_NL 17
@@ -33,6 +34,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_TRACER_NL 19
 #define UNIT_DYNFROMFILE_NL 20
 #define UNIT_SWM_FORCING_NL 21
+#define UNIT_DIAG_NL 22
 
 /* Attribute conventions from NetCDF Users' Guide (10.06.2011) */
 #define NUG_ATT_UNITS "units"

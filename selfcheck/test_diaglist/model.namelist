@@ -1,0 +1,47 @@
+&model_nl
+  A = 6371000,          ! radius of the earth (m)
+  OMEGA = 7.272205e-05, ! 1/day (1/s)
+  RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
+  r = 0,                ! linear bottom friction parameter
+  k = 5e-1,             ! quadratic bottom friction parameter
+  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
+  new_sponge_efolding=8e-2, ! efolding scale of sponge layers
+  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
+  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
+  Nx = 61,               ! number of grid points in x-dir.
+  Ny = 41,               ! number of grif points in y-dir.
+  run_length = 8.67e5, ! length of run in seconds
+  Nout = 10,             ! number of eq. distributed "measurements"
+  NoutChunk = 9999,     ! max lsize of output files
+  dt = 25,      ! time step (s)
+  meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
+  lon_s = -30.,           ! min. lon. of the domain (H-grid)
+  lon_e = 0.          ! max. lon. of the domain (H-grid),
+  lat_s = -10.     ! min. lat. of the domain (H-grid),
+  lat_e = 10.         ! max. lat. of the domain (H-grid)
+  in_file_H = "H_sc.nc" ! topography input dataset
+  file_eta_init="eta_init_gauss.nc"
+  H_overwrite=3.
+  model_start="1945-01-01 12:00"
+&end
+
+&swm_bs_nl filename="bs_sc.nc" varname="PSI" chunksize=1 &end
+
+&swm_forcing_nl filename="taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
+&swm_forcing_nl filename="tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
+
+&tracer_nl
+  TRC_C1_A = 1e2
+  TRC_file_C0 = "C0_sc.nc"
+  TRC_file_relax = "Crelax_sc.nc"
+&end
+
+&output_nl
+  oprefix = "output/new_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+&end
+
+&diag_nl filename="test1.nc", varname="u", type="S", frequency=10 &end
+&diag_nl filename="test2.nc", varname="SWM_v", type="A", period="1M" &end
+&diag_nl filename="test3.nc", varname="eta", type="A", frequency=10 &end
+&diag_nl filename="test4.nc", varname="psi", type="A", frequency=10 &end

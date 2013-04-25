@@ -157,3 +157,9 @@ clean-doc :
 
 clean-selfcheck :
 	@rm -rf $(selfcheck_dir)/*/output/new_*
+
+qtest.o : qtest.f90
+	$(COMPILE)
+
+qtest$(EXEEXT): qtest.o
+	$(FC) $(FFLAGS) $(builddir)qtest.o -o$(builddir)$@ $(LDFLAGS)
