@@ -191,7 +191,13 @@ MODULE diag_module
           rec = 1
         END IF
         ! calculate streamfunction
-        call computeStreamfunction(psi)
+
+        IF(allocated(psi)) then
+          Call computeStreamfunction(psi)
+        ELSE
+          Print *,"[",__FILE__,__LINE__,"] psi not allocated -> cannot compute stream function"
+        END IF
+        
         ! write output
         CALL writeDiag
         rec = rec + 1
