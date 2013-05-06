@@ -106,6 +106,13 @@ MODULE diag_module
     SUBROUTINE initDiag
       IMPLICIT NONE
       INTEGER           :: alloc_error
+
+      IF(.NOT.ALLOCATED(psi)) ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        PRINT *, "Allocation failed in",__FILE__,__LINE__,alloc_error
+        STOP 1
+      END IF
+
       CALL initDiagTaskList
 
 #ifdef WRITEINPUT
@@ -190,14 +197,13 @@ MODULE diag_module
           WRITE (fullrecstr, '(i12.12)') fullrec
           rec = 1
         END IF
-        ! calculate streamfunction
 
-        IF(allocated(psi)) then
-          Call computeStreamfunction(psi)
-        ELSE
-          Print *,"[",__FILE__,__LINE__,"] psi not allocated -> cannot compute stream function"
-        END IF
-        
+        ! calculate streamfunction
+        ! if it was not already calculated in calc_mean
+#ifndef WRITEMEAN
+        CALL computeStreamfunction(psi)
+#endif
+
         ! write output
         CALL writeDiag
         rec = rec + 1
@@ -407,8 +413,12 @@ MODULE diag_module
     !! @todo move reopening of datasets to diag_module::writeMean
     !------------------------------------------------------------------
     SUBROUTINE calc_mean
+    USE calc_lib, ONLY : computeStreamfunction
     IMPLICIT NONE
     REAL(8)     :: remainder
+     ! calculate streamfunction
+     CALL computeStreamfunction(psi)
+
      remainder=(mod(dt*itt, meant_out))
      IF (remainder<dt .AND. itt .ne. 0) then
         IF (rec_mean .gt. NoutChunk) then
@@ -546,11 +556,6 @@ MODULE diag_module
           lat=>lat_H
           lon=>lon_H
           task%oceanMask => ocean_H
-          IF(.NOT.ALLOCATED(psi)) ALLOCATE(psi(1:Nx, 1:Ny),stat=alloc_error)
-          IF (alloc_error .ne. 0) THEN
-            PRINT *, "Deallocation failed in",__FILE__,__LINE__,alloc_error
-            STOP 1
-          END IF
           task%varData => psi
         CASE DEFAULT
           PRINT *, "ERROR: Diagnostics for variable "//TRIM(task%varname)//" not supported at the moment!"
