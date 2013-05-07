@@ -5,7 +5,7 @@ tests = test1 test_diaglist
 selfcheck : $(tests)
 	@echo Done testing!
 
-test1 : include_modelHeader:=$(selfcheck_dir)test1/
-test_diaglist : include_modelHeader:=$(selfcheck_dir)test_diaglist/
-test% : model
+test1 : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test1/
+test_diaglist : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_diaglist/
+test% : clean model
 	$(SHELL) $(selfcheck_dir)runselfcheck.sh $@

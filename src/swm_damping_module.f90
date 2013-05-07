@@ -15,17 +15,17 @@ MODULE swm_damping_module
   IMPLICIT NONE
   SAVE
   PRIVATE
-  
+
   PUBLIC :: SWM_damping_init, SWM_damping_finish, &
             impl_u, impl_v, impl_eta, &
             gamma_sq_u, gamma_sq_v
 
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_u      !< Implicit damping term of the zonal momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_v      !< Implicit damping term of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: impl_eta    !< Implicit damping term of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
-  
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_u      !< Implicit damping term of the zonal momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_v      !< Implicit damping term of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_eta    !< Implicit damping term of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
+
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise damping coefficients
@@ -60,12 +60,12 @@ MODULE swm_damping_module
       END IF
       gamma_lin_u = ( r &
 #ifdef VELOCITY_SPONGE
-                      + getSpongeLayer("U",VELOCITY_SPONGE) & 
+                      + getSpongeLayer("U",VELOCITY_SPONGE) &
 #endif
                     )
       gamma_lin_v = ( r &
 #ifdef VELOCITY_SPONGE
-                      + getSpongeLayer("V",VELOCITY_SPONGE) & 
+                      + getSpongeLayer("V",VELOCITY_SPONGE) &
 #endif
                     )
 #ifdef BAROTROPIC
@@ -128,7 +128,7 @@ MODULE swm_damping_module
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF
     END SUBROUTINE SWM_damping_init
-    
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Parses sponge layer string and return coefficient field

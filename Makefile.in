@@ -49,7 +49,7 @@ udunitsdef = -D'UNITSPATH="$(UDDIR)/etc/udunits.dat"' -D'UD_POINTER=INTEGER(ptrK
 #build_dir = build/
 DOXYGEN = @DOXYGEN@
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 VPATH = include:src:build
 
@@ -82,7 +82,7 @@ vars_module.o : vars_module.f90 io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h udunits.inc
-	$(FC) $(FFLAGS) $(CPPFLAGS) $(udunitsdef) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(FC) $(FFLAGS) $(CPPFLAGS) $(udunitsdef) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
@@ -104,7 +104,7 @@ tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o ca
 	$(COMPILE)
 
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
-	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(FC_MODINC)$(include_modelHeader) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o
 	$(COMPILE)

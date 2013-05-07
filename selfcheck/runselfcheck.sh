@@ -24,13 +24,10 @@ buildDir="$modelDir/build"
 # List of output files to compare:
 testOutputPrefix="$testDir/output/new_000000000001_"
 referenceOutputPrefix="$testDir/output/reference_000000000001_"
-fileSuffixList="eta_out.nc psi_out.nc u_out.nc v_out.nc"
+referenceDatasetList=$(ls $referenceOutputPrefix*)
 
 # Delete previous test results
-for fileSuffix in ${fileSuffixList}
-do
-rm -f $testOutputPrefix$fileSuffix
-done
+rm -f $testOutputPrefix*
 
 # Execute model binary from test dir
 cd $testDir
@@ -38,7 +35,7 @@ time $buildDir/./model
 
 # Compare results
 set -x
-for fileSuffix in ${fileSuffixList}
+for dataset in $referenceDatasetList
 do
-cdo diff $referenceOutputPrefix$fileSuffix $testOutputPrefix$fileSuffix
+cdo diff $dataset $(echo $dataset | sed 's/reference/new/')
 done

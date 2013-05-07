@@ -14,7 +14,7 @@
   Nout = 10,             ! number of eq. distributed "measurements"
   NoutChunk = 9999,     ! max lsize of output files
   dt = 25,      ! time step (s)
-  meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
+  meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   lon_s = -30.,           ! min. lon. of the domain (H-grid)
   lon_e = 0.          ! max. lon. of the domain (H-grid),
   lat_s = -10.     ! min. lat. of the domain (H-grid),
@@ -41,7 +41,18 @@
   osuffix = "",  ! suffix to name model run
 &end
 
-&diag_nl filename="test1.nc", varname="u", type="S", frequency=10 &end
-&diag_nl filename="test2.nc", varname="SWM_v", type="A", period="1M" &end
-&diag_nl filename="test3.nc", varname="eta", type="A", frequency=10 &end
-&diag_nl filename="test4.nc", varname="psi", type="A", frequency=10 &end
+&diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 &end
+&diag_nl filename="v_out.nc", varname="v", type="snapshot", period="1M", frequency=10 &end
+&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 &end
+&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
+&diag_nl filename="u_mean_out.nc", varname="u", type="A", period="1M" &end
+&diag_nl filename="v_mean_out.nc", varname="v", type="average", period="1M" &end
+&diag_nl filename="eta_mean_out.nc", varname="eta", type="A", period="1M" &end
+&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period="1M" &end
+&diag_nl filename="u2_mean_out.nc", varname="u", type="A", process="S", period="1M" &end
+&diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period="1M" &end
+&diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period="1M" &end
+&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period="1M" &end
+&diag_nl filename="gamma_u.nc", varname="impl_u", type="I" &end
+&diag_nl filename="gamma_v.nc", varname="impl_v", type="I" &end
+&diag_nl filename="gamma_n.nc", varname="impl_eta", type="I" &end
