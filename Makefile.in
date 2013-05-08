@@ -38,7 +38,7 @@ model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_mod
 
 O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
-FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
+FFLAGS =  $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(NETDIR)/lib -lnetcdf
 includenc = $(FC_MODINC)$(NETDIR)/include
 libud = -L$(UDDIR)/lib -ludunits
@@ -64,7 +64,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module
+modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar
 objects = $(modules:%=$(builddir)%.o)
 
 .PHONY: all clean clean-selfcheck clean-doc selfcheck doc distclean clean-conf
@@ -91,7 +91,13 @@ include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o
 	$(COMPILE)
 
-diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o tracer_module.o swm_module.o model.h
+diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o generic_list.o diagTask.o diagVar.o tracer_module.o swm_module.o model.h
+	$(COMPILE)
+
+diagTask.o : diagTask.f90 io.h swm_damping_module.o io_module.o vars_module.o
+	$(COMPILE)
+
+diagVar.o : diagVar.f90 vars_module.o io.h
 	$(COMPILE)
 
 io_module.o : io_module.f90 io.h vars_module.o calendar_module.o
@@ -122,6 +128,9 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
 	$(COMPILE)
 
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
+	$(COMPILE)
+
+%.o : %.f90
 	$(COMPILE)
 
 include $(selfcheck_dir)Makefile

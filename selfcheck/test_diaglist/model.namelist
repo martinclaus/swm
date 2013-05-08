@@ -44,15 +44,16 @@
 &diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 &end
 &diag_nl filename="v_out.nc", varname="v", type="snapshot", period="1M", frequency=10 &end
 &diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 &end
-&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
+!&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
 &diag_nl filename="u_mean_out.nc", varname="u", type="A", period="1M" &end
 &diag_nl filename="v_mean_out.nc", varname="v", type="average", period="1M" &end
 &diag_nl filename="eta_mean_out.nc", varname="eta", type="A", period="1M" &end
-&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period="1M" &end
+!&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period="1M" &end
 &diag_nl filename="u2_mean_out.nc", varname="u", type="A", process="S", period="1M" &end
 &diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period="1M" &end
 &diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period="1M" &end
-&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period="1M" &end
+!&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period="1M" &end
+&diag_nl filename="H_out.nc", varname="H", type="I" &end
 &diag_nl filename="gamma_u.nc", varname="impl_u", type="I" &end
 &diag_nl filename="gamma_v.nc", varname="impl_v", type="I" &end
 &diag_nl filename="gamma_n.nc", varname="impl_eta", type="I" &end
