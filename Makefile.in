@@ -78,7 +78,7 @@ model$(EXEEXT)   : $(modules:%=%.o) model.o
 model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
 	$(COMPILE)
 
-vars_module.o : vars_module.f90 io.h
+vars_module.o : vars_module.f90 generic_list.o io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h udunits.inc

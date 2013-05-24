@@ -12,6 +12,7 @@
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
+  USE generic_list
   IMPLICIT NONE
   SAVE
 
@@ -109,6 +110,24 @@ MODULE vars_module
   INTEGER(8) :: itt                                     !< time step index
   CHARACTER(CHARLEN)     :: ref_cal                     !< unit string of internal model calendar
 
+  ! Register for variables
+  TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
+ 
+  ! Container for variables in the register
+  TYPE :: variable_data
+    REAL(8), DIMENSION(:,:,:), POINTER :: var => null()
+    CHARACTER(CHARLEN) :: nam = ""
+    REAL(8), DIMENSION(:,:,:), POINTER :: grid => null()
+  END TYPE variable_data 
+
+  ! Subroutines to add variables with different dimensions to the register
+  INTERFACE addToRegister
+    MODULE PROCEDURE add3dToRegister
+    MODULE PROCEDURE add2dToRegister
+    MODULE PROCEDURE add1dToRegister
+  END INTERFACE addToRegister
+
+
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Initialise vars_module
@@ -181,4 +200,133 @@ MODULE vars_module
       eta = 0.
     END SUBROUTINE initVars
 
+    !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief adds 3-dimensional variables to the register
+    !!
+    !! 3-dimensional variables can be stored directly in the variable_data type
+    !! and then added to the register
+    !----------------------------------------------------------------------------
+    SUBROUTINE add3dToRegister(var, varname)
+      IMPLICIT NONE
+        REAL(8), DIMENSION(:,:,:), INTENT(in), TARGET   :: var
+        CHARACTER(CHARLEN), INTENT(in)                  :: varname
+        TYPE(variable_data), TARGET                     :: dat
+
+        dat%var => var
+        dat%nam = varname
+        dat%grid => null()
+
+        IF (.NOT. ASSOCIATED(register)) THEN
+            CALL list_init(register, transfer(dat, list_data))
+        ELSE
+            CALL list_insert(register, transfer(dat, list_data))
+        END IF
+    END SUBROUTINE add3dToRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief adds 2-dimensional variables to the register
+    !!
+    !! 2-dimensional variables need to be transferred into 3-dimensional variables
+    !! before storing them in the variable_data type. This happens with the
+    !! reshape-function, setting the third dimension to 1.
+    !! Then they can be added to the register.
+    !----------------------------------------------------------------------------
+    SUBROUTINE add2dToRegister(var, varname)
+      IMPLICIT NONE
+        REAL(8), DIMENSION(:,:), TARGET, INTENT(in)     :: var
+        REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: dvar
+        CHARACTER(CHARLEN), INTENT(in)                  :: varname
+        TYPE(variable_data), TARGET                     :: dat
+
+        dvar = RESHAPE(var, (/Nx, Ny, 1/))
+
+        dat%var => dvar
+        dat%nam = varname
+        dat%grid => null()
+
+        CALL list_insert(register, transfer(dat, list_data))
+    END SUBROUTINE add2dToRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief adds 1-dimensional variables to the register
+    !!
+    !! 1-dimensional variables need to be transferred into 3-dimensional variables
+    !! before storing them in the variable_data type. This happens with the
+    !! reshape-function, setting the second and third dimension to 1.
+    !! Then they can be added to the register.
+    !----------------------------------------------------------------------------
+    SUBROUTINE add1dToRegister(var, varname)
+      IMPLICIT NONE
+        REAL(8), DIMENSION(:), TARGET, INTENT(in)       :: var
+        REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: dvar
+        CHARACTER(CHARLEN), INTENT(in)                  :: varname
+        TYPE(variable_data), TARGET                     :: dat
+        INTEGER                                         :: n
+
+        n = SIZE(var)
+        dvar = RESHAPE(var, (/n, 1, 1/))
+
+        dat%var => dvar
+        dat%nam = varname
+        dat%grid => null()
+
+        CALL list_insert(register, transfer(dat, list_data))
+    END SUBROUTINE add1dToRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief returns the pointer to the variable "varname" in the register
+    !!
+    !! Searches the register for the variable "varname" and returns a pointer
+    !! to that variable if found.
+    !! If no such variable is found, status is set to -1.
+    !----------------------------------------------------------------------------
+    SUBROUTINE getPtrFromRegister(varname, ptr, status)
+      IMPLICIT NONE
+        REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out)  :: ptr
+        CHARACTER(CHARLEN), INTENT(in)                   :: varname
+        TYPE(list_node_t), POINTER                       :: current
+        TYPE(variable_data)                              :: dat
+        INTEGER, INTENT(out), OPTIONAL                   :: status
+
+        CALL getNode(varname, current, status)
+        IF (status .EQ. 0) THEN
+            dat = transfer(list_get(current), dat)
+            ptr => dat%var
+        END IF
+    END SUBROUTINE getPtrFromRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief returns the node containing the variable "varname" in the register
+    !! 
+    !! Searches the register for the node containing the variable "varname" and
+    !! returns this node.
+    !! If no such node is found, status is set to -1.
+    !----------------------------------------------------------------------------
+    SUBROUTINE getNode(varname, node, status)
+      IMPLICIT NONE
+        CHARACTER(CHARLEN), INTENT(in)          :: varname
+        TYPE(list_node_t), POINTER, INTENT(out) :: node
+        TYPE(variable_data)                     :: dat
+        INTEGER, INTENT(out), OPTIONAL          :: status
+        
+        node => register
+        IF (ASSOCIATED(node)) THEN
+            DO
+                dat = TRANSFER(list_get(node), dat)
+                IF (dat%nam .EQ. varname) THEN
+                    IF (PRESENT(status)) status = 0
+                    EXIT
+                ELSE
+                    IF (ASSOCIATED(list_next(node))) THEN
+                        node => list_next(node)
+                    ELSE
+                        IF (PRESENT(status)) status = -1
+                        EXIT
+                    END IF
+                END IF
+            END DO
+        ELSE
+            IF (PRESENT(status)) status = -1
+        END IF
+    END SUBROUTINE getNode
 END MODULE vars_module
