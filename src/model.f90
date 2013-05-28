@@ -23,15 +23,16 @@
 PROGRAM model
 #include "model.h"
 #include "io.h"
+  USE io_module
   USE vars_module
   USE calc_lib
+  USE diag_module
 #ifdef DYNFROMFILE
   USE dynFromFile_module
 #endif
 #ifdef SWM
   USE swm_module
 #endif
-  USE diag_module
 #ifdef TRACER
   USE tracer_module
 #endif

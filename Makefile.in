@@ -75,7 +75,7 @@ all     : $(bin_PROGRAMS)
 model$(EXEEXT)   : $(modules:%=%.o) model.o
 	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud)
 
-model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o model.h io.h
+model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o io_module.o model.h io.h
 	$(COMPILE)
 
 vars_module.o : vars_module.f90 generic_list.o io.h
@@ -91,13 +91,13 @@ include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o
 	$(COMPILE)
 
-diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o generic_list.o diagTask.o diagVar.o tracer_module.o swm_module.o model.h
+diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
 	$(COMPILE)
 
-diagTask.o : diagTask.f90 io.h swm_damping_module.o io_module.o vars_module.o
+diagTask.o : diagTask.f90 diag_module.h io.h swm_damping_module.o io_module.o vars_module.o generic_list.o diagVar.o
 	$(COMPILE)
 
-diagVar.o : diagVar.f90 vars_module.o io.h
+diagVar.o : diagVar.f90 vars_module.o calc_lib.o io.h diag_module.h generic_list.o
 	$(COMPILE)
 
 io_module.o : io_module.f90 io.h vars_module.o calendar_module.o
