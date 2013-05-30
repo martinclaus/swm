@@ -139,7 +139,7 @@ MODULE diagVar
       TYPE(diagVar_t), POINTER, INTENT(in) :: self
       REAL(8), DIMENSION(:,:), POINTER     :: data
       nullify(data)
-      IF(associated(self).AND.ASSOCIATED(self%data)) data => self%data
+      IF(ASSOCIATED(self).AND.ASSOCIATED(self%data)) data => self%data
     END FUNCTION getData
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -199,23 +199,33 @@ MODULE diagVar
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Search list by name
     !!
-    !! Scans diagVarList for a variable with name "name" and associates dVar_prt%var with it.
+    !! Scans diagVarList for a variable with name "name" and associates dVar with it.
     !! If the variable is not found, i.e. diagVar::scanDiagVarList returns null, a new variable
     !! with name "name" will be created and added to the list. If no list yet exists, a new list
     !! will be initialised.
     !------------------------------------------------------------------
-    SUBROUTINE getDiagVarFromList(dVar_ptr, name)
-      TYPE(diagVar_ptr), INTENT(inout)    :: dVar_ptr
-      CHARACTER(*), INTENT(in)            :: name
-      dVar_ptr%var => scanDiagVarList(name)
-      IF(.NOT.ASSOCIATED(dVar_ptr%var)) THEN !< variable not in list yet
-        ALLOCATE(dVar_ptr%var)
-        CALL initDiagVar(dVar_ptr%var,name)
+    SUBROUTINE getDiagVarFromList(dVar, name)
+      TYPE(diagVar_t), POINTER, INTENT(inout) :: dVar
+      CHARACTER(*), INTENT(in)                :: name
+      TYPE(diagVar_ptr)                       :: dVar_ptr
+
+      IF(ASSOCIATED(dVar)) THEN
+        DEALLOCATE(dVar)
+        NULLIFY(dVar)
+      END IF
+
+      dVar => scanDiagVarList(name)
+
+      IF(.NOT.ASSOCIATED(dVar)) THEN !< variable not in list yet
+        ALLOCATE(dVar)
+        CALL initDiagVar(dVar,name)
+        dVar_ptr%var => dVar
         IF(.NOT.ASSOCIATED(diagVarList)) THEN
           CALL list_init(diagVarList,TRANSFER(dVar_ptr,list_data))
         ELSE
           CALL list_insert(diagVarList,TRANSFER(dVar_ptr,list_data))
         END IF
+        CALL addToRegister(dVar%data,dVar%name)
       END IF
     END SUBROUTINE getDiagVarFromList
 

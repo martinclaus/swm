@@ -56,17 +56,17 @@ MODULE tracer_module
   INTEGER(1), PARAMETER                           :: NG0=NG                !< Index of present increment
   INTEGER(1), PARAMETER                           :: NG0m1=NG0-1           !< Index of youngest passed increment
   REAL(8), PARAMETER                              :: AB_Chi=.1_8, AB_C1=1.5_8+AB_Chi, AB_C2=.5_8+AB_Chi !< Parameters for Adams-Bashforth scheme
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_C1                !< Tracer field. Size Nx,Ny,TRC_NLEVEL_SCHEME.
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_0              !< Field to which the tracer should be relaxed. Size Nx, Ny
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_relax          !< Local relaxation timescale. Size Nx, Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: TRC_C1                !< Tracer field. Size Nx,Ny,TRC_NLEVEL_SCHEME.
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_C1_0              !< Field to which the tracer should be relaxed. Size Nx, Ny
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_C1_relax          !< Local relaxation timescale. Size Nx, Ny
   REAL(8)                                         :: TRC_C1_A = 1.         !< Diffusivity \f$[m^2s^{-1}]\f$
   REAL(8)                                         :: TRC_C1_cons=0.        !< Consumption rate of tracer
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_LF           !< Coefficient matrix for leapfrog scheme
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_Coef_AB           !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_C1_impl           !< Implicit terms, i.e. relaxation and consumption
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE          :: TRC_G_C1              !< Explicit increment vector
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_u_nd              !< Zonal component of the non-divergent flow field
-  REAL(8), DIMENSION(:,:), ALLOCATABLE            :: TRC_v_nd              !< Meridional component of the non-divergent flow field
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: TRC_Coef_LF           !< Coefficient matrix for leapfrog scheme
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: TRC_Coef_AB           !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_C1_impl           !< Implicit terms, i.e. relaxation and consumption
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: TRC_G_C1              !< Explicit increment vector
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_u_nd              !< Zonal component of the non-divergent flow field
+  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_v_nd              !< Meridional component of the non-divergent flow field
   TYPE(fileHandle)                                :: TRC_FH_C0             !< File handle of the tracer relaxation field (C0) defined in the namelist
   TYPE(fileHandle)                                :: TRC_FH_relax          !< File handle of the tracer relaxation timescale (gamma) defined in the namelist
   TYPE(fileHandle)                                :: TRC_FH_init           !< File handle of the tracer initial condition
@@ -84,12 +84,11 @@ MODULE tracer_module
     !! @par Includes:
     !! io.h
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny\n
+    !! vars_module, ONLY : Nx,Ny, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initTracer
 #include "io.h"
-      USE vars_module, ONLY : Nx,Ny
-      IMPLICIT NONE
+      USE vars_module, ONLY : Nx,Ny, addToRegister
       INTEGER           :: alloc_error
       CHARACTER(CHARLEN):: TRC_file_C0, TRC_file_relax, &
                            in_varname_C0="C0", in_varname_C="C", in_varname_relax="RELAX"
@@ -113,6 +112,15 @@ MODULE tracer_module
         WRITE(*,*) "Allocation error in initTracer"
         STOP 1
       END IF
+
+      CALL addToRegister(TRC_C1(:,:,TRC_N0),"TRC_C1")
+      CALL addToRegister(TRC_C1_0,"TRC_C1_0")
+      CALL addToRegister(TRC_C1_relax,"TRC_C1_relax")
+      CALL addToRegister(TRC_C1,"TRC_C1")
+      CALL addToRegister(TRC_u_nd,"TRC_u_nd")
+      CALL addToRegister(TRC_v_nd,"TRC_v_nd")
+      CALL addToRegister(TRC_G_C1(:,:,NG0),"TRC_G_C1")
+
       TRC_C1 = 0._8
       TRC_C1_0 = 0._8
       TRC_C1_relax = 0._8
@@ -139,7 +147,6 @@ MODULE tracer_module
     !! tracer_module::TRC_G_C1
     !------------------------------------------------------------------
     SUBROUTINE TRC_finishTracer
-      IMPLICIT NONE
       INTEGER       :: alloc_error
 #ifdef TRC_TSTEP_LEAPFROG
       CALL TRC_finishLFScheme
@@ -165,7 +172,7 @@ MODULE tracer_module
     SUBROUTINE TRC_readInitialConditions
       USE io_module, ONLY : readInitialCondition
       USE vars_module, ONLY : ocean_eta
-      IMPLICIT NONE
+
       CALL readInitialCondition(TRC_FH_init,TRC_C1(:,:,TRC_N0))
       CALL readInitialCondition(TRC_FH_C0,TRC_C1_0)
       CALL readInitialCondition(TRC_FH_relax,TRC_C1_relax)
@@ -184,7 +191,6 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStep
       USE vars_module, ONLY : itt
-      IMPLICIT NONE
       ! update TRC_[uv]_nd
       CALL TRC_getVelocity
       IF (itt.GT.1) THEN
@@ -206,7 +212,6 @@ MODULE tracer_module
     !! Shifts time slices and increment vectors backward in memory
     !------------------------------------------------------------------
     SUBROUTINE TRC_advance
-      IMPLICIT NONE
       TRC_C1(:,:,1:TRC_NLEVEL-1) = TRC_C1(:,:,2:TRC_NLEVEL)
 #ifdef TRC_TSTEP_ADAMSBASHFORTH
       TRC_G_C1(:,:,1:NG-1) = TRC_G_C1(:,:,2:NG)
@@ -228,7 +233,6 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepEulerForward
       USE vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
-      IMPLICIT NONE
       INTEGER       :: i,j
 #ifdef TRC_PARALLEL
 #include "model.h"
@@ -281,7 +285,6 @@ MODULE tracer_module
     SUBROUTINE TRC_tracerStepLeapfrog
     ! leapfrog timestepping of tracer equation
       USE vars_module, ONLY : Nx,Ny,land_eta,ip1,im1,jp1,jm1,dt
-      IMPLICIT NONE
       INTEGER       :: i,j
 #ifdef TRC_PARALLEL
 !$OMP PARALLEL &
@@ -327,7 +330,6 @@ MODULE tracer_module
     SUBROUTINE TRC_tracerStepAdamsBashforth
     ! Adams Bashforth time stepping of tracer equation
      USE vars_module, ONLY : Nx,Ny,land_eta,ip1,im1,jp1,jm1,dt
-     IMPLICIT NONE
      INTEGER    :: i,j
 
 #ifdef TRC_PARALLEL
@@ -380,7 +382,6 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_checkLeapfrogStability(u,v)
       USE vars_module, ONLY : Nx,Ny,dt,A,cosTheta_u,dLambda,dTheta, itt
-      IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
       REAL(8)                               :: a_sq, b, c
 
@@ -402,11 +403,11 @@ MODULE tracer_module
     !! @see tracer_module::TRC_tracerStepLeapfrog
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
+    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initLFScheme
-      USE vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
-      IMPLICIT NONE
+      USE vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, &
+                              addToRegister
       INTEGER       :: alloc_error
       INTEGER       :: i,j
 
@@ -415,6 +416,9 @@ MODULE tracer_module
        PRINT *,"Allocation error in TRC_initLFScheme"
        STOP 1
       END IF
+
+      CALL addToRegister(TRC_Coef_LF,"TRC_COEF_LF")
+
       TRC_Coef_LF = 0.
       FORALL (i=1:Nx, j=1:Ny, ocean_eta(i,j) .EQ. 1)
         TRC_Coef_LF(i,j,1)  = -ocean_u(ip1(i),j)*dt/(dLambda*A*cosTheta_u(j))&
@@ -455,11 +459,11 @@ MODULE tracer_module
     !! @see tracer_module::TRC_tracerStepEulerForward
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
+    !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initABScheme
-      USE vars_module, ONLY: Nx,Ny,ocean_eta,ocean_u,ocean_v,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1
-      IMPLICIT NONE
+      USE vars_module, ONLY: Nx,Ny,ocean_eta,ocean_u,ocean_v,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, &
+                            addToRegister
       INTEGER       :: alloc_error
       INTEGER       :: i,j
 
@@ -468,6 +472,9 @@ MODULE tracer_module
         PRINT *,"Allocation error in TRC_initABScheme"
         STOP 1
       END IF
+
+      CALL addToRegister(TRC_Coef_AB,"TRC_COEF_AB")
+
       TRC_Coef_AB = 0.
       FORALL (i=1:Nx, j=1:Ny, ocean_eta(i,j).EQ.1)
         TRC_Coef_AB(1,i,j)  = -ocean_u(ip1(i),j)/(2.*A*dLambda*cosTheta_u(j))
@@ -493,17 +500,19 @@ MODULE tracer_module
     !! Adams-Bashforth schemes
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ocean_eta, dt
+    !! vars_module, ONLY : Nx,Ny,ocean_eta, dt, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initImplTerms
-      USE vars_module, ONLY : Nx,Ny,ocean_eta, dt
-      IMPLICIT NONE
+      USE vars_module, ONLY : Nx,Ny,ocean_eta, dt, addToRegister
       INTEGER   :: alloc_error, i, j, tStepFactor
       ALLOCATE(TRC_C1_impl(1:Nx,1:Ny),stat=alloc_error)
       IF(alloc_error.NE.0) THEN
         PRINT *,"Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+
+      CALL addToRegister(TRC_C1_impl,"TRC_C1_IMPL")
+
       TRC_C1_impl = 1.
       tStepFactor = 1
 !#ifdef TRC_TSTEP_LEAPFROG
@@ -517,7 +526,6 @@ MODULE tracer_module
     !> @brief  Deallocates the coefficient matrix of the mixed leapfrog scheme
     !------------------------------------------------------------------
     SUBROUTINE TRC_finishLFScheme
-      IMPLICIT NONE
       INTEGER       :: alloc_error
       DEALLOCATE(TRC_Coef_LF, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
@@ -528,7 +536,6 @@ MODULE tracer_module
     !! and Adams-Bashforth scheme
     !------------------------------------------------------------------
     SUBROUTINE TRC_finishABScheme
-      IMPLICIT NONE
       INTEGER       :: alloc_error
       DEALLOCATE(TRC_Coef_AB, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
@@ -539,7 +546,6 @@ MODULE tracer_module
     !! Adams-Bashforth scheme
     !------------------------------------------------------------------
     SUBROUTINE TRC_finishImplTerms
-      IMPLICIT NONE
       INTEGER   :: alloc_error
       DEALLOCATE(TRC_C1_impl,stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
@@ -561,9 +567,6 @@ MODULE tracer_module
       USE vars_module, ONLY : u,v,N0
 #ifdef TRC_CORRECT_VELOCITY_FIELD
       USE calc_lib, ONLY : computeNonDivergentFlowField
-#endif
-      IMPLICIT NONE
-#ifdef TRC_CORRECT_VELOCITY_FIELD
       CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),TRC_u_nd,TRC_v_nd)
 #endif
 #ifndef TRC_CORRECT_VELOCITY_FIELD

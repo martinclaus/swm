@@ -13,7 +13,7 @@ MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
   IMPLICIT NONE
-  SAVE
+!  SAVE
   PRIVATE
 
   PUBLIC :: SWM_damping_init, SWM_damping_finish, &
@@ -38,19 +38,26 @@ MODULE swm_damping_module
     !!
     !! @par Uses:
     !! vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, ocean_u, ocean_v, H_u, H_v
+    !! addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_damping_init
       USE vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, &
                               ocean_u, ocean_v, H_u, H_v
+      USE vars_module, ONLY : addToRegister
       IMPLICIT NONE
       INTEGER :: alloc_error
-      REAL(8), DIMENSION(:,:), ALLOCATABLE :: gamma_lin_u, gamma_lin_v, gamma_n
+      REAL(8), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
+                                          gamma_lin_v => null(), &
+                                          gamma_lin_eta => null()
       ! allocate memory
       ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      CALL addToRegister(impl_u, "IMPL_U")
+      CALL addToRegister(impl_v, "IMPL_V")
+      CALL addToRegister(impl_eta, "IMPL_ETA")
 #ifdef LINEAR_BOTTOM_FRICTION
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
@@ -58,6 +65,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U")
+      CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V")
       gamma_lin_u = ( r &
 #ifdef VELOCITY_SPONGE
                       + getSpongeLayer("U",VELOCITY_SPONGE) &
@@ -80,6 +89,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U")
+      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V")
       gamma_sq_u = k
       gamma_sq_v = k
 #ifdef BAROTROPIC
@@ -88,16 +99,17 @@ MODULE swm_damping_module
 #endif
 #endif
 #ifdef NEWTONIAN_COOLING
-      ALLOCATE(gamma_n(1:Nx, 1:Ny), stat=alloc_error)
+      ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      gamma_n = ( gamma_new &
+      gamma_lin_eta = ( gamma_new &
 #ifdef NEWTONIAN_SPONGE
                   + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
 #endif
                 )
+      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA")
 #endif
       ! build implicit terms (linear damping)
       impl_u = ( 1 &
@@ -112,21 +124,9 @@ MODULE swm_damping_module
                )
       impl_eta = ( 1 &
 #ifdef NEWTONIAN_COOLING
-                + dt*gamma_n &
+                + dt*gamma_lin_eta &
 #endif
                )
-      IF (ALLOCATED(gamma_lin_u)) THEN
-        DEALLOCATE(gamma_lin_u, stat=alloc_error)
-        IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-      END IF
-      IF (ALLOCATED(gamma_lin_v)) THEN
-        DEALLOCATE(gamma_lin_v, stat=alloc_error)
-        IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-      END IF
-      IF (ALLOCATED(gamma_n)) THEN
-        DEALLOCATE(gamma_n, stat=alloc_error)
-        IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-      END IF
     END SUBROUTINE SWM_damping_init
 
 

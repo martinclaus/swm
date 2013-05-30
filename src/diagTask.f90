@@ -39,21 +39,21 @@ MODULE diagTask
     TYPE(fileHandle)    :: FH           !< File handle to variable in output dataset
     INTEGER             :: rec=1        !< Index of last record in file.
     INTEGER             :: fullrec=1    !< Number of records written to all files
-    CHARACTER(CHARLEN)  :: type=""      !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
-    INTEGER             :: frequency=1  !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-    CHARACTER(CHARLEN)  :: period="1M"  !< Sampling period for AVERAGE output.
-    CHARACTER(CHARLEN)  :: process="A"  !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
-    CHARACTER(CHARLEN)  :: varname=""   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+    CHARACTER(CHARLEN)  :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
+    INTEGER             :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+    CHARACTER(CHARLEN)  :: period       !< Sampling period for AVERAGE output.
+    CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+    CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
     REAL(8), DIMENSION(:,:), POINTER     :: varData=>null()   !< data, which should be processed
     INTEGER(1), DIMENSION(:,:), POINTER  :: oceanMask=>null() !< ocean mask
     REAL(8), DIMENSION(:), POINTER       :: lon=>null() !< Longitude coordinates
     REAL(8), DIMENSION(:), POINTER       :: lat=>null() !< Latitude coordnates
-    REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer !< Buffer used for processing the data
-    REAL(8)             :: bufferCount=0.       !< Counter, counting time
-    REAL(8)             :: oScaleFactor=1.      !< Scaling factor for unit conversions etc.
-    INTEGER             :: nstep=1              !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
-    INTEGER             :: NoutChunk=1000       !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
-    TYPE(diagVar_t), POINTER :: diagVar=>null() !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
+    REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
+    REAL(8)             :: bufferCount=0.   !< Counter, counting time
+    REAL(8)             :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
+    INTEGER             :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
+    INTEGER             :: NoutChunk        !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+    TYPE(diagVar_t), POINTER :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
   END TYPE diagTask_t
 
 
@@ -78,7 +78,7 @@ MODULE diagTask
     !!
     !! @todo simplify, when vars register is finished
     !------------------------------------------------------------------
-    TYPE(diagTask_t) FUNCTION initDiagTask(FH,type,frequency, period, process, varname, ID) RESULT(self)
+    TYPE(diagTask_t) FUNCTION initDiagTask(FH,type,frequency, period, process, varname, NoutChunk, ID) RESULT(self)
       USE vars_module
       USE swm_damping_module
       IMPLICIT NONE
@@ -89,8 +89,9 @@ MODULE diagTask
       CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER, intent(in)             :: ID          !< ID of diagTask
+      INTEGER, intent(in)             :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
       POINTER :: self
-      TYPE(diagVar_ptr), POINTER      :: dVar_ptr
+      REAL(8), DIMENSION(:,:,:), POINTER :: tmp_var3D
       INTEGER :: alloc_error
 
       ALLOCATE(self, stat=alloc_error)
@@ -107,63 +108,60 @@ MODULE diagTask
       self%varname = varname
       self%ID = ID
       self%NoutChunk = NoutChunk
-      NULLIFY(self%diagVar)
 
 
       !< Setup task variable and grid
       SELECT CASE (TRIM(self%varname))
 
-        CASE ("U","u") !< U, SWM_u
+        CASE ("U","u","SWM_U","impl_u","Impl_u","IMPL_U", "GAMMA_LIN_U", "gamma_lin_u","H_U","H_u","h_u","F_X") !< U, SWM_u
           self%lat=>lat_u
           self%lon=>lon_u
           self%oceanMask => ocean_u
-          self%varData => u(:,:,N0)
+          CALL getFromRegister(self%varname,self%varData)
+          IF (.NOT.ASSOCIATED(self%varData)) THEN
+            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+            STOP 2
+          END IF
 
-        CASE ("V","v") !< V, SWM_v
+        CASE ("V","v","SWM_V","impl_v","Impl_v","IMPL_V", "GAMMA_LIN_V", "gamma_lin_v","H_V","H_v","h_v","F_Y") !< V, SWM_v
           self%lat=>lat_v
           self%lon=>lon_v
           self%oceanMask => ocean_v
-          self%varData => v(:,:,N0)
+          CALL getFromRegister(self%varname,self%varData)
+          IF (.NOT.ASSOCIATED(self%varData)) THEN
+            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+            STOP 2
+          END IF
 
-        CASE ("ETA","eta","Eta") !< ETA, SWM_eta
+        CASE ("ETA","eta","SWM_ETA","Eta","impl_eta","Impl_eta","IMPL_ETA","GAMMA_LIN_ETA", "gamma_lin_eta","H_ETA","H_eta","h_eta","F_ETA") !< ETA, SWM_eta
           self%lat=>lat_eta
           self%lon=>lon_eta
           self%oceanMask => ocean_eta
-          self%varData => eta(:,:,N0)
+          CALL getFromRegister(self%varname,self%varData)
+          IF (.NOT.ASSOCIATED(self%varData)) THEN
+            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+            STOP 2
+          END IF
 
         CASE ("PSI","psi","Psi") !< PSI
           self%lat=>lat_H
           self%lon=>lon_H
           self%oceanMask => ocean_H
-          ALLOCATE(dVar_ptr)
-          CALL getDiagVarFromList(dVar_ptr,DVARNAME_PSI)
-          self%diagVar => dVar_ptr%var
-          self%varData => getData(self%diagVar)
+!          ALLOCATE(dVar_ptr)
+          CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
+!          self%diagVar => dVar_ptr%var
+          CALL getFromRegister(self%varname,self%varData)
           self%oScaleFactor = 1e-6
-
-        CASE ("impl_u","Impl_u","IMPL_U")
-          self%lat=>lat_u
-          self%lon=>lon_u
-          self%oceanMask => ocean_u
-          self%varData => impl_u
-
-        CASE ("impl_v","Impl_v","IMPL_V")
-          self%lat=>lat_v
-          self%lon=>lon_v
-          self%oceanMask => ocean_v
-          self%varData => impl_v
-
-        CASE ("impl_eta","Impl_eta","IMPL_ETA")
-          self%lat => lat_eta
-          self%lon => lon_eta
-          self%oceanMask => ocean_eta
-          self%varData => impl_eta
 
         CASE ("H","h")
           self%lat=>lat_H
           self%lon=>lon_H
           self%oceanMask => ocean_H
-          self%varData => H
+          CALL getFromRegister(self%varname,self%varData)
+          IF (.NOT.ASSOCIATED(self%varData)) THEN
+            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+            STOP 2
+          END IF
 
         CASE DEFAULT
           PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
@@ -229,7 +227,7 @@ MODULE diagTask
     !!
     !! @todo Replace magic strings/numbers by cpp macros
     !------------------------------------------------------------------
-    SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process)
+    SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process,NoutChunk)
       IMPLICIT NONE
       INTEGER, INTENT(out)             :: io_stat   !< Status of the read statement
       INTEGER, INTENT(inout)           :: nlist     !< Number of lists processed
@@ -240,15 +238,17 @@ MODULE diagTask
       CHARACTER(CHARLEN), INTENT(out)  :: period    !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), INTENT(out)  :: process   !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-      NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process
+      INTEGER, INTENT(out)             :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+      NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process, NoutChunk
 
       !< Set default values
-      filename="out.nc"
-      ovarname="var"
-      type="S"
-      frequency=1
-      period="1M"
-      process="A"
+      filename  = DEF_OFILENAME
+      ovarname  = DEF_OVARNAME
+      type      = DEF_DIAG_TYPE
+      frequency = DEF_DIAG_FREQUENCY
+      period    = DEF_DIAG_PERIOD
+      process   = DEF_DIAG_PROCESS
+      NoutChunk = DEF_NOUT_CHUNK
       varname=""
 
       !< read list
@@ -398,14 +398,15 @@ MODULE diagTask
       CHARACTER(CHARLEN)  :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+      INTEGER             :: NoutChunk
       !< Read namelist
       OPEN(UNIT_DIAG_NL, file="model.namelist", iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
-        CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process)
+        CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, NoutChunk)
         IF (io_stat.EQ.0) THEN
           !< create and add task
           CALL initFH(filename,ovarname,FH)
-          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, nlist)
+          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, NoutChunk, nlist)
           IF (.NOT.ASSOCIATED(diagTaskList)) THEN
             CALL list_init(diagTaskList,TRANSFER(task_ptr,list_data))
             currentNode => diagTaskList

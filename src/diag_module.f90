@@ -33,9 +33,10 @@ MODULE diag_module
     SUBROUTINE initDiag
       IMPLICIT NONE
       INTEGER           :: alloc_error
+      !< Init diagnostic tasks
       CALL initDiagTaskList
       !< be verbose
-      CALL printTaskSummary
+!      CALL printTaskSummary
     END SUBROUTINE initDiag
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

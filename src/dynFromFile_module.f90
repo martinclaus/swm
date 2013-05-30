@@ -34,8 +34,8 @@ MODULE dynFromFile_module
   LOGICAL           :: DFF_v_input                      !< .TRUE. if dynFromFile_module::DFF_v_chunk is initialised
   LOGICAL           :: DFF_eta_input                    !< .TRUE. if dynFromFile_module::DFF_eta_chunk is initialised
   LOGICAL           :: DFF_psi_input                    !< .TRUE. if dynFromFile_module::DFF_psi_chunk is initialised
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: DFF_psi_u   !< Zonal velocity computed from streamfunction
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: DFF_psi_v   !< Meridional velocity computed from streamfunction
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_u   !< Zonal velocity computed from streamfunction
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_v   !< Meridional velocity computed from streamfunction
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -48,7 +48,7 @@ MODULE dynFromFile_module
     !! will write the loaded data to the variables of vars_module.
     !! @par Uses:
     !! memchunk_module, ONLY : initMemChunk, isInitialised \n
-    !! vars_module, ONLY : Nx, Ny
+    !! vars_module, ONLY : Nx, Ny, addToRegister
     !!
     !! @todo replace hard-coded default value for memChunk chunk size by
     !! preprocessor macro.
@@ -56,7 +56,7 @@ MODULE dynFromFile_module
     SUBROUTINE DFF_initDynFromFile
     ! initial conditions will be overwritten (must be call befor any module using initial conditions is initialised)
       USE memchunk_module, ONLY : initMemChunk, isInitialised
-      USE vars_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : Nx, Ny, addToRegister
       IMPLICIT NONE
       CHARACTER(CHARLEN)    :: FileName_u="", FileName_v="", FileName_eta="", FileName_psi="",&
                                varname_eta=OVARNAMEETA, varname_u=OVARNAMEU, varname_v=OVARNAMEV, varname_psi=OVARNAMEPSI
@@ -86,6 +86,8 @@ MODULE dynFromFile_module
           PRINT *,"Memory allocation failed at ",__FILE__,__LINE__
           STOP 1
         END IF
+        CALL addToRegister(DFF_psi_u,"DFF_PSI_U")
+        CALL addToRegister(DFF_psi_v,"DFF_PSI_V")
       END IF
       ! set initial conditions
       CALL DFF_advance

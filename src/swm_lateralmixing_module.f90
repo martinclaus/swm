@@ -25,11 +25,11 @@ MODULE swm_lateralmixing_module
   IMPLICIT NONE
   SAVE
   PRIVATE
-  
+
   PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, lat_mixing_u, lat_mixing_v
 
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 9,Nx,Ny
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 9,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 9,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 9,Nx,Ny
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -39,11 +39,12 @@ MODULE swm_lateralmixing_module
     !! not defined as BAROTROPIC, the factors of H are droped. Boundary condition is free-slip.
     !! @par Uses:
     !! vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v,ocean_H,
-    !! ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v
+    !! ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_init
       USE vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v, &
-                              ocean_H,ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v
+                              ocean_H,ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v, &
+                              addToRegister
       IMPLICIT NONE
       INTEGER   :: i,j,alloc_error
       ALLOCATE(lat_mixing_u(1:9, 1:Nx, 1:Ny), lat_mixing_v(1:9, 1:Nx, 1:Ny), stat=alloc_error)
@@ -51,6 +52,8 @@ MODULE swm_lateralmixing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      CALL addToRegister(lat_mixing_u,"LAT_MIXING_U")
+      CALL addToRegister(lat_mixing_v,"LAT_MIXING_V")
       lat_mixing_u = 0._8
       lat_mixing_v = 0._8
       FORALL (i=1:Nx, j=1:Ny)

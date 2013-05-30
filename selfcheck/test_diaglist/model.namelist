@@ -11,8 +11,6 @@
   Nx = 61,               ! number of grid points in x-dir.
   Ny = 41,               ! number of grif points in y-dir.
   run_length = 8.67e5, ! length of run in seconds
-  Nout = 10,             ! number of eq. distributed "measurements"
-  NoutChunk = 9999,     ! max lsize of output files
   dt = 25,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   lon_s = -30.,           ! min. lon. of the domain (H-grid)
@@ -54,6 +52,9 @@
 &diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period="1M" &end
 &diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period="1M" &end
 &diag_nl filename="H_out.nc", varname="H", type="I" &end
-&diag_nl filename="gamma_u.nc", varname="impl_u", type="I" &end
-&diag_nl filename="gamma_v.nc", varname="impl_v", type="I" &end
-&diag_nl filename="gamma_n.nc", varname="impl_eta", type="I" &end
+&diag_nl filename="impl_u.nc", varname="impl_u", type="I" &end
+&diag_nl filename="impl_v.nc", varname="impl_v", type="I" &end
+&diag_nl filename="impl_n.nc", varname="impl_eta", type="I" &end
+&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" &end
+&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" &end
+&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" &end

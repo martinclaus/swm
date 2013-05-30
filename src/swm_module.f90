@@ -25,13 +25,19 @@ USE swm_timestep_module
     !! vectors used for AB2 and EF time stepping schemes. Initialise the
     !! submodules swm_damping_module, swm_forcing_module and swm_timestep_module.
     !! Read initial conditions for shallow water module.
+    !!
+    !! @par Uses:
+    !! vars_module , ONLY : Nx, Ny, Ns, N0, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
-      USE vars_module, ONLY : Nx, Ny, Ns
+      USE vars_module, ONLY : Nx, Ny, Ns, N0, addToRegister
       IMPLICIT NONE
       INTEGER :: alloc_error, stat ! return status
       ! allocate what's necessary
       ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
+      CALL addToRegister(SWM_u,"SWM_U")
+      CALL addToRegister(SWM_v,"SWM_V")
+      CALL addToRegister(SWM_eta,"SWM_ETA")
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_init:",alloc_error
         STOP 1

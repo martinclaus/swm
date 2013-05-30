@@ -38,15 +38,15 @@ MODULE swm_timestep_module
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
   INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
   INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE         :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), PARAMETER                             :: AB_Chi=.1_8         !< AdamsBashforth displacement coefficient
   REAL(8), PARAMETER                             :: AB_C1=1.5_8+AB_Chi  !< AdamsBashforth weight factor for present time level
   REAL(8), PARAMETER                             :: AB_C2=.5_8+AB_Chi   !< AdamsBashforth weight factor for past time level
@@ -66,7 +66,7 @@ MODULE swm_timestep_module
     !! memchunk_module, ONLY : initMemChunk
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_init
-      USE vars_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : Nx, Ny, addToRegister
       USE memchunk_module, ONLY : initMemChunk
       CHARACTER(CHARLEN)  :: filename="", varname=""
       INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat
@@ -78,6 +78,10 @@ MODULE swm_timestep_module
         WRITE(*,*) "Allocation error in SWM_timestep_init:",stat
         STOP 1
       END IF
+
+      CALL addToRegister(G_u(:,:,NG0),"G_U")
+      CALL addToRegister(G_v(:,:,NG0),"G_V")
+      CALL addToRegister(G_eta(:,:,NG0),"G_ETA")
 
 #ifdef SWM_TSTEP_HEAPS
       IF (timestepInitialised) THEN
@@ -105,6 +109,11 @@ MODULE swm_timestep_module
       CALL SWM_timestep_initLiMeanState
       timestepInitialised = .TRUE.
 #endif
+
+      CALL addToRegister(SWM_Coef_u,"SWM_COEF_U")
+      CALL addToRegister(SWM_Coef_v,"SWM_COEF_V")
+      CALL addToRegister(SWM_Coef_eta,"SWM_COEF_ETA")
+
     END SUBROUTINE SWM_timestep_init
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

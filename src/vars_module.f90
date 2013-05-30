@@ -14,7 +14,7 @@ MODULE vars_module
 #include "io.h"
   USE generic_list
   IMPLICIT NONE
-  SAVE
+!  SAVE
 
   ! Constants (default parameters), contained in model.namelist (except PI and D2R)
   REAL(8), PARAMETER     :: PI = 3.14159265358979323846      !< copied from math.h @todo include math.h instead?
@@ -47,8 +47,6 @@ MODULE vars_module
   INTEGER                :: Ny = 100                    !< Number of grid points in meridional direction
   REAL(8)                :: run_length = 100000         !< Length of model run \f$[s]\f$
   INTEGER                :: Nt = 1e5                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
-  INTEGER                :: Nout = 10                   !< Number of snapshots written to disk. Snapshots are equally distributed over runlength
-  INTEGER                :: NoutChunk = 10              !< Maximal number of timesteps after which a new output file is created
   REAL(8)                :: lon_s = -20.0               !< Position of western boundary in degrees east of the H grid
   REAL(8)                :: lon_e = 20.0                !< Position of eastern boundary in degrees east of the H grid
   REAL(8)                :: lat_s = -20.0               !< Position of southern boundary in degrees north of the H grid
@@ -68,12 +66,10 @@ MODULE vars_module
   REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_v           !< Size Nx \n Zonal coordinates of v grid \f$[^\circ E}\$f. Computed in model::initDomain
   REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_eta         !< Size Nx \n Zonal coordinates of eta grid \f$[^\circ E}\$f. Computed in model::initDomain
   REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: lon_H           !< Size Nx \n Zonal coordinates of H grid \f$[^\circ E}\$f. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_v      !< Size Ny \n Cosine of latitude of v grid. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: cosTheta_u      !< Size Ny \n Cosine of latitude of u grid. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: tanTheta_v      !< Size Ny \n Tangens of latitude of v grid. Computed in model::initDomain
-  REAL(8), DIMENSION(:), ALLOCATABLE :: tanTheta_u      !< Size Ny \n Tangens of latitude of u grid. Computed in model::initDomain
-
-  INTEGER                :: write_tstep                 !< Number of timesteps between snapshots. Computed in vars_module::initVars.
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: cosTheta_v      !< Size Ny \n Cosine of latitude of v grid. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: cosTheta_u      !< Size Ny \n Cosine of latitude of u grid. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: tanTheta_v      !< Size Ny \n Tangens of latitude of v grid. Computed in model::initDomain
+  REAL(8), DIMENSION(:), ALLOCATABLE, TARGET :: tanTheta_u      !< Size Ny \n Tangens of latitude of u grid. Computed in model::initDomain
 
   ! numerical parameters
   INTEGER(1), PARAMETER   :: Ns = 2                     !< Max number of time steps stored in memory.
@@ -91,10 +87,10 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
 
   ! nearest neighbour indices, derived from domain specs
-  INTEGER, DIMENSION(:), ALLOCATABLE :: ip1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-  INTEGER, DIMENSION(:), ALLOCATABLE :: im1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-  INTEGER, DIMENSION(:), ALLOCATABLE :: jp1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-  INTEGER, DIMENSION(:), ALLOCATABLE :: jm1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
+  INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: ip1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
+  INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: im1             !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
+  INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
+  INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1             !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
 
   ! land/ocean mask, allocated/created during initialization
   INTEGER(1), DIMENSION(:,:), ALLOCATABLE, TARGET :: land_H     !< Size Nx,Ny \n Landmask of H grid. Computed in model:initDomain
@@ -110,15 +106,30 @@ MODULE vars_module
   INTEGER(8) :: itt                                     !< time step index
   CHARACTER(CHARLEN)     :: ref_cal                     !< unit string of internal model calendar
 
-  ! Register for variables
+  !< Register for variables
   TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
- 
-  ! Container for variables in the register
-  TYPE :: variable_data
-    REAL(8), DIMENSION(:,:,:), POINTER :: var => null()
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Type to handle data of globally registered variables
+  !!
+  !! The registered variable consists of a 3D pointer to its data, a name
+  !! and a pointer to the grid, the variable is defined on.
+  !------------------------------------------------------------------
+  TYPE :: variable_t
+    REAL(8), DIMENSION(:,:,:), POINTER :: data3d => null()
+    REAL(8), DIMENSION(:,:), POINTER   :: data2d => null()
+    REAL(8), DIMENSION(:), POINTER     :: data1d => null()
     CHARACTER(CHARLEN) :: nam = ""
     REAL(8), DIMENSION(:,:,:), POINTER :: grid => null()
-  END TYPE variable_data 
+  END TYPE variable_t
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Container to store variable_t pointer for generic linked lists
+  !! to reduce size of data for transfere function.
+  !------------------------------------------------------------------
+  TYPE :: variable_ptr
+    TYPE(variable_t), POINTER :: var=>null()
+  END TYPE variable_ptr
 
   ! Subroutines to add variables with different dimensions to the register
   INTERFACE addToRegister
@@ -126,6 +137,20 @@ MODULE vars_module
     MODULE PROCEDURE add2dToRegister
     MODULE PROCEDURE add1dToRegister
   END INTERFACE addToRegister
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Returns a pointer to the data of the variable "varname" in the register
+  !!
+  !! Searches the register for the node containing the variable "varname" and
+  !! returns a pointer to the data of this variable.
+  !! If no such node is found, null will be returned.
+  !----------------------------------------------------------------------------
+  INTERFACE getFromRegister
+    MODULE PROCEDURE get1DFromRegister
+    MODULE PROCEDURE get2DFromRegister
+    MODULE PROCEDURE get3DFromRegister
+  END INTERFACE getFromRegister
+
 
 
   CONTAINS
@@ -135,13 +160,11 @@ MODULE vars_module
     !! Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
     !------------------------------------------------------------------
     SUBROUTINE initVars
-      IMPLICIT NONE
       ! definition of the namelist
       namelist / model_nl / &
         A, OMEGA, G, RHO0,  & ! physical constants
         r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding, & ! friction and forcing parameter
         Nx, Ny, run_length, H_overwrite, &  ! domain size, length of run, depth if H_OVERWRITE is defined
-        Nout, NoutChunk, & ! number of written time steps, max lsize of out files
         dt, meant_out, & ! time step and mean step
         lon_s, lon_e, lat_s, lat_e, & ! domain specs
         in_file_H, in_varname_H, & ! specification of input topography file
@@ -157,7 +180,7 @@ MODULE vars_module
       dLambda = D2R * (lon_e-lon_s)/(Nx-1)
       dTheta = D2R * (lat_e-lat_s)/(Ny-1)
       Nt = INT(run_length / dt)
-      write_tstep = MAX(INT(Nt / Nout),1)
+!      write_tstep = MAX(INT(Nt / Nout),1)
       ! allocate vars depending on Nx, Ny, Ns
       allocate(u(1:Nx, 1:Ny, 1:Ns))
       allocate(v(1:Nx, 1:Ny, 1:Ns))
@@ -198,135 +221,248 @@ MODULE vars_module
       u = 0.
       v = 0.
       eta = 0.
+
+      !< add vars_module variables to variable register
+      CALL addToRegister(u(:,:,N0),"U")
+      CALL addToRegister(v(:,:,N0),"V")
+      CALL addToRegister(eta(:,:,N0),"ETA")
+      CALL addToRegister(H,"H")
+      CALL addToRegister(H_u,"H_u")
+      CALL addToRegister(H_v,"H_v")
+      CALL addToRegister(H_eta,"H_eta")
+
     END SUBROUTINE initVars
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 3-dimensional variables to the register
     !!
-    !! 3-dimensional variables can be stored directly in the variable_data type
-    !! and then added to the register
+    !! Checks if a variable of the same name already exists in the register. If not,
+    !! a variable object is created, the data is assigned and the name will be
+    !! converted to upper case.
     !----------------------------------------------------------------------------
     SUBROUTINE add3dToRegister(var, varname)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:,:,:), INTENT(in), TARGET   :: var
-        CHARACTER(CHARLEN), INTENT(in)                  :: varname
-        TYPE(variable_data), TARGET                     :: dat
+      REAL(8), DIMENSION(:,:,:), TARGET,  INTENT(in)  :: var
+      CHARACTER(*), INTENT(in)                        :: varname
+      TYPE(variable_ptr)                              :: dat_ptr
 
-        dat%var => var
-        dat%nam = varname
-        dat%grid => null()
+      !< Check for duplicate
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
+        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
+        STOP 1
+      END IF
 
-        IF (.NOT. ASSOCIATED(register)) THEN
-            CALL list_init(register, transfer(dat, list_data))
-        ELSE
-            CALL list_insert(register, transfer(dat, list_data))
-        END IF
+      !< create variable object
+      ALLOCATE(dat_ptr%var)
+
+      !< init variable
+      dat_ptr%var%data3d => var
+      dat_ptr%var%nam = to_upper(varname)
+      dat_ptr%var%grid => null()
+
+      !< add to register
+      CALL addVarPtrToRegister(dat_ptr)
+
     END SUBROUTINE add3dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 2-dimensional variables to the register
     !!
-    !! 2-dimensional variables need to be transferred into 3-dimensional variables
-    !! before storing them in the variable_data type. This happens with the
-    !! reshape-function, setting the third dimension to 1.
-    !! Then they can be added to the register.
+    !! Checks if a variable of the same name already exists in the register. If not,
+    !! a variable object is created, the data is assigned and the name will be
+    !! converted to upper case.
     !----------------------------------------------------------------------------
     SUBROUTINE add2dToRegister(var, varname)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:,:), TARGET, INTENT(in)     :: var
-        REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: dvar
-        CHARACTER(CHARLEN), INTENT(in)                  :: varname
-        TYPE(variable_data), TARGET                     :: dat
+      REAL(8), DIMENSION(:,:), TARGET, INTENT(in)     :: var
+      CHARACTER(*), INTENT(in)                        :: varname
+      TYPE(variable_ptr)                              :: dat_ptr
 
-        dvar = RESHAPE(var, (/Nx, Ny, 1/))
+      !< Check for duplicate
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
+        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
+        STOP 1
+      END IF
 
-        dat%var => dvar
-        dat%nam = varname
-        dat%grid => null()
+      !< create variable object
+      ALLOCATE(dat_ptr%var)
+      !< init variable
+      dat_ptr%var%data2d => var
+      dat_ptr%var%nam = to_upper(varname)
+      dat_ptr%var%grid => null()
 
-        CALL list_insert(register, transfer(dat, list_data))
+      CALL addVarPtrToRegister(dat_ptr)
+!      PRINT *, "Variable "//TRIM(dat_ptr%var%nam)//" registered."
     END SUBROUTINE add2dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 1-dimensional variables to the register
     !!
-    !! 1-dimensional variables need to be transferred into 3-dimensional variables
-    !! before storing them in the variable_data type. This happens with the
-    !! reshape-function, setting the second and third dimension to 1.
-    !! Then they can be added to the register.
+    !! Checks if a variable of the same name already exists in the register. If not,
+    !! a variable object is created, the data is assigned and the name will be
+    !! converted to upper case.
     !----------------------------------------------------------------------------
     SUBROUTINE add1dToRegister(var, varname)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), TARGET, INTENT(in)       :: var
-        REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: dvar
-        CHARACTER(CHARLEN), INTENT(in)                  :: varname
-        TYPE(variable_data), TARGET                     :: dat
-        INTEGER                                         :: n
+      REAL(8), DIMENSION(:), TARGET, INTENT(in)        :: var
+      CHARACTER(*), INTENT(in)                         :: varname
+      TYPE(variable_ptr)                               :: dat_ptr
 
-        n = SIZE(var)
-        dvar = RESHAPE(var, (/n, 1, 1/))
+      !< Check for duplicate
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
+        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
+        STOP 1
+      END IF
 
-        dat%var => dvar
-        dat%nam = varname
-        dat%grid => null()
+      !< create variable object
+      ALLOCATE(dat_ptr%var)
+      dat_ptr%var%data1d => var
+      dat_ptr%var%nam = to_upper(varname)
+      dat_ptr%var%grid => null()
 
-        CALL list_insert(register, transfer(dat, list_data))
+      CALL addVarPtrToRegister(dat_ptr)
+
     END SUBROUTINE add1dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief returns the pointer to the variable "varname" in the register
+    !> @brief adds a variable object container to the register
     !!
-    !! Searches the register for the variable "varname" and returns a pointer
-    !! to that variable if found.
-    !! If no such variable is found, status is set to -1.
+    !! If the register does not exist, it will be created.
     !----------------------------------------------------------------------------
-    SUBROUTINE getPtrFromRegister(varname, ptr, status)
-      IMPLICIT NONE
-        REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out)  :: ptr
-        CHARACTER(CHARLEN), INTENT(in)                   :: varname
-        TYPE(list_node_t), POINTER                       :: current
-        TYPE(variable_data)                              :: dat
-        INTEGER, INTENT(out), OPTIONAL                   :: status
+    SUBROUTINE addVarPtrToRegister(var_ptr)
+      TYPE(variable_ptr)                     :: var_ptr !< variable container to be added
 
-        CALL getNode(varname, current, status)
-        IF (status .EQ. 0) THEN
-            dat = transfer(list_get(current), dat)
-            ptr => dat%var
-        END IF
-    END SUBROUTINE getPtrFromRegister
+      IF (.NOT. ASSOCIATED(register)) THEN !< register empty
+          CALL list_init(register, transfer(var_ptr, list_data))
+      ELSE
+          CALL list_insert(register, transfer(var_ptr, list_data))
+      END IF
+
+    END SUBROUTINE addVarPtrToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief returns the node containing the variable "varname" in the register
-    !! 
+    !> @brief Returns a pointer to the variable "varname" in the register
+    !!
     !! Searches the register for the node containing the variable "varname" and
-    !! returns this node.
-    !! If no such node is found, status is set to -1.
+    !! returns a pointer to this variable. Varname will be converted to uppercase.
+    !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE getNode(varname, node, status)
-      IMPLICIT NONE
-        CHARACTER(CHARLEN), INTENT(in)          :: varname
-        TYPE(list_node_t), POINTER, INTENT(out) :: node
-        TYPE(variable_data)                     :: dat
-        INTEGER, INTENT(out), OPTIONAL          :: status
-        
-        node => register
-        IF (ASSOCIATED(node)) THEN
-            DO
-                dat = TRANSFER(list_get(node), dat)
-                IF (dat%nam .EQ. varname) THEN
-                    IF (PRESENT(status)) status = 0
-                    EXIT
-                ELSE
-                    IF (ASSOCIATED(list_next(node))) THEN
-                        node => list_next(node)
-                    ELSE
-                        IF (PRESENT(status)) status = -1
-                        EXIT
-                    END IF
-                END IF
-            END DO
-        ELSE
-            IF (PRESENT(status)) status = -1
+    TYPE(variable_t) FUNCTION getVarPtrFromRegister(varname) RESULT(var)
+      CHARACTER(*), INTENT(in)          :: varname
+      POINTER                           :: var
+      TYPE(variable_ptr)                :: var_ptr
+      TYPE(list_node_t), POINTER        :: currentNode
+
+      NULLIFY(var)
+
+      currentNode => register
+
+      DO WHILE (ASSOCIATED(currentNode))
+        IF (ASSOCIATED(list_get(currentNode))) var_ptr = transfer(list_get(currentNode),var_ptr)
+        IF (ASSOCIATED(var_ptr%var)) THEN
+          IF (var_ptr%var%nam == to_upper(varname)) THEN
+            var => var_ptr%var
+            exit
+          END IF
         END IF
-    END SUBROUTINE getNode
+        currentNode => list_next(currentNode)
+      END DO
+
+!      IF (.NOT.ASSOCIATED(var)) PRINT *, "Variable "//TRIM(varname)// " not found."
+
+    END FUNCTION getVarPtrFromRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns a pointer to the data of the variable "varname" in the register
+    !!
+    !! Searches the register for the node containing the variable "varname" and
+    !! returns a pointer to the data of this variable.
+    !! If no such node is found, null will be returned.
+    !----------------------------------------------------------------------------
+    SUBROUTINE get3DFromRegister(varname,vardata)
+      CHARACTER(*), INTENT(in)                        :: varname
+      REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out) :: vardata
+      TYPE(variable_t), POINTER                       :: var
+
+      NULLIFY(vardata)
+
+      var => getVarPtrFromRegister(varname)
+
+      IF (.NOT.ASSOCIATED(var)) RETURN
+
+      IF (ASSOCIATED(var%data3d)) vardata => var%data3d
+
+    END SUBROUTINE get3DFromRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns a pointer to the data of the variable "varname" in the register
+    !!
+    !! Searches the register for the node containing the variable "varname" and
+    !! returns a pointer to the data of this variable.
+    !! If no such node is found, null will be returned.
+    !----------------------------------------------------------------------------
+    SUBROUTINE get2DFromRegister(varname,vardata)
+      CHARACTER(*), INTENT(in)              :: varname
+      REAL(8), DIMENSION(:,:), POINTER, INTENT(out)            :: vardata
+      TYPE(variable_t), POINTER                            :: var
+
+      NULLIFY(vardata)
+
+      var => getVarPtrFromRegister(varname)
+
+      IF (.NOT.ASSOCIATED(var)) THEN
+        PRINT *, "Requested variable "//TRIM(varname)//" not found."
+        RETURN
+      END IF
+
+      IF (ASSOCIATED(var%data2d)) vardata => var%data2d
+!      IF (.NOT.ASSOCIATED(vardata)) PRINT *,"Requested variable "//TRIM(VARNAME)//" empty!"
+    END SUBROUTINE get2DFromRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns a pointer to the data of the variable "varname" in the register
+    !!
+    !! Searches the register for the node containing the variable "varname" and
+    !! returns a pointer to the data of this variable.
+    !! If no such node is found, null will be returned.
+    !----------------------------------------------------------------------------
+    SUBROUTINE get1DFromRegister(varname,vardata)
+      CHARACTER(*), INTENT(in)              :: varname
+      REAL(8), DIMENSION(:), POINTER, INTENT(out)              :: vardata
+      TYPE(variable_t), POINTER                            :: var
+
+      NULLIFY(vardata)
+
+      var => getVarPtrFromRegister(varname)
+
+      IF (.NOT.ASSOCIATED(var)) RETURN
+
+      IF (ASSOCIATED(var%data1d)) vardata => var%data1d
+
+    END SUBROUTINE get1DFromRegister
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Convert a string to upper case
+    !!
+    !! @todo Move this function to calc_lib or somewhere else.
+    !----------------------------------------------------------------------------
+    function to_upper(strIn) result(strOut)
+    ! Adapted from http://www.star.le.ac.uk/~cgp/fortran.html (25 May 2012)
+
+      character(len=*), intent(in) :: strIn
+      character(len=len(strIn)) :: strOut
+      integer :: i,j
+
+      do i = 1, len(strIn)
+        j = iachar(strIn(i:i))
+        if (j>= iachar("a") .and. j<=iachar("z") ) then
+          strOut(i:i) = achar(iachar(strIn(i:i))-32)
+        else
+          strOut(i:i) = strIn(i:i)
+        end if
+      end do
+
+    end function to_upper
+
 END MODULE vars_module

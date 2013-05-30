@@ -15,6 +15,8 @@
 !!
 !! @par Includes:
 !! model.h, swm_module.h, io.h
+!!
+!! @todo replace forcing stream array by linked list
 !------------------------------------------------------------------
 MODULE swm_forcing_module
 #include "model.h"
@@ -48,7 +50,7 @@ MODULE swm_forcing_module
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_x_const !< Constant forcing term in zonal momentum equation. Size Nx,Ny
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_y_const !< Constant forcing term in meridional momentum equation, Size Nx,Ny
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_eta_const !< Constant forcing term in continuity equation, Size Nx,Ny
-  TYPE(SWM_forcingStream), DIMENSION(SWM_MAX_FORCING_INPUT) :: SWM_forcing_iStream
+  TYPE(SWM_forcingStream), DIMENSION(SWM_MAX_FORCING_INPUT) :: SWM_forcing_iStream !< Array of forcing streams
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -60,10 +62,10 @@ MODULE swm_forcing_module
     !! forcing fields.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny
+    !! vars_module, ONLY : Nx, Ny, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_init
-      USE vars_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : Nx, Ny, addToRegister
       IMPLICIT NONE
       INTEGER   :: stat, i
       CHARACTER(CHARLEN) :: filename, varname, forcingtype, component
@@ -78,6 +80,9 @@ MODULE swm_forcing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,stat
         STOP 1
       END IF
+      CALL addToRegister(F_x,"F_X")
+      CALL addToRegister(F_y,"F_Y")
+      CALL addToRegister(F_eta,"F_ETA")
       F_x = 0.
       F_y = 0.
       F_eta = 0.
