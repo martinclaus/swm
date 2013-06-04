@@ -26,6 +26,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define TRACER_NL MODEL_NL
 #define DYNFROMFILE_NL MODEL_NL
 #define SWM_FORCING_NL MODEL_NL
+#define SWM_DAMPING_NL MODEL_NL
 #define DIAG_NL MODEL_NL
 
 /* Namlist unit identifier */
@@ -34,7 +35,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_TRACER_NL 19
 #define UNIT_DYNFROMFILE_NL 20
 #define UNIT_SWM_FORCING_NL 21
-#define UNIT_DIAG_NL 22
+#define UNIT_SWM_DAMPING_NL 22
+#define UNIT_DIAG_NL 23
 
 /* Attribute conventions from NetCDF Users' Guide (10.06.2011) */
 #define NUG_ATT_UNITS "units"
@@ -62,9 +64,9 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OFILEFY    "fy_out.nc"
 #define OFILEPSI   "psi_out.nc"
 #define OFILETRACER "C1.nc"
-#define OFILEGAMMA_N "gamma_n"
-#define OFILEGAMMA_U "gamma_u"
-#define OFILEGAMMA_V "gamma_v"
+#define OFILEGAMMA_N "gamma_n.nc"
+#define OFILEGAMMA_U "gamma_u.nc"
+#define OFILEGAMMA_V "gamma_v.nc"
 #define OFILEETAMEAN "eta_mean_out.nc"
 #define OFILEUMEAN "u_mean_out.nc"
 #define OFILEVMEAN "v_mean_out.nc"

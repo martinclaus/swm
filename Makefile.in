@@ -124,7 +124,7 @@ swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_mod
 swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o
 	$(COMPILE)
 
-swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o
+swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o memchunk_module.o
 	$(COMPILE)
 
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o

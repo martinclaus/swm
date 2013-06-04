@@ -12,8 +12,8 @@
 MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
+#include "io.h"
   IMPLICIT NONE
-!  SAVE
   PRIVATE
 
   PUBLIC :: SWM_damping_init, SWM_damping_finish, &
@@ -67,12 +67,12 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U")
       CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V")
-      gamma_lin_u = ( r &
+      gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
 #ifdef VELOCITY_SPONGE
                       + getSpongeLayer("U",VELOCITY_SPONGE) &
 #endif
                     )
-      gamma_lin_v = ( r &
+      gamma_lin_v = ( getDampingCoefficient("GAMMA_LIN_V",SHAPE(gamma_lin_v)) &
 #ifdef VELOCITY_SPONGE
                       + getSpongeLayer("V",VELOCITY_SPONGE) &
 #endif
@@ -91,8 +91,8 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U")
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V")
-      gamma_sq_u = k
-      gamma_sq_v = k
+      gamma_sq_u = getDampingCoefficient("GAMMA_SQ_U",SHAPE(gamma_sq_u))
+      gamma_sq_v = getDampingCoefficient("GAMMA_SQ_V",SHAPE(gamma_sq_v))
 #ifdef BAROTROPIC
       WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u/H_u
       WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
@@ -104,12 +104,12 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      gamma_lin_eta = ( gamma_new &
+      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA")
+      gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
 #ifdef NEWTONIAN_SPONGE
                   + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
 #endif
                 )
-      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA")
 #endif
       ! build implicit terms (linear damping)
       impl_u = ( 1 &
@@ -129,6 +129,70 @@ MODULE swm_damping_module
                )
     END SUBROUTINE SWM_damping_init
 
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Get damping coefficients
+    !!
+    !! Reads the swm_damping_nl namelists for a record with variable type
+    !! matching coefName (case insensitive). Valid types are:
+    !! - "GAMMA_LIN_U" Rayleigh friction coefficient in zonal momentum equation
+    !! - "GAMMA_LIN_V" Rayleigh friction coefficient in meridional momentum equation
+    !! - "GAMMA_LIN_ETA" Newtonian damping coefficient in continuity equation
+    !! - "GAMMA_SQ_U" Quadratic damping coefficient in zonal momentum equation
+    !! - "GAMMA_SQ_V" Quadratic damping coefficient in meridional momentum equation
+    !! If such a namelist is found, the data will be loaded from the specified file. Else,
+    !! default values from model_nl will be returned.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : r, k, gamma_new, to_upper\n
+    !! memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
+    !------------------------------------------------------------------
+    FUNCTION getDampingCoefficient(coefName,shapeOfCoef) RESULT(coef)
+      USE vars_module, ONLY : r, k, gamma_new, to_upper
+      USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
+      CHARACTER(*), INTENT(in)                         :: coefName    !< String naming the requested coefficient
+      INTEGER, DIMENSION(2), INTENT(in)                :: shapeOfCoef !< Shape of the metrix to be returned
+      REAL(8), DIMENSION(shapeOfCoef(1),shapeOfCoef(2)):: coef        !< coefficient matrix
+      TYPE(memoryChunk)                                :: memChunk    !< memory chunk to load data from file
+      CHARACTER(CHARLEN)                               :: filename="" !< Filename of dataset
+      CHARACTER(CHARLEN)                               :: varname=""  !< Variable of coefficient in dataset
+      CHARACTER(CHARLEN)                               :: type=""     !< Name of coefficient to compare with coefName
+      INTEGER                                          :: chunkSize=1 !< Chunksize of memory chunk. 1, because it is constant in time
+      INTEGER                                          :: io_stat=0   !< io status of namelist read call
+      NAMELIST / swm_damping_nl / filename, varname, type             !< namelist of damping coefficient dataset
+
+      ! read input namelists
+      io_stat = 0
+      OPEN(UNIT_SWM_DAMPING_NL, file=SWM_DAMPING_NL)
+      DO WHILE (io_stat.EQ.0)
+        READ(UNIT_SWM_DAMPING_NL, nml=swm_damping_nl, iostat=io_stat)
+        IF (io_stat.NE.0) exit               !< no namelist left
+        IF (to_upper(type).eq.coefName) exit !< coefficient found
+      END DO
+      CLOSE(UNIT_SWM_DAMPING_NL)
+      IF (io_stat.NE.0) THEN ! return default
+        SELECT CASE (coefName)
+          CASE ("GAMMA_LIN_U","GAMMA_LIN_V")
+            coef = r
+          CASE ("GAMMA_SQ_U","GAMMA_SQ_V")
+            coef = k
+          CASE ("GAMMA_LIN_ETA")
+            coef = gamma_new
+          CASE DEFAULT
+            PRINT *,"ERROR: Unknow damping coefficient "//TRIM(coefName)//" requested. Check your code!"
+            STOP 1
+        END SELECT
+      ELSE ! Open file and read data
+        CALL initMemChunk(filename,varname,chunkSize,memChunk)
+        IF (.NOT.isInitialised(memChunk)) THEN
+          PRINT *,"ERROR loading damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!"
+          STOP 1
+        ELSE
+          coef = getChunkData(memChunk,0._8)
+        END IF
+        CALL finishMemChunk(memChunk)
+      END IF
+    END FUNCTION getDampingCoefficient
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Parses sponge layer string and return coefficient field

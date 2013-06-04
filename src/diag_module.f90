@@ -36,7 +36,7 @@ MODULE diag_module
       !< Init diagnostic tasks
       CALL initDiagTaskList
       !< be verbose
-!      CALL printTaskSummary
+      !CALL printTaskSummary
     END SUBROUTINE initDiag
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

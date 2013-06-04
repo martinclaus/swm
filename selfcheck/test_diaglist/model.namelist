@@ -17,16 +17,18 @@
   lon_e = 0.          ! max. lon. of the domain (H-grid),
   lat_s = -10.     ! min. lat. of the domain (H-grid),
   lat_e = 10.         ! max. lat. of the domain (H-grid)
-  in_file_H = "H_sc.nc" ! topography input dataset
-  file_eta_init="eta_init_gauss.nc"
+  in_file_H = "input/H_sc.nc" ! topography input dataset
+  file_eta_init="input/eta_init_gauss.nc"
   H_overwrite=3.
   model_start="1945-01-01 12:00"
 &end
 
-&swm_bs_nl filename="bs_sc.nc" varname="PSI" chunksize=1 &end
+&swm_bs_nl filename="input/bs_sc.nc" varname="PSI" chunksize=1 &end
 
-&swm_forcing_nl filename="taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
-&swm_forcing_nl filename="tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
+&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
+&swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
+
+&swm_damping_nl filename="input/gamma_n.nc", varname="GAMMA_N", type="GAMMA_LIN_ETA" &end
 
 &tracer_nl
   TRC_C1_A = 1e2
