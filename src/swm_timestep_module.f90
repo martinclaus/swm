@@ -66,7 +66,8 @@ MODULE swm_timestep_module
     !! memchunk_module, ONLY : initMemChunk
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_init
-      USE vars_module, ONLY : Nx, Ny, addToRegister
+      USE vars_module, ONLY : addToRegister
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       USE memchunk_module, ONLY : initMemChunk
       CHARACTER(CHARLEN)  :: filename="", varname=""
       INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat
@@ -79,9 +80,9 @@ MODULE swm_timestep_module
         STOP 1
       END IF
 
-      CALL addToRegister(G_u(:,:,NG0),"G_U")
-      CALL addToRegister(G_v(:,:,NG0),"G_V")
-      CALL addToRegister(G_eta(:,:,NG0),"G_ETA")
+      CALL addToRegister(G_u(:,:,NG0),"G_U",u_grid)
+      CALL addToRegister(G_v(:,:,NG0),"G_V",v_grid)
+      CALL addToRegister(G_eta(:,:,NG0),"G_ETA",eta_grid)
 
 #ifdef SWM_TSTEP_HEAPS
       IF (timestepInitialised) THEN
@@ -194,10 +195,18 @@ MODULE swm_timestep_module
     !!  supplied, i.e. lateral mixing.
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_Heaps
-      USE vars_module, ONLY : Nx, Ny, N0, N0p1, ip1, im1, jp1, jm1, itt, dt, land_eta, land_u, land_v
+      USE vars_module, ONLY : N0, N0p1, itt, dt
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i, j
       REAL(8) :: v_u, u_v
+      INTEGER(1), DIMENSION(SIZE(u_grid%land,1),SIZE(u_grid%land,2)) :: land_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%land,1),SIZE(v_grid%land,2)) :: land_v
+      INTEGER(1), DIMENSION(SIZE(eta_grid%land,1),SIZE(eta_grid%land,2)) :: land_eta
+
+      land_u = u_grid%land
+      land_v = v_grid%land
+      land_eta = eta_grid%land
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -311,10 +320,18 @@ MODULE swm_timestep_module
     !! @todo Write some documentation about the physics
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_AdamsBashforth
-      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
+      USE vars_module, ONLY : N0, N0p1, itt, dt
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j
       REAL(8) :: u_v,v_u
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
+      ocean_eta = eta_grid%ocean
       IF (itt.lt.2) THEN ! do a Euler forward to compute second initial condition
         CALL SWM_timestep_EulerForward
         RETURN
@@ -371,7 +388,7 @@ MODULE swm_timestep_module
             u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
 #endif
             ! compute explicit increment
-	    G_v(i,j,NG0) = (DOT_PRODUCT((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
+            G_v(i,j,NG0) = (DOT_PRODUCT((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
                                   SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
                                 SWM_Coef_v(:,i,j)) &
@@ -403,10 +420,19 @@ MODULE swm_timestep_module
     !! @todo Add some documenation about the physics
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_EulerForward
-      USE vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
+      USE vars_module, ONLY : N0, N0p1, itt, dt
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j
       REAL(8) :: u_v,v_u
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
+      ocean_eta = eta_grid%ocean
+
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
@@ -493,10 +519,21 @@ MODULE swm_timestep_module
     !! vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,cosTheta_u,cosTheta_v,dTheta, H_u, H_v
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_initHeapsScheme
-      USE vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,&
-                              cosTheta_u,cosTheta_v,dTheta, H_u, H_v
+      USE vars_module, ONLY : dt, G
+      USE domain_module, ONLY : Nx, Ny, ip1, jp1, dLambda, dTheta, H_u, H_v, &
+                                OMEGA, A, u_grid, v_grid
       IMPLICIT NONE
       INTEGER   :: i,j,alloc_error
+      REAL(8), DIMENSION(SIZE(u_grid%lat)) :: lat_u, cosTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%lat)) :: lat_v, cosTheta_v
+      REAL(8), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
+      REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
+
+
+      lat_u = u_grid%lat
+      cosTheta_u = u_grid%cos_lat
+      lat_v = v_grid%lat
+      cosTheta_v = v_grid%cos_lat
       ALLOCATE(SWM_Coef_eta(1:5,1:Nx, 1:Ny), SWM_Coef_v(1:11, 1:Nx, 1:Ny), SWM_Coef_u(1:11, 1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_timestep_initHeapsScheme:",alloc_error
@@ -562,14 +599,27 @@ MODULE swm_timestep_module
     !! @todo Think about a time dependent basic state
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_initLiMeanState
-      USE vars_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, A, G, D2R, OMEGA, dLambda, dTheta, &
-                              lat_H, cosTheta_u, cosTheta_v, H_eta, ocean_H
+      USE vars_module, ONLY : G
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, dLambda, dTheta, H_eta, &
+                                A, OMEGA, H_grid, u_grid, v_grid
       USE calc_lib, ONLY : evaluateStreamfunction
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v, u_bs, v_bs
       REAL(8), DIMENSION(:,:,:), ALLOCATABLE ::  psi_bs
+      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
+      REAL(8), DIMENSION(SIZE(H_grid%lat)) :: lat_H
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+      REAL(8), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
+      REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
+
+
+      ocean_H = H_grid%ocean
+      lat_H = H_grid%lat
+      cosTheta_u = u_grid%cos_lat
+      cosTheta_v = v_grid%cos_lat
       ALLOCATE(SWM_Coef_eta(1:9,1:Nx, 1:Ny), SWM_Coef_v(1:11, 1:Nx, 1:Ny), SWM_Coef_u(1:11, 1:Nx, 1:Ny),&
                U_v(1:Nx, 1:Ny), V_u(1:Nx, 1:Ny), f(1:Nx, 1:Ny), f_u(1:Nx, 1:Ny), f_v(1:Nx, 1:Ny), &
                psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny),v_bs(1:Nx,1:Ny), stat=alloc_error)

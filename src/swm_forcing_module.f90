@@ -65,7 +65,8 @@ MODULE swm_forcing_module
     !! vars_module, ONLY : Nx, Ny, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_init
-      USE vars_module, ONLY : Nx, Ny, addToRegister
+      USE vars_module, ONLY : addToRegister
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER   :: stat, i
       CHARACTER(CHARLEN) :: filename, varname, forcingtype, component
@@ -80,9 +81,9 @@ MODULE swm_forcing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,stat
         STOP 1
       END IF
-      CALL addToRegister(F_x,"F_X")
-      CALL addToRegister(F_y,"F_Y")
-      CALL addToRegister(F_eta,"F_ETA")
+      CALL addToRegister(F_x,"F_X", u_grid)
+      CALL addToRegister(F_y,"F_Y", v_grid)
+      CALL addToRegister(F_eta,"F_ETA", eta_grid)
       F_x = 0.
       F_y = 0.
       F_eta = 0.
@@ -213,11 +214,17 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processWindstress(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
-      USE vars_module, ONLY : ocean_u, ocean_v, H_u, H_v, RHO0, itt, dt
+      USE vars_module, ONLY : itt, dt
+      USE domain_module, ONLY : H_u, H_v, u_grid, v_grid, RHO0
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
       INTEGER(1), DIMENSION(:,:), POINTER         :: oceanMask
       REAL(8), DIMENSION(:,:), POINTER            :: H
+      INTEGER(1), DIMENSION(:,:), POINTER         :: ocean_u
+      INTEGER(1), DIMENSION(:,:), POINTER         :: ocean_v
+
+      ocean_u => u_grid%ocean
+      ocean_v => v_grid%ocean
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
@@ -275,10 +282,16 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processCustomForcing(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
-      USE vars_module, ONLY : ocean_u, ocean_v, itt, dt
+      USE vars_module, ONLY : itt, dt
+      USE domain_module, ONLY : u_grid, v_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
       INTEGER(1), DIMENSION(:,:), POINTER         :: oceanMask
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)), TARGET :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)), TARGET :: ocean_v
+
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
           IF (isConstant(iStream%memChunk)) THEN
@@ -320,15 +333,22 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processEMF(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
-      USE vars_module, ONLY : ocean_u, ocean_v, &
-                              H_u, H_v, H, H_eta, &
-                              Nx, Ny, A, dLambda, dTheta, cosTheta_u, cosTheta_v, &
-                              ip1,jp1,im1,jm1, &
-                              itt, dt
+      USE vars_module, ONLY : itt, dt
+      USE domain_module, ONLY : H_u, H_v, H, H_eta, Nx, Ny, dLambda, dTheta, &
+                                ip1, jp1, im1, jm1, A, u_grid, v_grid 
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm_x, forcingTerm_y
       REAL(8), DIMENSION(:,:), ALLOCATABLE        :: data
       INTEGER     :: i,j, alloc_error
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+
+      ocean_u = u_grid%ocean
+      cosTheta_u = u_grid%cos_lat
+      ocean_v = v_grid%ocean
+      cosTheta_v = v_grid%cos_lat
       IF (isConstant(iStream%memChunk)) THEN
         forcingTerm_x => F_x_const
         forcingTerm_y => F_y_const
@@ -385,10 +405,14 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processHeating(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant
-      USE vars_module, ONLY : ocean_eta, itt, dt
+      USE vars_module, ONLY : itt, dt
+      USE domain_module, ONLY : eta_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
       INTEGER     :: i,j
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_eta = eta_grid%ocean
       IF (isConstant(iStream%memChunk)) THEN
         forcingTerm => F_eta_const
       ELSE

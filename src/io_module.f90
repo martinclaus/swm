@@ -15,6 +15,7 @@ MODULE io_module
 #include "io.h"
   USE netcdf
   USE calendar_module
+  USE grid_module
   IMPLICIT NONE
   SAVE
 
@@ -41,6 +42,7 @@ MODULE io_module
     INTEGER, PRIVATE      :: timevid=DEF_TIMEVID    !< NetCDF variable ID of time dimension variable
     INTEGER, PRIVATE      :: nrec=DEF_NREC          !< Length of record variable
     LOGICAL, PRIVATE      :: isOpen = .FALSE.       !< Flag, if the file is open at the moment
+    REAL(8), PRIVATE      :: missval=MISS_VAL_DEF   !< Missing value
     TYPE(calendar), PRIVATE :: calendar             !< Calendar the fileHandle uses
   END TYPE fileHandle
 
@@ -59,8 +61,6 @@ MODULE io_module
   !! Always use file handles.
   !------------------------------------------------------------------
   INTERFACE createDS
-    MODULE PROCEDURE createDS2
-    MODULE PROCEDURE createDS3old
     MODULE PROCEDURE createDS3handle
   END INTERFACE createDS
 
@@ -72,7 +72,7 @@ MODULE io_module
   !! Always use file handles.
   !------------------------------------------------------------------
   INTERFACE putVar
-    MODULE PROCEDURE putVar3Dold, putVar3Dhandle, putVar2Dold
+    MODULE PROCEDURE putVar3Dhandle
   END INTERFACE
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -83,7 +83,7 @@ MODULE io_module
   !! Always use file handles.
   !------------------------------------------------------------------
   INTERFACE openDS
-    MODULE PROCEDURE openDSHandle, openDSold
+    MODULE PROCEDURE openDSHandle
   END INTERFACE openDS
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -94,7 +94,7 @@ MODULE io_module
   !! Always use file handles.
   !------------------------------------------------------------------
   INTERFACE closeDS
-    MODULE PROCEDURE closeDSold, closeDShandle
+    MODULE PROCEDURE closeDShandle
   END INTERFACE closeDS
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -111,6 +111,7 @@ MODULE io_module
   !------------------------------------------------------------------
   INTERFACE getAtt
     MODULE PROCEDURE getCHARAtt
+    MODULE PROCEDURE getDOUBLEAtt
   END INTERFACE
 
   CONTAINS
@@ -120,15 +121,15 @@ MODULE io_module
     !! Parses output_nl namelist
     !------------------------------------------------------------------
     SUBROUTINE initIO
-      USE vars_module, ONLY : ref_cal
+!      USE vars_module, ONLY : ref_cal
       namelist / output_nl / &
         oprefix, & ! output prefix used to specify directory
         osuffix    ! suffix to name model run
       open(UNIT_OUTPUT_NL, file = OUTPUT_NL)
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
-      time_unit = ref_cal
       CALL OpenCal
+      time_unit = ref_cal
       CALL MakeCal(modelCalendar)
       CALL setCal(modelCalendar, time_unit)
     END SUBROUTINE initIO
@@ -177,58 +178,13 @@ MODULE io_module
     !! USE vars_module, ONLY : Nx,Ny
     !------------------------------------------------------------------
     SUBROUTINE readInitialCondition(FH,var,missmask)
-      USE vars_module, ONLY : Nx,Ny
+!      USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)           :: FH                   !< File handle pointing to the requested variable
-      REAL(8), DIMENSION(Nx,Ny,1), INTENT(out)  :: var                  !< Data to return
-      INTEGER, DIMENSION(Nx,Ny,1), OPTIONAL, INTENT(out)  :: missmask   !< missing value mask
-      call getVar(FH,var,getNrec(FH),1,missmask)
+      REAL(8), DIMENSION(:,:), INTENT(out)  :: var                  !< Data to return
+      INTEGER, DIMENSION(:,:), OPTIONAL, INTENT(out)  :: missmask   !< missing value mask
+      call getVar(FH,var,getNrec(FH),missmask)
     END SUBROUTINE readInitialCondition
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Creates a 2D netcdf dataset with a variable
-    !!
-    !! 2D referres to space dimension only in this context.
-    !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny, missval
-    !! @deprecated
-    !------------------------------------------------------------------
-    SUBROUTINE createDS2(fileNameStem, varname, lat_vec, lon_vec, ncid, varid)
-      USE vars_module, ONLY : Nx,Ny, missval
-      IMPLICIT NONE
-      CHARACTER(*), INTENT(in)          :: fileNameStem     !< Stem of the filename to be created. Input to io_module::getFname
-      CHARACTER(*), INTENT(in)          :: varname          !< Name of the variable to be created
-      REAL(8), DIMENSION(*), INTENT(in) :: lat_vec          !< Meridional dimension vector
-      REAL(8), DIMENSION(*), INTENT(in) :: lon_vec          !< Zonal dimension vector
-      INTEGER, INTENT(out)              :: ncid             !< netCDF ID of created file
-      INTEGER, INTENT(out)              :: varid            !< netCDF variable ID of created variable
-      INTEGER                       :: lat_dimid, lon_dimid, &
-                                       lat_varid, lon_varid
-      CHARACTER(*), PARAMETER       :: str_name="long_name", str_unit="units", str_cal="calendar"
-      ! create file
-      call check(nf90_create(getFname(fileNameStem),NF90_CLOBBER,ncid),&
-                 __LINE__, getFname(fileNameStem))
-      ! create dimensions
-      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid))
-      call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
-      ! define variables
-      ! longitude vector
-      call check(nf90_def_var(ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
-      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
-      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
-      ! latitude vector
-      call check(nf90_def_var(ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
-      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
-      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
-      ! variable field
-      call check(nf90_def_var(ncid,varname,NF90_DOUBLE,(/lon_dimid,lat_dimid/), varid))
-      call check(nf90_put_att(ncid,varid,NUG_ATT_MISS,missval))
-      ! end define mode
-      call check(nf90_enddef(ncid))
-      ! write domain variables
-      call check(nf90_put_var(ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
-      call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
-    END SUBROUTINE createDS2
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Creates a 3D dataset (2D space + time)
@@ -242,14 +198,16 @@ MODULE io_module
     !! @par Uses:
     !! vars_module, ONLY : Nx, Ny, missval
     !------------------------------------------------------------------
-    SUBROUTINE createDS3handle(FH,lat_vec, lon_vec)
-      USE vars_module, ONLY : Nx, Ny, missval
+    SUBROUTINE createDS3handle(FH,grid)
+ !     USE vars_module, ONLY : Nx,Ny,missval
       IMPLICIT NONE
-      TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
-      REAL(8), DIMENSION(*), INTENT(in) :: lat_vec  !< Meridional dimension variable
-      REAL(8), DIMENSION(*), INTENT(in) :: lon_vec  !< Zonal dimension variable
-      INTEGER                       :: lat_dimid, lon_dimid, &
-                                       lat_varid, lon_varid
+      TYPE(fileHandle), INTENT(inout) :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
+      TYPE(grid_t), POINTER, INTENT(in)        :: grid
+      INTEGER                         :: lat_dimid, lon_dimid, &
+                                       lat_varid, lon_varid, &
+                                       Nx, Ny
+      Nx=SIZE(grid%lon)
+      Ny=SIZE(grid%lat)
       FH%filename = getFname(FH%filename)
       ! create file
       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
@@ -275,67 +233,18 @@ MODULE io_module
       !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
       ! variable field
       call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
-      call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,missval))
+      call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
       ! end define mode
       call check(nf90_enddef(FH%ncid))
       ! write domain variables
-      call check(nf90_put_var(FH%ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
-      call check(nf90_put_var(FH%ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
+      call check(nf90_put_var(FH%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
+      call check(nf90_put_var(FH%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
       FH%nrec = 0
       CALL setCal(FH%calendar, time_unit)
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
     END SUBROUTINE createDS3handle
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Creates a dataset with a 3D variable
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny, missval
-    !! @deprecated Use createDS3handle instead
-    !------------------------------------------------------------------
-    SUBROUTINE createDS3old(fileNameStem, varname,lat_vec, lon_vec, ncid, varid, time_varid)
-      USE vars_module, ONLY : Nx, Ny, missval
-      IMPLICIT NONE
-      CHARACTER(*), INTENT(in)      :: fileNameStem   !< Stem of the filename to be created. Input to io_module::getFname
-      CHARACTER(*), INTENT(in)      :: varname        !< Name of Variable to be created
-      REAL(8), DIMENSION(*), INTENT(in) :: lat_vec    !< Meridional dimension variable
-      REAL(8), DIMENSION(*), INTENT(in) :: lon_vec    !< Zonal dimension variable
-      INTEGER, INTENT(out)              :: ncid       !< netCDF file ID
-      INTEGER, INTENT(out)              :: varid      !< netCDF variable ID
-      INTEGER, INTENT(out)              :: time_varid !< netCDF variable ID of time coordinate variable
-      INTEGER                       :: lat_dimid, lon_dimid, time_dimid, &
-                                       lat_varid, lon_varid
-      ! create file
-      call check(nf90_create(getFname(fileNameStem), NF90_CLOBBER, ncid))
-      ! create dimensions
-      call check(nf90_def_dim(ncid,XAXISNAME,Nx,lon_dimid))
-      call check(nf90_def_dim(ncid,YAXISNAME,Ny,lat_dimid))
-      call check(nf90_def_dim(ncid,TAXISNAME,NF90_UNLIMITED,time_dimid))
-      ! define variables
-      ! longitude vector
-      call check(nf90_def_var(ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
-      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
-      call check(nf90_put_att(ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
-      ! latitude vector
-      call check(nf90_def_var(ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
-      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
-      call check(nf90_put_att(ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
-      ! time vector
-      call check(nf90_def_var(ncid,TAXISNAME,NF90_DOUBLE,(/time_dimid/),time_varid))
-      call check(nf90_put_att(ncid,time_varid, NUG_ATT_UNITS, time_unit))
-      call check(nf90_put_att(ncid,time_varid, NUG_ATT_LONG_NAME, TAXISNAME))
-      !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
-      ! variable field
-      call check(nf90_def_var(ncid,varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,time_dimid/), varid))
-      call check(nf90_put_att(ncid,varid,NUG_ATT_MISS,missval))
-      ! end define mode
-      call check(nf90_enddef(ncid))
-      ! write domain variables
-      call check(nf90_put_var(ncid, lat_varid, lat_vec(1:Ny)))      ! Fill lat dimension variable
-      call check(nf90_put_var(ncid, lon_varid, lon_vec(1:Nx)))      ! Fill lon dimension variable
-    END SUBROUTINE createDS3old
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Opens a dataset
@@ -349,10 +258,13 @@ MODULE io_module
       TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
       TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
       character(CHARLEN)               :: t_string  !< String of time unit
+      REAL(8)                          :: missval
       INTEGER    :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
                  __LINE__,FH%filename)
+      ! get missing value
+      
       IF (FH%varid.EQ.DEF_VARID) CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
                                             __LINE__,FH%filename)
       CALL check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
@@ -374,7 +286,7 @@ MODULE io_module
       IF (.NOT.isSetCal(FH%calendar)) THEN
         IF (FH%nrec.NE.1 .AND. FH%timevid.NE.DEF_TIMEVID) THEN ! dataset is not constant in time and has a time axis
           FH_time = getTimeFH(FH)
-          t_string = getAtt(FH_time,NUG_ATT_UNITS)
+          CALL getAtt(FH_time,NUG_ATT_UNITS,t_string)
           IF (LEN_TRIM(t_string).EQ.0) THEN
             t_string = time_unit
             PRINT *,"WARING: Input dataset ",TRIM(FH%filename)," has no time axis. Assumed time axis: ",TRIM(t_string)
@@ -386,18 +298,6 @@ MODULE io_module
       END IF
       FH%isOpen = .TRUE.
     END SUBROUTINE openDSHandle
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Opens a dataset
-    !!
-    !! @deprecated
-    !------------------------------------------------------------------
-    SUBROUTINE openDSold(fileNameStem,ncid)
-      IMPLICIT NONE
-      CHARACTER(*), INTENT(in)      :: fileNameStem !< File name stem. This string will be processed by io_module::getFname befor accessing the file.
-      INTEGER, INTENT(out)          :: ncid         !< netCDF file ID
-      CALL check(nf90_open(getFname(fileNameStem), NF90_WRITE, ncid))
-    END SUBROUTINE openDSold
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Closes a dataset
@@ -414,17 +314,6 @@ MODULE io_module
     END SUBROUTINE closeDShandle
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Closes a dataset
-    !!
-    !! @deprecated
-    !------------------------------------------------------------------
-    SUBROUTINE closeDSold(ncid)
-      IMPLICIT NONE
-      INTEGER, INTENT(in) :: ncid               !< netCDF file ID
-      CALL check(nf90_close(ncid))
-    END SUBROUTINE closeDSold
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Write a time slice to disk
     !!
     !! Write a variables time slice to a existing dataset.
@@ -433,12 +322,12 @@ MODULE io_module
     !! @todo Check if var_dummy is neccessary. I think Fortan creates a copy of varData when calling this routine.
     !------------------------------------------------------------------
     SUBROUTINE putVar3Dhandle(FH,varData,rec,time,ocean_mask)
-      USE vars_module, ONLY : Nx,Ny,missval
+!      USE vars_module, ONLY : Nx,Ny,missval
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH               !< Initialised file handle pointing to the variable to write data to
-      REAL(8), INTENT(in)                 :: varData(Nx,Ny)   !< Data to write
-      REAL(8), DIMENSION(Nx,Ny)           :: var_dummy        !< Copy of varData to apply missing values to
-      INTEGER(1), INTENT(in), OPTIONAL    :: ocean_mask(Nx,Ny)!< Mask of valid data. All other grid points will be set to vars_module::missval
+      REAL(8), DIMENSION(:,:), INTENT(in) :: varData          !< Data to write
+      REAL(8), DIMENSION(SIZE(varData,1),SIZE(varData,2)):: var_dummy        !< Copy of varData to apply missing values to
+      INTEGER(1), DIMENSION(:,:), INTENT(in), OPTIONAL    :: ocean_mask !< Mask of valid data. All other grid points will be set to FH%missval
       INTEGER, INTENT(in), OPTIONAL       :: rec              !< Record index of time slice
       REAL(8), INTENT(in), OPTIONAL       :: time             !< Time coordinate of time slice
       LOGICAL                             :: wasOpen          !< Flag, if the dataset was open when the routine was called
@@ -446,49 +335,20 @@ MODULE io_module
       REAL(8)                             :: local_time=0.    !< default value for time
       var_dummy=varData
       IF (PRESENT(ocean_mask)) THEN
-        WHERE (ocean_mask .ne. 1) var_dummy = missval
+        WHERE (ocean_mask .ne. 1) var_dummy = FH%missval
       END IF
       IF (PRESENT(rec)) local_rec = rec
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
-      CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, start = (/1,1,local_rec/), count=(/Nx,Ny,1/)),&
+      CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
+                              start = (/1,1,local_rec/), &
+                              count=(/SIZE(varData,1),SIZE(varData,2),1/)),&
                  __LINE__,TRIM(FH%filename))
       CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)),&
                  __LINE__,TRIM(FH%filename))
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVar3Dhandle
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Write a timeslice to disk
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny
-    !! @deprecated
-    !------------------------------------------------------------------
-    SUBROUTINE putVar3Dold (ncid,varid,timevid,varData,rec,time)
-      USE vars_module, ONLY : Nx,Ny
-      IMPLICIT NONE
-      INTEGER, INTENT(in)     :: ncid,varid,timevid, rec
-      REAL(8), INTENT(in)     :: varData(Nx,Ny), time
-      CALL check(nf90_put_var(ncid, varid, varData, start = (/1,1,rec/), count=(/Nx,Ny,1/)))
-      CALL check(nf90_put_var(ncid, timevid,time,start=(/rec/)))
-    END SUBROUTINE putVar3Dold
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Write a 2D (spatial) dataset
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny
-    !! @deprecated
-    !------------------------------------------------------------------
-    SUBROUTINE putVar2Dold(ncid,varid,varData)
-      USE vars_module, ONLY : Nx,Ny
-      IMPLICIT NONE
-      INTEGER, INTENT(in)     :: ncid,varid
-      REAL(8), INTENT(in)     :: varData(Nx,Ny)
-      CALL check(nf90_put_var(ncid, varid, varData))
-    END SUBROUTINE putVar2Dold
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Load a 3D data block into memory
@@ -499,17 +359,17 @@ MODULE io_module
     !! vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen, missmask)
-      USE vars_module, ONLY : Nx, Ny
+!      USE vars_module, ONLY : Nx, Ny
       TYPE(fileHandle), INTENT(inout)             :: FH                 !< File handle pointing to the variable to read from
       INTEGER, INTENT(in)                         :: tstart             !< Time index to start reading
       INTEGER, INTENT(in)                         :: tlen               !< Length of chunk to read
-      REAL(8), DIMENSION(Nx,Ny,tlen), INTENT(out) :: var                !< Data read from disk
-      INTEGER, DIMENSION(Nx,Ny,tlen), OPTIONAL, INTENT(out) :: missmask !< Missing value mask
+      REAL(8), DIMENSION(:,:,:), INTENT(out) :: var                !< Data read from disk
+      INTEGER, DIMENSION(:,:,:), OPTIONAL, INTENT(out) :: missmask !< Missing value mask
       REAL(8)                                     :: missing_value
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,tlen/)),&
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=SHAPE(var)),&
                  __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
@@ -533,7 +393,7 @@ MODULE io_module
     !! vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE getVar2Dhandle(FH,var,tstart, missmask)
-      USE vars_module, ONLY : Nx, Ny
+!      USE vars_module, ONLY : Nx, Ny
       TYPE(fileHandle), INTENT(inout)             :: FH           !< File handle pointing to the variable to read data from
       INTEGER, INTENT(in)                         :: tstart       !< Time index of slice to read
       REAL(8), DIMENSION(:,:), INTENT(out) :: var                 !< Data to be returned
@@ -542,7 +402,9 @@ MODULE io_module
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=(/Nx,Ny,1/)))
+      call check(nf90_get_var(FH%ncid, FH%varid, var, &
+                              start=(/1,1,tstart/), &
+                              count=(/SIZE(var,1),SIZE(var,2),1/)))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
@@ -561,17 +423,16 @@ MODULE io_module
     !!
     !! @todo Test for overflow, i.e. var should have sufficient size
     !------------------------------------------------------------------
-    SUBROUTINE getVar1Dhandle(FH,var,tstart,tlen)
+    SUBROUTINE getVar1Dhandle(FH,var,tstart)
       TYPE(fileHandle), INTENT(inout)              :: FH      !< File handle locating the variable to read
       INTEGER, INTENT(in), OPTIONAL                :: tstart  !< Index to start at
-      INTEGER, INTENT(in), OPTIONAL                :: tlen    !< Length of chunk to read
       REAL(8), DIMENSION(:), INTENT(out)           :: var     !< Data read from disk
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
       CALL openDS(FH)
       IF (PRESENT(tstart)) THEN
-        IF (PRESENT(tlen)) THEN
-          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/), count=(/tlen/)))
+        IF (SIZE(var).NE.1) THEN
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/), count=SHAPE(var)))
         ELSE
           CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/)))
         END IF
@@ -588,19 +449,14 @@ MODULE io_module
     !! and used to read data from time dimension variable. The time is converted
     !! to the internal model calendar.
     !------------------------------------------------------------------
-    SUBROUTINE getTimeVar(FH,time,tstart,tlen)
+    SUBROUTINE getTimeVar(FH,time,tstart)
       TYPE(fileHandle), INTENT(inout)        :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
       REAL(8), DIMENSION(:), INTENT(out)     :: time          !< Time coordinates read from disk
       INTEGER, INTENT(in), OPTIONAL          :: tstart        !< Index to start reading
-      INTEGER, INTENT(in), OPTIONAL          :: tlen          !< Length of chunk to read
       TYPE(fileHandle)                       :: FH_time       !< Temporarily used file handle of time coordinate variable
       FH_time = getTimeFH(FH)
       IF (PRESENT(tstart)) THEN
-        IF(PRESENT(tlen)) THEN
-          CALL getVar1Dhandle(FH_time,time,tstart,tlen)
-        ELSE
-          CALL getVar1Dhandle(FH_time,time,tstart)
-        END IF
+        CALL getVar1Dhandle(FH_time,time,tstart)
       ELSE
         CALL getVar1Dhandle(FH_time,time)
       END IF
@@ -733,10 +589,11 @@ MODULE io_module
     !! @return Value of a character attribute. If no attribute with this name
     !! exists or any other error is thrown, an empty string will be returned
     !------------------------------------------------------------------
-    CHARACTER(CHARLEN) FUNCTION getCHARAtt(FH,attname)
+    SUBROUTINE getCHARAtt(FH,attname,attval)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
       CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
+      CHARACTER(CHARLEN), INTENT(out) :: attval
       CHARACTER(CHARLEN)  :: tmpChar
       INTEGER  :: NC_status
       LOGICAL  :: wasOpen
@@ -744,11 +601,35 @@ MODULE io_module
       CALL openDS(FH)
       NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpChar)
       IF (NC_status .EQ. NF90_NOERR) THEN
-        getCHARAtt = tmpChar
+        attval = tmpChar
       ELSE
-        getCHARAtt = ""
+        attval = ""
       END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
-    END FUNCTION getCHARAtt
+    END SUBROUTINE getCHARAtt
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Inquires a character attribute of a given variable
+    !!
+    !! @return Value of a character attribute. If no attribute with this name
+    !! exists or any other error is thrown, an empty string will be returned
+    !------------------------------------------------------------------
+    SUBROUTINE getDOUBLEAtt(FH,attname,attVal)
+      TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
+      CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
+      REAL(8), INTENT(out)            :: attVal
+      REAL(8)  :: tmpAtt
+      INTEGER  :: NC_status
+      LOGICAL  :: wasOpen
+      wasOpen = FH%isOpen
+      CALL openDS(FH)
+      NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpAtt)
+      IF (NC_status .EQ. NF90_NOERR) THEN
+        attVal = tmpAtt
+      ELSE
+        attVal = 0.
+      END IF
+      IF ( .NOT. wasOpen ) call closeDS(FH)
+    END SUBROUTINE getDOUBLEAtt
 
 END MODULE io_module

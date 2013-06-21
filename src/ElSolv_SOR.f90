@@ -40,7 +40,8 @@ MODULE ElSolv_SOR
     !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
     !------------------------------------------------------------------
     SUBROUTINE init_ElSolv_SOR
-      USE vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
+      USE vars_module, ONLY : Nx,Ny,ip1, jp1, dLambda, dTheta
+      USE domain_module, ONLY : A,cos_u,cos_v,ocean_u,ocean_v
       IMPLICIT NONE
       INTEGER  :: i,j, alloc_error
       ! allocate fields
@@ -50,12 +51,12 @@ MODULE ElSolv_SOR
       ElSolvSOR_c = 0._8
       ! compute coefficients for elliptic solver at all ocean points of the eta grid
       COEFFICIENTS: FORALL (i=1:Nx, j=1:Ny)
-        ElSolvSOR_c(i,j,1) = ocean_u(ip1(i),j) / (A * cosTheta_u(j) * dLambda)**2
-        ElSolvSOR_c(i,j,2) = ocean_u(i,j) / (A * cosTheta_u(j) * dLambda)**2
-        ElSolvSOR_c(i,j,3) = cosTheta_v(jp1(j)) * ocean_v(i,jp1(j)) / (A**2 * cosTheta_u(j) * dTheta**2)
-        ElSolvSOR_c(i,j,4) = cosTheta_v(j) * ocean_v(i,j) / (A**2 * cosTheta_u(j) * dTheta**2)
-        ElSolvSOR_c(i,j,5) = (-ocean_u(ip1(i),j)-ocean_u(i,j))/(A * cosTheta_u(j) * dLambda)**2 &
-                           + (-cosTheta_v(jp1(j))*ocean_v(i,jp1(j))-cosTheta_v(j)*ocean_v(i,j))/(A**2*cosTheta_u(j)*dTheta**2)
+        ElSolvSOR_c(i,j,1) = ocean_u(ip1(i),j) / (A * cos_u(j) * dLambda)**2
+        ElSolvSOR_c(i,j,2) = ocean_u(i,j) / (A * cos_u(j) * dLambda)**2
+        ElSolvSOR_c(i,j,3) = cos_v(jp1(j)) * ocean_v(i,jp1(j)) / (A**2 * cos_u(j) * dTheta**2)
+        ElSolvSOR_c(i,j,4) = cos_v(j) * ocean_v(i,j) / (A**2 * cos_u(j) * dTheta**2)
+        ElSolvSOR_c(i,j,5) = (-ocean_u(ip1(i),j)-ocean_u(i,j))/(A * cos_u(j) * dLambda)**2 &
+                           + (-cos_v(jp1(j))*ocean_v(i,jp1(j))-cos_v(j)*ocean_v(i,j))/(A**2*cos_u(j)*dTheta**2)
       END FORALL COEFFICIENTS
       ! initialise odd/even index spaces
       CALL init_oe_index_space
@@ -144,7 +145,8 @@ MODULE ElSolv_SOR
     !! @todo Think about using a better spectral radius by guessing (or computation)
     !------------------------------------------------------------------
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
-      USE vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta
+      USE vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1
+      USE domain_module, ONLY : land_eta
       IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B             !< rhs of PDE
       REAL(8), INTENT(in)                        :: epsilon                 !< Threshold for terminating the iteration

@@ -15,6 +15,7 @@
 MODULE diagTask
   USE io_module
   USE vars_module
+  USE domain_module
   USE generic_list
   USE diagVar
   IMPLICIT NONE
@@ -44,10 +45,11 @@ MODULE diagTask
     CHARACTER(CHARLEN)  :: period       !< Sampling period for AVERAGE output.
     CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
     CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+    TYPE(grid_t), POINTER :: grid=>null()
     REAL(8), DIMENSION(:,:), POINTER     :: varData=>null()   !< data, which should be processed
-    INTEGER(1), DIMENSION(:,:), POINTER  :: oceanMask=>null() !< ocean mask
-    REAL(8), DIMENSION(:), POINTER       :: lon=>null() !< Longitude coordinates
-    REAL(8), DIMENSION(:), POINTER       :: lat=>null() !< Latitude coordnates
+!    INTEGER(1), DIMENSION(:,:), POINTER  :: oceanMask=>null() !< ocean mask
+!    REAL(8), DIMENSION(:), POINTER       :: lon=>null() !< Longitude coordinates
+!    REAL(8), DIMENSION(:), POINTER       :: lat=>null() !< Latitude coordnates
     REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
     REAL(8)             :: bufferCount=0.   !< Counter, counting time
     REAL(8)             :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
@@ -89,7 +91,7 @@ MODULE diagTask
       CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER, intent(in)             :: ID          !< ID of diagTask
-      INTEGER, intent(in)             :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+      INTEGER, intent(in)             :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
       POINTER :: self
       REAL(8), DIMENSION(:,:,:), POINTER :: tmp_var3D
       INTEGER :: alloc_error
@@ -112,60 +114,23 @@ MODULE diagTask
 
       !< Setup task variable and grid
       SELECT CASE (TRIM(self%varname))
-
-        CASE ("U","u","SWM_U","impl_u","Impl_u","IMPL_U", "GAMMA_LIN_U", "gamma_lin_u","H_U","H_u","h_u","F_X") !< U, SWM_u
-          self%lat=>lat_u
-          self%lon=>lon_u
-          self%oceanMask => ocean_u
-          CALL getFromRegister(self%varname,self%varData)
-          IF (.NOT.ASSOCIATED(self%varData)) THEN
-            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-            STOP 2
-          END IF
-
-        CASE ("V","v","SWM_V","impl_v","Impl_v","IMPL_V", "GAMMA_LIN_V", "gamma_lin_v","H_V","H_v","h_v","F_Y") !< V, SWM_v
-          self%lat=>lat_v
-          self%lon=>lon_v
-          self%oceanMask => ocean_v
-          CALL getFromRegister(self%varname,self%varData)
-          IF (.NOT.ASSOCIATED(self%varData)) THEN
-            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-            STOP 2
-          END IF
-
-        CASE ("ETA","eta","SWM_ETA","Eta","impl_eta","Impl_eta","IMPL_ETA","GAMMA_LIN_ETA", "gamma_lin_eta","H_ETA","H_eta","h_eta","F_ETA") !< ETA, SWM_eta
-          self%lat=>lat_eta
-          self%lon=>lon_eta
-          self%oceanMask => ocean_eta
-          CALL getFromRegister(self%varname,self%varData)
-          IF (.NOT.ASSOCIATED(self%varData)) THEN
-            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-            STOP 2
-          END IF
-
+         
         CASE ("PSI","psi","Psi") !< PSI
-          self%lat=>lat_H
-          self%lon=>lon_H
-          self%oceanMask => ocean_H
-!          ALLOCATE(dVar_ptr)
-          CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
-!          self%diagVar => dVar_ptr%var
-          CALL getFromRegister(self%varname,self%varData)
-          self%oScaleFactor = 1e-6
-
-        CASE ("H","h")
-          self%lat=>lat_H
-          self%lon=>lon_H
-          self%oceanMask => ocean_H
-          CALL getFromRegister(self%varname,self%varData)
-          IF (.NOT.ASSOCIATED(self%varData)) THEN
-            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-            STOP 2
-          END IF
+            CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
+            CALL getFromRegister(self%varname,self%varData,self%grid)
+            self%grid => H_grid
+            IF (.NOT.ASSOCIATED(self%varData)) THEN
+              PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+              STOP 2
+            END IF
+            self%oScaleFactor = 1e-6
 
         CASE DEFAULT
-          PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-          STOP 2
+          CALL getFromRegister(self%varname,self%varData,self%grid)
+          IF (.NOT.ASSOCIATED(self%varData)) THEN
+            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+            STOP 2
+          END IF
 
       END SELECT
 
@@ -210,9 +175,7 @@ MODULE diagTask
       END IF
 
       nullify(self%varData)
-      nullify(self%oceanMask)
-      nullify(self%lon)
-      nullify(self%lat)
+      nullify(self%grid)
 
       DEALLOCATE(self, stat=alloc_error)
       IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
@@ -285,7 +248,7 @@ MODULE diagTask
 
       IF (self%rec .gt. self%NoutChunk) CALL createTaskDS(self)
 
-      CALL putVar(self%FH,outData*self%oScaleFactor, self%rec, time, self%oceanMask)
+      CALL putVar(self%FH,outData*self%oScaleFactor, self%rec, time, self%grid%ocean)
       self%rec = self%rec+1
       self%fullrec = self%fullrec+1
 
@@ -372,7 +335,7 @@ MODULE diagTask
       TYPE(diagTask_t), POINTER, INTENT(in) :: task
       CALL closeDS(task%FH)
       WRITE (fullrecstr, '(i12.12)') task%fullrec
-      CALL createDS(task%FH,task%lat,task%lon)
+      CALL createDS(task%FH,task%grid)
       task%rec = 1
     END SUBROUTINE createTaskDS
 
@@ -400,7 +363,7 @@ MODULE diagTask
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER             :: NoutChunk
       !< Read namelist
-      OPEN(UNIT_DIAG_NL, file="model.namelist", iostat=io_stat)
+      OPEN(UNIT_DIAG_NL, file=DIAG_NL, iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
         CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, NoutChunk)
         IF (io_stat.EQ.0) THEN

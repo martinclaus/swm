@@ -56,7 +56,8 @@ MODULE dynFromFile_module
     SUBROUTINE DFF_initDynFromFile
     ! initial conditions will be overwritten (must be call befor any module using initial conditions is initialised)
       USE memchunk_module, ONLY : initMemChunk, isInitialised
-      USE vars_module, ONLY : Nx, Ny, addToRegister
+      USE vars_module, ONLY : addToRegister
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid
       IMPLICIT NONE
       CHARACTER(CHARLEN)    :: FileName_u="", FileName_v="", FileName_eta="", FileName_psi="",&
                                varname_eta=OVARNAMEETA, varname_u=OVARNAMEU, varname_v=OVARNAMEV, varname_psi=OVARNAMEPSI
@@ -136,10 +137,18 @@ MODULE dynFromFile_module
     !! memchunk_module, ONLY : getChunkData
     !------------------------------------------------------------------
     SUBROUTINE DFF_advance
-      USE vars_module, ONLY : u,v,eta,dt,itt,N0, ocean_eta, ocean_u, ocean_v
+      USE vars_module, ONLY : u,v,eta,dt,itt,N0
+      USE domain_module, ONLY : eta_grid, u_grid, v_grid 
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
       REAL(8)    :: model_time
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
+      ocean_eta = eta_grid%ocean
       model_time = itt*dt
       IF (DFF_eta_input) eta(:,:,N0) = eta(:,:,N0) + ocean_eta * getChunkData(DFF_eta_chunk,model_time)
       IF (DFF_u_input)   u(:,:,N0) = u(:,:,N0) + ocean_u * getChunkData(DFF_u_chunk,model_time)
@@ -165,7 +174,8 @@ MODULE dynFromFile_module
     !! calc_lib, ONLY : evSF_zonal, evSF_meridional
     !------------------------------------------------------------------
     SUBROUTINE getVelFromPsi(memChunk,time)
-      USE vars_module, ONLY : itt, Nx, Ny
+      USE vars_module, ONLY : itt
+      USE domain_module, ONLY : Nx, Ny
       USE memchunk_module, ONLY : getChunkData, isConstant
       USE calc_lib, ONLY : evSF_zonal, evSF_meridional
       IMPLICIT NONE

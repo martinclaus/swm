@@ -88,7 +88,8 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_initTracer
 #include "io.h"
-      USE vars_module, ONLY : Nx,Ny, addToRegister
+      USE vars_module, ONLY : addToRegister
+      USE domain_module, ONLY : Nx, Ny
       INTEGER           :: alloc_error
       CHARACTER(CHARLEN):: TRC_file_C0, TRC_file_relax, &
                            in_varname_C0="C0", in_varname_C="C", in_varname_relax="RELAX"
@@ -171,7 +172,9 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_readInitialConditions
       USE io_module, ONLY : readInitialCondition
-      USE vars_module, ONLY : ocean_eta
+      USE domain_module, ONLY : eta_grid
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+      ocean_eta = eta_grid%ocean
 
       CALL readInitialCondition(TRC_FH_init,TRC_C1(:,:,TRC_N0))
       CALL readInitialCondition(TRC_FH_C0,TRC_C1_0)
@@ -232,8 +235,11 @@ MODULE tracer_module
     !! vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
     !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepEulerForward
-      USE vars_module, ONLY : u,v,Nx,Ny,land_eta,N0,ip1,im1,jp1,jm1,dt
+      USE vars_module, ONLY : u,v,N0,dt
+      USE domain_module, ONLY : eta_grid, Nx, Ny, ip1, im1, jp1, jm1
       INTEGER       :: i,j
+      INTEGER(1), DIMENSION(SIZE(eta_grid%land,1),SIZE(eta_grid%land,2)) :: land_eta
+      land_eta = eta_grid%land
 #ifdef TRC_PARALLEL
 #include "model.h"
 !$OMP PARALLEL &
@@ -284,8 +290,11 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepLeapfrog
     ! leapfrog timestepping of tracer equation
-      USE vars_module, ONLY : Nx,Ny,land_eta,ip1,im1,jp1,jm1,dt
+      USE vars_module, ONLY : dt
+      USE domain_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,eta_grid
       INTEGER       :: i,j
+      INTEGER(1), DIMENSION(SIZE(eta_grid%land,1),SIZE(eta_grid%land,2)) :: land_eta
+      land_eta = eta_grid%land
 #ifdef TRC_PARALLEL
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
@@ -329,8 +338,11 @@ MODULE tracer_module
     !------------------------------------------------------------------
     SUBROUTINE TRC_tracerStepAdamsBashforth
     ! Adams Bashforth time stepping of tracer equation
-     USE vars_module, ONLY : Nx,Ny,land_eta,ip1,im1,jp1,jm1,dt
+     USE vars_module, ONLY : dt
+     USE domain_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,eta_grid
      INTEGER    :: i,j
+     INTEGER(1),DIMENSION(SIZE(eta_grid%land,1),SIZE(eta_grid%land,2)) :: land_eta
+     land_eta = eta_grid%land
 
 #ifdef TRC_PARALLEL
 !$OMP PARALLEL &
@@ -381,9 +393,12 @@ MODULE tracer_module
     !! @todo Write down the criteria used
     !------------------------------------------------------------------
     SUBROUTINE TRC_checkLeapfrogStability(u,v)
-      USE vars_module, ONLY : Nx,Ny,dt,A,cosTheta_u,dLambda,dTheta, itt
+      USE vars_module, ONLY : dt, itt
+      USE domain_module, ONLY : Nx,Ny,dLambda,dTheta,u_grid, A
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
       REAL(8)                               :: a_sq, b, c
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat))    :: cosTheta_u
+      cosTheta_u = u_grid%cos_lat
 
       a_sq = dt**2 * (MAXVAL(u)/(MINVAL(cosTheta_u)*A*dLambda) + MAXVAL(v)/(A*dTheta))**2 / &
        (1._8+2._8*dt*(TRC_C1_cons+MINVAL(TRC_C1_relax)))
@@ -406,10 +421,22 @@ MODULE tracer_module
     !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initLFScheme
-      USE vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, &
-                              addToRegister
+      USE vars_module, ONLY : dt, addToRegister
+      USE domain_module, ONLY : Nx,Ny,dLambda,dTheta,ip1,jp1, &
+                                u_grid, v_grid, eta_grid, A
       INTEGER       :: alloc_error
       INTEGER       :: i,j
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+
+      ocean_eta = eta_grid%ocean
+      ocean_u = u_grid%ocean
+      cosTheta_u = u_grid%cos_lat
+      ocean_v = v_grid%ocean
+      cosTheta_v = v_grid%cos_lat
 
       ALLOCATE(TRC_Coef_LF(1:Nx,1:Ny,1:14), stat=alloc_error)
       IF(alloc_error.ne.0) THEN
@@ -462,10 +489,22 @@ MODULE tracer_module
     !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initABScheme
-      USE vars_module, ONLY: Nx,Ny,ocean_eta,ocean_u,ocean_v,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, &
-                            addToRegister
+      USE vars_module, ONLY: Nx,Ny,dLambda,dTheta,ip1,jp1, addToRegister 
+      USE domain_module, ONLY : Nx, Ny, dLambda, dTheta, ip1, jp1, &
+                                eta_grid, u_grid, v_grid, A
       INTEGER       :: alloc_error
       INTEGER       :: i,j
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+
+      ocean_eta = eta_grid%ocean
+      ocean_u = u_grid%ocean
+      cosTheta_u = u_grid%cos_lat
+      ocean_v = v_grid%ocean
+      cosTheta_v = v_grid%cos_lat
 
       ALLOCATE(TRC_Coef_AB(1:13,1:Nx,1:Ny), stat=alloc_error)
       IF(alloc_error.ne.0) THEN
@@ -503,8 +542,12 @@ MODULE tracer_module
     !! vars_module, ONLY : Nx,Ny,ocean_eta, dt, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initImplTerms
-      USE vars_module, ONLY : Nx,Ny,ocean_eta, dt, addToRegister
+      USE vars_module, ONLY : dt, addToRegister
+      USE domain_module, ONLY : Nx, Ny, eta_grid
       INTEGER   :: alloc_error, i, j, tStepFactor
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_eta = eta_grid%ocean
       ALLOCATE(TRC_C1_impl(1:Nx,1:Ny),stat=alloc_error)
       IF(alloc_error.NE.0) THEN
         PRINT *,"Allocation error in ",__FILE__,__LINE__,alloc_error

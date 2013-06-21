@@ -34,7 +34,7 @@ UDDIR = @UDDIR@
 NETDIR = @NETDIR@
 
 bin_PROGRAMS = model$(EXEEXT)
-model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90
+model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90 domain_module.f90 grid_module.f90
 
 O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
@@ -64,8 +64,9 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar
+modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module
 objects = $(modules:%=$(builddir)%.o)
+
 
 .PHONY: all clean clean-selfcheck clean-doc selfcheck doc distclean clean-conf
 
@@ -75,10 +76,10 @@ all     : $(bin_PROGRAMS)
 model$(EXEEXT)   : $(modules:%=%.o) model.o
 	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud)
 
-model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o io_module.o model.h io.h
+model.o : model.f90 diag_module.o vars_module.o tracer_module.o swm_module.o calc_lib.o dynFromFile_module.o domain_module.o model.h io.h
 	$(COMPILE)
 
-vars_module.o : vars_module.f90 generic_list.o io.h
+vars_module.o : vars_module.f90 generic_list.o domain_module.o io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h udunits.inc
@@ -88,46 +89,52 @@ include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
 	@$(SED) -e 's/^C/!/' -e '/#define UD_POINTER/d' $< > $@
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o
+swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
 	$(COMPILE)
 
-diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
+diag_module.o : diag_module.f90 vars_module.o io_module.o calc_lib.o generic_list.o diagTask.o diagVar.o tracer_module.o swm_module.o model.h
 	$(COMPILE)
 
-diagTask.o : diagTask.f90 diag_module.h io.h swm_damping_module.o io_module.o vars_module.o generic_list.o diagVar.o
+diagTask.o : diagTask.f90 io.h swm_damping_module.o io_module.o vars_module.o domain_module.o diagVar.o
 	$(COMPILE)
 
-diagVar.o : diagVar.f90 vars_module.o calc_lib.o io.h diag_module.h generic_list.o
+diagVar.o : diagVar.f90 vars_module.o io.h
 	$(COMPILE)
 
-io_module.o : io_module.f90 io.h vars_module.o calendar_module.o
+io_module.o : io_module.f90 io.h calendar_module.o grid_module.o
 	$(COMPILE)
 
-ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o model.h
+ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h
 	$(COMPILE)
 
-tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o calc_lib.o model.h
+tracer_module.o : tracer_module.f90 tracer_module.h vars_module.o io_module.o calc_lib.o domain_module.o model.h
 	$(COMPILE)
 
-calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o model.h $(cl_elsolv.o)
+calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o domain_module.o model.h $(cl_elsolv.o)
 	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
-dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o
+dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o domain_module.o
 	$(COMPILE)
 
-memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o vars_module.o
+memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
-swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o
+swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o
 	$(COMPILE)
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
-swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o memchunk_module.o
+swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o domain_module.o memchunk_module.o
 	$(COMPILE)
 
-swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o
+swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o domain_module.o
+	$(COMPILE)
+
+domain_module.o : domain_module.f90 grid_module.o io_module.o io.h
+	$(COMPILE)
+
+grid_module.o : grid_module.f90
 	$(COMPILE)
 
 %.o : %.f90

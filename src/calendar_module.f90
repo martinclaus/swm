@@ -13,6 +13,7 @@
 MODULE calendar_module
     IMPLICIT NONE
 #include "calendar.h"
+#include "io.h"
 #include "udunits.inc"
     UD_POINTER, PARAMETER   :: DEF_PTR=-9999
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -30,6 +31,8 @@ MODULE calendar_module
         UD_POINTER, PRIVATE  ::  ptr=DEF_PTR
         LOGICAL, PRIVATE     ::  isSet=.FALSE.
     END TYPE calendar
+
+   CHARACTER(CHARLEN)     :: ref_cal            !< unit string of internal model calendar
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Sets a Calendar
@@ -63,12 +66,19 @@ MODULE calendar_module
             IMPLICIT NONE
 #include "udunits.inc"
             INTEGER     status
+            CHARACTER(CHARLEN) :: model_start
+            NAMELIST / calendar_nl / model_start
 
             status = UTOPEN(UNITSPATH)
             IF (status .NE. 0) THEN
                 PRINT *, "UTOPEN ERROR: ", status
                 STOP 1
             ENDIF
+
+            OPEN(UNIT_CALENDAR_NL, file = CALENDAR_NL)
+            READ(UNIT_CALENDAR_NL, nml = calendar_nl)
+            CLOSE(UNIT_CALENDAR_NL)
+            ref_cal = "seconds since " // TRIM(model_start)
         END SUBROUTINE OpenCal
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

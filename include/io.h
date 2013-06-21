@@ -28,6 +28,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define SWM_FORCING_NL MODEL_NL
 #define SWM_DAMPING_NL MODEL_NL
 #define DIAG_NL MODEL_NL
+#define DOMAIN_NL MODEL_NL
+#define CALENDAR_NL MODEL_NL
 
 /* Namlist unit identifier */
 #define UNIT_MODEL_NL 17
@@ -37,6 +39,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_SWM_FORCING_NL 21
 #define UNIT_SWM_DAMPING_NL 22
 #define UNIT_DIAG_NL 23
+#define UNIT_DOMAIN_NL 24
+#define UNIT_CALENDAR_NL 25
 
 /* Attribute conventions from NetCDF Users' Guide (10.06.2011) */
 #define NUG_ATT_UNITS "units"

@@ -70,7 +70,7 @@ MODULE memchunk_module
     !! @todo remove dimensional restriction.
     !------------------------------------------------------------------
     SUBROUTINE initMemChunk(fileName,varName,chunkSize,memChunk)
-      USE vars_module, ONLY : Nx, Ny
+      USE domain_module, ONLY : Nx, Ny
       CHARACTER(*), intent(in)         :: fileName      !< Filename (including path) of the requested dataset
       CHARACTER(*), intent(in)         :: varName       !< Name of variable to provide
       INTEGER, intent(in)              :: chunkSize     !< Maximal number of timesteps to buffer. Optimally nrec+1 or greater if the dataset is not constant in time
@@ -264,8 +264,8 @@ MODULE memchunk_module
           dt = 0.
         ELSE
           nrec = getNrec(memChunk%FH)
-          CALL getTimeVar(memChunk%FH,tmin,1,1)
-          CALL getTimeVar(memChunk%FH,tmax,nrec,1)
+          CALL getTimeVar(memChunk%FH,tmin,1)
+          CALL getTimeVar(memChunk%FH,tmax,nrec)
           dt = (tmax(1)-tmin(1))/(nrec-1.)
         END IF
       ELSE

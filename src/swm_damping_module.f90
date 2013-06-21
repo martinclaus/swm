@@ -41,23 +41,27 @@ MODULE swm_damping_module
     !! addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_damping_init
-      USE vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, &
-                              ocean_u, ocean_v, H_u, H_v
-      USE vars_module, ONLY : addToRegister
+      USE vars_module, ONLY : r, k, gamma_new, dt, &
+                              addToRegister
+      USE domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: alloc_error
       REAL(8), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
                                           gamma_lin_v => null(), &
                                           gamma_lin_eta => null()
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1), SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1), SIZE(v_grid%ocean,2)) :: ocean_v
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
       ! allocate memory
       ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      CALL addToRegister(impl_u, "IMPL_U")
-      CALL addToRegister(impl_v, "IMPL_V")
-      CALL addToRegister(impl_eta, "IMPL_ETA")
+      CALL addToRegister(impl_u, "IMPL_U", u_grid)
+      CALL addToRegister(impl_v, "IMPL_V", v_grid)
+      CALL addToRegister(impl_eta, "IMPL_ETA", eta_grid)
 #ifdef LINEAR_BOTTOM_FRICTION
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
@@ -65,8 +69,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U")
-      CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V")
+      CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
+      CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
       gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
 #ifdef VELOCITY_SPONGE
                       + getSpongeLayer("U",VELOCITY_SPONGE) &
@@ -89,8 +93,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U")
-      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V")
+      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U", u_grid)
+      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V", v_grid)
       gamma_sq_u = getDampingCoefficient("GAMMA_SQ_U",SHAPE(gamma_sq_u))
       gamma_sq_v = getDampingCoefficient("GAMMA_SQ_V",SHAPE(gamma_sq_v))
 #ifdef BAROTROPIC
@@ -104,7 +108,7 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA")
+      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
       gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
 #ifdef NEWTONIAN_SPONGE
                   + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
@@ -223,8 +227,9 @@ MODULE swm_damping_module
     !! @return Field of damping coefficients related to the sponge layers
     !------------------------------------------------------------------
     FUNCTION getSpongeLayer(gString,posString) RESULT(gamma)
-      USE vars_module, ONLY : Nx,Ny, lat_u, lon_u, lat_v, lon_v, A, D2R, OMEGA, G, H, &
+      USE vars_module, ONLY : G, H, &
                               gamma_new_sponge, new_sponge_efolding
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid, A, OMEGA
       IMPLICIT NONE
       !> String specifying the grid to work with. First character of this string must be one of
       !! - "U" (zonal velocity grid)
@@ -240,6 +245,8 @@ MODULE swm_damping_module
       REAL(8)                            :: gamma(Nx,Ny) !< Field of damping coefficients related to the sponge layers
       REAL(8)                            :: lat(Ny), lon(Nx), spongeCoefficient
       INTEGER                            :: iGrid, iBoundary, iSponge(4,3)
+      REAL(8), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
+      REAL(8), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
       iSponge = RESHAPE((/1,Ny-1,2,Nx-1,&
                           2,Ny-1,1,Nx-1,&
                           1,Ny-1,1,Nx-1/),SHAPE(iSponge))
@@ -247,16 +254,16 @@ MODULE swm_damping_module
       SELECT CASE(gString(1:1))
         CASE("u","U")
           iGrid = 1
-          lat = lat_u
-          lon = lon_u
+          lat = u_grid%lat
+          lon = u_grid%lon
         CASE("v","V")
           iGrid = 2
-          lat = lat_v
-          lon = lon_v
+          lat = v_grid%lat
+          lon = v_grid%lon
         CASE("e","E")
           iGrid = 3
-          lat = lat_u
-          lon = lon_v
+          lat = eta_grid%lat
+          lon = eta_grid%lon
         CASE default
           WRITE (*,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
           RETURN

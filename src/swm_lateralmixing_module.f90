@@ -42,18 +42,31 @@ MODULE swm_lateralmixing_module
     !! ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_init
-      USE vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v, &
-                              ocean_H,ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v, &
-                              addToRegister
+      USE vars_module, ONLY : dt, Ah,  addToRegister
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, dLambda, dTheta, H_u, H_v, & 
+                                A, u_grid, v_grid, H_grid
       IMPLICIT NONE
       INTEGER   :: i,j,alloc_error
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
+      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u, tanTheta_u
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v, tanTheta_v
+
+      ocean_u = u_grid%ocean
+      cosTheta_u = u_grid%cos_lat
+      tanTheta_u = u_grid%tan_lat
+      ocean_v = v_grid%ocean
+      cosTheta_v = v_grid%cos_lat
+      tanTheta_v = v_grid%tan_lat
+      ocean_H = H_grid%ocean
       ALLOCATE(lat_mixing_u(1:9, 1:Nx, 1:Ny), lat_mixing_v(1:9, 1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      CALL addToRegister(lat_mixing_u,"LAT_MIXING_U")
-      CALL addToRegister(lat_mixing_v,"LAT_MIXING_V")
+      CALL addToRegister(lat_mixing_u,"LAT_MIXING_U", u_grid)
+      CALL addToRegister(lat_mixing_v,"LAT_MIXING_V", v_grid)
       lat_mixing_u = 0._8
       lat_mixing_v = 0._8
       FORALL (i=1:Nx, j=1:Ny)

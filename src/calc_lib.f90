@@ -30,10 +30,10 @@ MODULE calc_lib
     !! If an elliptic solver module is defined, its will be initialised
     !!
     !! @par Uses
-    !! vars_module, ONLY : Nx,Ny
+    !! domain_module, ONLY : Nx,Ny
     !------------------------------------------------------------------
     SUBROUTINE initCalcLib
-      USE vars_module, ONLY : Nx,Ny
+      USE domain_module, ONLY : Nx,Ny
       IMPLICIT NONE
       INTEGER :: alloc_error
       ALLOCATE(chi(1:Nx,1:Ny), stat=alloc_error)
@@ -119,20 +119,26 @@ MODULE calc_lib
     !! Available at: http://journals.ametsoc.org/doi/abs/10.1175/JPO2949.1.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ocean_u,ocean_v,ocean_eta,itt
+    !! vars_module, ONLY : itt
+    !! domain_module, ONLY : Nx,Ny,u_grid,v_grid,eta_grid
     !! @todo replace magic number for epsilon
     !------------------------------------------------------------------
     SUBROUTINE computeNonDivergentFlowField(u_in,v_in,u_nd,v_nd)
-      USE vars_module, ONLY : Nx,Ny,ocean_u,ocean_v,ocean_eta,itt
+      USE vars_module, ONLY : itt
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)   :: u_in !< Zonal component of 2D velocity field
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)   :: v_in !< Meridional component of 2D velocity field
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)  :: u_nd !< Zonal component of corrected flow
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)  :: v_nd !< Meridional component of corrected flow
+      INTEGER(1),DIMENSION(Nx,Ny)           :: ocean_u, ocean_v, ocean_eta
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
       REAL(8)                               :: epsilon
 #endif
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
+      ocean_eta = eta_grid%ocean
       u_nd = u_in
       v_nd = v_in
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
@@ -170,12 +176,12 @@ MODULE calc_lib
     !! \f]
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ip1,jp1,A,cosTheta_u,cosTheta_v,dLambda,dTheta
+    !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
     !!
     !! @todo make it parallel
     !------------------------------------------------------------------
     SUBROUTINE computeDivergence(CD_u,CD_v,div_u,mask_u,mask_v,mask_div)
-      USE vars_module, ONLY : Nx,Ny,ip1,jp1,A,cosTheta_u,cosTheta_v,dLambda,dTheta
+      USE domain_module, ONLY : Nx,Ny,ip1,jp1,dLambda,dTheta, A, u_grid, v_grid
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_u      !< Zonal component of input
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_v      !< Meridional component of input
@@ -183,13 +189,17 @@ MODULE calc_lib
       INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_v    !< Mask of valid points for CD_v. Missing values, such as land points, are set to zero
       INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_div  !< Mask of valid points for output. If input is located on the velocity grids, this is the ocean mask of the eta grid
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: div_u     !< Divergence of the input
+      REAL(8),DIMENSION(SIZE(u_grid%cos_lat)):: cosTheta_u 
+      REAL(8),DIMENSION(SIZE(v_grid%cos_lat)):: cosTheta_v
       INTEGER       :: i,j
+      cosTheta_u = u_grid%cos_lat
+      cosTheta_v = v_grid%cos_lat
       div_u = 0._8
       FORALL (i=1:Nx, j=1:Ny, mask_div(i,j) .EQ. 1_1)
         div_u(i,j) = 1._8/(A*cosTheta_u(j)) * (&
           (mask_u(ip1(i),j)*CD_u(ip1(i),j) - mask_u(i,j)*CD_u(i,j)) / dLambda &
-          + (mask_v(i,jp1(j))*cosTheta_v(jp1(j))*CD_v(i,jp1(j)) - mask_v(i,j)*cosTheta_v(j)*CD_v(i,j)) / dTheta &
-        )
+          + (mask_v(i,jp1(j))*cosTheta_v(jp1(j))*CD_v(i,jp1(j)) &
+          - mask_v(i,j)*cosTheta_v(j)*CD_v(i,j)) / dTheta )
       END FORALL
     END SUBROUTINE computeDivergence
 
@@ -204,12 +214,12 @@ MODULE calc_lib
     !! \f]
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ip1,jp1,A,cosTheta_u,cosTheta_v,dLambda,dTheta
+    !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
     !!
     !! @todo make it parallel
     !------------------------------------------------------------------
     SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, mask_chi, mask_u, mask_v)
-      USE vars_module, ONLY : Nx,Ny,im1,jm1,A,dLambda,dTheta,cosTheta_u
+      USE domain_module, ONLY : A,Nx,Ny,im1,jm1,dLambda,dTheta,u_grid,v_grid
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_u    !< Zonal component of gradient
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_v    !< Meridional component of gradient
@@ -218,6 +228,10 @@ MODULE calc_lib
       INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_u    !< Valid data mask of zonal component of output
       INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_v    !< Valid data mask of meridional component of output
       INTEGER       :: i,j
+      REAL(8),DIMENSION(SIZE(u_grid%cos_lat))               :: cosTheta_u
+      REAL(8),DIMENSION(SIZE(v_grid%cos_lat))               :: cosTheta_v
+      cosTheta_u = u_grid%cos_lat
+      cosTheta_v = u_grid%cos_lat
       DO j=1,Ny
         DO i=1,Nx
             GRAD_u(i,j) = mask_u(i,j)*(mask_chi(i,j)*GRAD_chi(i,j)-mask_chi(im1(i),j)*GRAD_chi(im1(i),j))/(A*cosTheta_u(j)*dLambda)
@@ -244,12 +258,15 @@ MODULE calc_lib
     !! @todo Make it parallel
     !------------------------------------------------------------------
     SUBROUTINE computeStreamfunction(psi)
-      USE vars_module, ONLY : Nx,Ny,N0,jm1,H_v,v,A,cosTheta_v,dLambda,H_u,u,A,dTheta
+      USE vars_module, ONLY : N0,v,u
+      USE domain_module, ONLY : A,Nx,Ny,jm1,H_v,dLambda,H_u,dTheta, v_grid
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi   !< streamfunction to output
       REAL(8),DIMENSION(Nx,Ny)             :: u_nd  !< zonal velocity
       REAL(8),DIMENSION(Nx,Ny)             :: v_nd  !< meridional velocity
       INTEGER  :: i,j                               !< spatial coordinate indices
+      REAL(8),DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+      cosTheta_v = v_grid%cos_lat
       psi = 0.
       u_nd = u(:,:,N0)
       v_nd = v(:,:,N0)
@@ -281,7 +298,6 @@ MODULE calc_lib
     !! @todo Compute eta from streamfunction (if neccessary at all?) assuming geostrophy
     !------------------------------------------------------------------
     SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)
-      USE vars_module, ONLY : ip1,jp1,ocean_u,ocean_H,ocean_v,H_u,H_v,A,dTheta,dLambda,cosTheta_v
       IMPLICIT NONE
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u   !< Zonal velocity
@@ -307,11 +323,15 @@ MODULE calc_lib
     !! @note If BAROTROPIC is not defined, the H_u factor will be droped from the equation above.
     !------------------------------------------------------------------
     FUNCTION evSF_zonal(evSF_psi)
-      USE vars_module, ONLY : jp1,ocean_u,ocean_H,H_u,A,dTheta
+      USE domain_module, ONLY : u_grid, H_grid, A, jp1, H_u, dTheta
       IMPLICIT NONE
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                          !< Streamfunction to process
       REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_zonal  !< Zonal velocity
       INTEGER   :: i,i_bound,j,j_bound,l,l_bound
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
+      ocean_u = u_grid%ocean
+      ocean_H = H_grid%ocean
       i_bound = UBOUND(evSF_psi,1)
       j_bound = UBOUND(evSF_psi,2)
       l_bound = UBOUND(evSF_psi,3)
@@ -351,11 +371,18 @@ MODULE calc_lib
     !! @note If BAROTROPIC is not defined, the H_u factor will be droped from the equation above.
     !------------------------------------------------------------------
     FUNCTION evSF_meridional(evSF_psi)
-      USE vars_module, ONLY : ip1,ocean_H,ocean_v,H_v,A,dLambda,cosTheta_v
+      USE vars_module, ONLY : ip1,H_v,dLambda
+      USE domain_module, ONLY : H_grid, v_grid, A
       IMPLICIT NONE
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to process
       REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_meridional !< Meridional velocity computed
       INTEGER   :: i,i_bound,j,j_bound,l,l_bound
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
+      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+      ocean_v = v_grid%ocean
+      ocean_H = H_grid%ocean
+      cosTheta_v = v_grid%cos_lat
       i_bound = UBOUND(evSF_psi,1)
       j_bound = UBOUND(evSF_psi,2)
       l_bound = UBOUND(evSF_psi,3)

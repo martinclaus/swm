@@ -30,14 +30,15 @@ USE swm_timestep_module
     !! vars_module , ONLY : Nx, Ny, Ns, N0, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
-      USE vars_module, ONLY : Nx, Ny, Ns, N0, addToRegister
+      USE vars_module, ONLY : Ns, N0, addToRegister
+      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: alloc_error, stat ! return status
       ! allocate what's necessary
       ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
-      CALL addToRegister(SWM_u,"SWM_U")
-      CALL addToRegister(SWM_v,"SWM_V")
-      CALL addToRegister(SWM_eta,"SWM_ETA")
+      CALL addToRegister(SWM_u,"SWM_U", u_grid)
+      CALL addToRegister(SWM_v,"SWM_V", v_grid)
+      CALL addToRegister(SWM_eta,"SWM_ETA", eta_grid)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_init:",alloc_error
         STOP 1
@@ -88,7 +89,8 @@ USE swm_timestep_module
     !! vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE SWM_advance
-      USE vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
+      USE vars_module, ONLY : u,v,eta,N0,N0p1
+      USE domain_module, ONLY : Nx, Ny
       IMPLICIT NONE
       ! shift timestep in SMW module
       SWM_eta(:,:,N0) = SWM_eta(:,:,N0p1)
@@ -121,10 +123,17 @@ USE swm_timestep_module
       USE vars_module, ONLY : file_eta_init, varname_eta_init,&
                               file_u_init, varname_u_init,&
                               file_v_init, varname_v_init,&
-                              ocean_eta, ocean_u, ocean_v,&
                               N0p1
+      USE domain_module, ONLY : eta_grid, u_grid, v_grid
       IMPLICIT NONE
       TYPE(fileHandle) :: FH
+      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+
+      ocean_u = u_grid%ocean
+      ocean_v = v_grid%ocean
+      ocean_eta = eta_grid%ocean
       ! init with undisturbed state of rest
       SWM_eta = 0.
       SWM_u = 0.
