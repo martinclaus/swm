@@ -9,7 +9,7 @@
 !! io.h
 !!
 !! @par Uses:
-!! netcdf
+!! netcdf, clendar_module, grid_module
 !------------------------------------------------------------------
 MODULE io_module
 #include "io.h"
@@ -121,7 +121,6 @@ MODULE io_module
     !! Parses output_nl namelist
     !------------------------------------------------------------------
     SUBROUTINE initIO
-!      USE vars_module, ONLY : ref_cal
       namelist / output_nl / &
         oprefix, & ! output prefix used to specify directory
         osuffix    ! suffix to name model run
@@ -174,11 +173,8 @@ MODULE io_module
     !> @brief  Reads the last time slice from a datasets variable
     !!
     !! Calls getVar to retrieve the last timeslice of a variable.
-    !! @par Uses:
-    !! USE vars_module, ONLY : Nx,Ny
     !------------------------------------------------------------------
     SUBROUTINE readInitialCondition(FH,var,missmask)
-!      USE vars_module, ONLY : Nx,Ny
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)           :: FH                   !< File handle pointing to the requested variable
       REAL(8), DIMENSION(:,:), INTENT(out)  :: var                  !< Data to return
@@ -194,18 +190,14 @@ MODULE io_module
     !! If DIAG_FLUSH is defined, the dataset will be closed after creation. Since all routines
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny, missval
     !------------------------------------------------------------------
     SUBROUTINE createDS3handle(FH,grid)
- !     USE vars_module, ONLY : Nx,Ny,missval
       IMPLICIT NONE
-      TYPE(fileHandle), INTENT(inout) :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
-      TYPE(grid_t), POINTER, INTENT(in)        :: grid
-      INTEGER                         :: lat_dimid, lon_dimid, &
-                                       lat_varid, lon_varid, &
-                                       Nx, Ny
+      TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
+      TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Grid used to create dataset
+      INTEGER                           :: lat_dimid, lon_dimid, &
+                                           lat_varid, lon_varid, &
+                                           Nx, Ny
       Nx=SIZE(grid%lon)
       Ny=SIZE(grid%lat)
       FH%filename = getFname(FH%filename)
@@ -264,7 +256,7 @@ MODULE io_module
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
                  __LINE__,FH%filename)
       ! get missing value
-      
+
       IF (FH%varid.EQ.DEF_VARID) CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
                                             __LINE__,FH%filename)
       CALL check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
@@ -317,12 +309,10 @@ MODULE io_module
     !> @brief  Write a time slice to disk
     !!
     !! Write a variables time slice to a existing dataset.
-    !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,missval
+    !!
     !! @todo Check if var_dummy is neccessary. I think Fortan creates a copy of varData when calling this routine.
     !------------------------------------------------------------------
     SUBROUTINE putVar3Dhandle(FH,varData,rec,time,ocean_mask)
-!      USE vars_module, ONLY : Nx,Ny,missval
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH               !< Initialised file handle pointing to the variable to write data to
       REAL(8), DIMENSION(:,:), INTENT(in) :: varData          !< Data to write
@@ -355,11 +345,8 @@ MODULE io_module
     !!
     !! Read a 3D (2D space + 1D time) chunk of a variable from disk.
     !! If specified, also a mask of missing values is returned
-    !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen, missmask)
-!      USE vars_module, ONLY : Nx, Ny
       TYPE(fileHandle), INTENT(inout)             :: FH                 !< File handle pointing to the variable to read from
       INTEGER, INTENT(in)                         :: tstart             !< Time index to start reading
       INTEGER, INTENT(in)                         :: tlen               !< Length of chunk to read
@@ -388,12 +375,8 @@ MODULE io_module
     !! Only a single timeslice with two (spatial) dimensions is read from
     !! the location specified by the file handle FH. If specified, also a
     !! mask of missing values is returned.
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE getVar2Dhandle(FH,var,tstart, missmask)
-!      USE vars_module, ONLY : Nx, Ny
       TYPE(fileHandle), INTENT(inout)             :: FH           !< File handle pointing to the variable to read data from
       INTEGER, INTENT(in)                         :: tstart       !< Time index of slice to read
       REAL(8), DIMENSION(:,:), INTENT(out) :: var                 !< Data to be returned

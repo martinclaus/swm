@@ -2,7 +2,7 @@ MODULE domain_module
 #include "io.h"
 #include "model.h"
   USE grid_module
-  USE io_module
+  USE io_module, ONLY : fileHandle, initFH, readInitialCondition
   IMPLICIT NONE
     REAL(8)               :: A = 6371000         !< Earth radius \f$[m]\f$
     REAL(8)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
@@ -28,8 +28,6 @@ MODULE domain_module
     REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in model:initDomain
     REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in model:initDomain
     REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
-
-
 
 
     TYPE(grid_t), TARGET    :: H_grid, u_grid, v_grid, eta_grid
@@ -133,7 +131,7 @@ MODULE domain_module
             WHERE (H_u .EQ. 0._8) land_u = 1_1
             land_v = 0_1
             WHERE (H_v .EQ. 0._8) land_v = 1_1
-            
+
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create oceanmasks
             !------------------------------------------------------------------
@@ -158,6 +156,6 @@ MODULE domain_module
             CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u)
             CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v)
             CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta)
-            
+
         END SUBROUTINE initDomain
 END MODULE domain_module

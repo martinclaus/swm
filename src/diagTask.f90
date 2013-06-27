@@ -8,14 +8,14 @@
 !! @par Includes:
 !! io.h, diag_module.h
 !! @par Uses:
-!! io_module, vars_module, generic_list, diagVar
+!! io_module, vars_module, domain_module, generic_list, diagVar
 !!
-!! @todo Implement access to the variable register when it is finished
+!! @todo Implement correct interpretation of averaging periods
 !------------------------------------------------------------------
 MODULE diagTask
-  USE io_module
-  USE vars_module
-  USE domain_module
+  USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
+  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out
+  USE domain_module, ONLY : grid_t, Nx, Ny
   USE generic_list
   USE diagVar
   IMPLICIT NONE
@@ -45,11 +45,8 @@ MODULE diagTask
     CHARACTER(CHARLEN)  :: period       !< Sampling period for AVERAGE output.
     CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
     CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-    TYPE(grid_t), POINTER :: grid=>null()
+    TYPE(grid_t), POINTER :: grid=>null() !< grid of the variable
     REAL(8), DIMENSION(:,:), POINTER     :: varData=>null()   !< data, which should be processed
-!    INTEGER(1), DIMENSION(:,:), POINTER  :: oceanMask=>null() !< ocean mask
-!    REAL(8), DIMENSION(:), POINTER       :: lon=>null() !< Longitude coordinates
-!    REAL(8), DIMENSION(:), POINTER       :: lat=>null() !< Latitude coordnates
     REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
     REAL(8)             :: bufferCount=0.   !< Counter, counting time
     REAL(8)             :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
@@ -81,8 +78,6 @@ MODULE diagTask
     !! @todo simplify, when vars register is finished
     !------------------------------------------------------------------
     TYPE(diagTask_t) FUNCTION initDiagTask(FH,type,frequency, period, process, varname, NoutChunk, ID) RESULT(self)
-      USE vars_module
-      USE swm_damping_module
       IMPLICIT NONE
       TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
@@ -111,28 +106,19 @@ MODULE diagTask
       self%ID = ID
       self%NoutChunk = NoutChunk
 
-
-      !< Setup task variable and grid
-      SELECT CASE (TRIM(self%varname))
-         
+      !< Check for diagnostic variable
+      DiagVar: SELECT CASE (TRIM(self%varname))
         CASE ("PSI","psi","Psi") !< PSI
             CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
-            CALL getFromRegister(self%varname,self%varData,self%grid)
-            self%grid => H_grid
-            IF (.NOT.ASSOCIATED(self%varData)) THEN
-              PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-              STOP 2
-            END IF
             self%oScaleFactor = 1e-6
+      END SELECT DiagVar
 
-        CASE DEFAULT
-          CALL getFromRegister(self%varname,self%varData,self%grid)
-          IF (.NOT.ASSOCIATED(self%varData)) THEN
-            PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-            STOP 2
-          END IF
-
-      END SELECT
+      !< Set pointer to variable register
+      CALL getFromRegister(self%varname,self%varData,self%grid)
+      IF (.NOT.ASSOCIATED(self%varData)) THEN
+        PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+        STOP 2
+      END IF
 
       !< Setup task object, allocate memory if needed
       SELECT CASE (self%type(1:1))

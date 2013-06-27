@@ -10,12 +10,13 @@
 !! @par Uses:
 !! vars_module, generic_list
 !!
-!! @todo Implement access to the variable register when it is finished
+!! @todo Think about a better way of defining grids for the diagnostic variables
 !------------------------------------------------------------------
 MODULE diagVar
 #include "io.h"
 #include "diag_module.h"
-  USE vars_module
+  USE vars_module, ONLY : addToRegister
+  USE domain_module, ONLY : Nx, Ny, H_grid
   USE generic_list
   IMPLICIT NONE
 
@@ -225,7 +226,7 @@ MODULE diagVar
         ELSE
           CALL list_insert(diagVarList,TRANSFER(dVar_ptr,list_data))
         END IF
-        CALL addToRegister(dVar%data,dVar%name)
+        CALL addToRegister(dVar%data,dVar%name,H_grid)
       END IF
     END SUBROUTINE getDiagVarFromList
 
