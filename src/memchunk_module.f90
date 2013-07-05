@@ -65,7 +65,7 @@ MODULE memchunk_module
     !! and the first chunk of data is loaded from disk. Afterwards, memChunk is flagged "initialised".
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny
+    !! domain_module, ONLY : Nx, Ny
     !!
     !! @todo remove dimensional restriction.
     !------------------------------------------------------------------
@@ -287,9 +287,9 @@ MODULE memchunk_module
     END FUNCTION isConstant
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Returns the persisten flag
+    !> @brief  Returns the persistency flag
     !!
-    !! Returns .TRUE. if the dataset if fully loaded into memory, so no
+    !! Returns .TRUE. if the dataset is fully loaded into memory, so no
     !! further read operations are required.
     !------------------------------------------------------------------
     LOGICAL FUNCTION isPersistent(memChunk) RESULT(persistent)
@@ -334,7 +334,7 @@ MODULE memchunk_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Get the file name used to initialise the memoryChunk object
     !!
-    !! Retruns the file name of the memoryChunk object. If the object is not
+    !! Returns the file name of the memoryChunk object. If the object is not
     !! initialised, the return value will be an empty string.
     !------------------------------------------------------------------
     CHARACTER(CHARLEN) FUNCTION getFileNameMC(memChunk) RESULT(fname)
@@ -346,7 +346,7 @@ MODULE memchunk_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Get the variable name used to initialise the memoryChunk object
     !!
-    !! Retruns the variable name of the memoryChunk object. If the object is not
+    !! Returns the variable name of the memoryChunk object. If the object is not
     !! initialised, the return value will be an empty string.
     !------------------------------------------------------------------
     CHARACTER(CHARLEN) FUNCTION getVarNameMC(memChunk) RESULT(varname)

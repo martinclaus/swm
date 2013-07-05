@@ -53,49 +53,6 @@ MODULE io_module
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
   TYPE(calendar)        :: modelCalendar !< Internal Calendar of the model
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Creates a dataset
-  !!
-  !! @deprecated
-  !! Do not use io_module::createDS::createDS2 and io_module::createDS::createDS3old.
-  !! Always use file handles.
-  !------------------------------------------------------------------
-  INTERFACE createDS
-    MODULE PROCEDURE createDS3handle
-  END INTERFACE createDS
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Writes a time slice to a file
-  !!
-  !! @deprecated
-  !! Do not use io_module::putVar::putVar3Dold and io_module::putVar::putVar2Dold.
-  !! Always use file handles.
-  !------------------------------------------------------------------
-  INTERFACE putVar
-    MODULE PROCEDURE putVar3Dhandle
-  END INTERFACE
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Opens a dataset and retrieve ID of requested variable
-  !!
-  !! @deprecated
-  !! Do not use io_module::openDS::openDSold.
-  !! Always use file handles.
-  !------------------------------------------------------------------
-  INTERFACE openDS
-    MODULE PROCEDURE openDSHandle
-  END INTERFACE openDS
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Closes a dataset
-  !!
-  !! @deprecated
-  !! Do not use io_module::closeDS::closeDSold.
-  !! Always use file handles.
-  !------------------------------------------------------------------
-  INTERFACE closeDS
-    MODULE PROCEDURE closeDShandle
-  END INTERFACE closeDS
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read time slice of a variable from a dataset
@@ -107,7 +64,7 @@ MODULE io_module
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read attribute from a variable in a dataset
   !!
-  !! @todo write getDoubleAtt and replace calls to nf90_get_att where possible
+  !! @todo replace calls to nf90_get_att where possible
   !------------------------------------------------------------------
   INTERFACE getAtt
     MODULE PROCEDURE getCHARAtt
@@ -191,7 +148,8 @@ MODULE io_module
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
     !------------------------------------------------------------------
-    SUBROUTINE createDS3handle(FH,grid)
+
+    SUBROUTINE createDS(FH,grid)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
       TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Grid used to create dataset
@@ -236,7 +194,7 @@ MODULE io_module
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
-    END SUBROUTINE createDS3handle
+    END SUBROUTINE createDS
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Opens a dataset
@@ -245,7 +203,7 @@ MODULE io_module
     !! and querry information if it is not already provided by the fileHandle.
     !! If the dataset is already open nothing will happen.
     !------------------------------------------------------------------
-    SUBROUTINE openDSHandle(FH)
+    SUBROUTINE openDS(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
       TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
@@ -289,30 +247,30 @@ MODULE io_module
         END IF
       END IF
       FH%isOpen = .TRUE.
-    END SUBROUTINE openDSHandle
+    END SUBROUTINE openDS
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Closes a dataset
     !!
     !! If the dataset is not open, nothing will happen.
     !------------------------------------------------------------------
-    SUBROUTINE closeDShandle(FH)
+    SUBROUTINE closeDS(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH     !< File handle pointing to an existing dataset.
       IF ( .NOT. FH%isOpen ) RETURN
       CALL check(nf90_close(FH%ncid),&
                  __LINE__,TRIM(FH%filename))
       FH%isOpen = .FALSE.
-    END SUBROUTINE closeDShandle
+    END SUBROUTINE closeDS
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Write a time slice to disk
     !!
     !! Write a variables time slice to a existing dataset.
-    !!
     !! @todo Check if var_dummy is neccessary. I think Fortan creates a copy of varData when calling this routine.
     !------------------------------------------------------------------
-    SUBROUTINE putVar3Dhandle(FH,varData,rec,time,ocean_mask)
+
+    SUBROUTINE putVar(FH,varData,rec,time,ocean_mask)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH               !< Initialised file handle pointing to the variable to write data to
       REAL(8), DIMENSION(:,:), INTENT(in) :: varData          !< Data to write
@@ -338,7 +296,7 @@ MODULE io_module
       CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)),&
                  __LINE__,TRIM(FH%filename))
       IF ( .NOT. wasOpen ) call closeDS(FH)
-    END SUBROUTINE putVar3Dhandle
+    END SUBROUTINE putVar
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Load a 3D data block into memory
@@ -503,7 +461,7 @@ MODULE io_module
     END SUBROUTINE initFH
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Retrun the length of the record/time dimension
+    !> @brief  Return the length of the record/time dimension
     !!
     !! If FH%nrec is not set yet, io_module::touch will be called.
     !! @return Length of record dimension, i.e. time dimension
