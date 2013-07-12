@@ -28,6 +28,7 @@
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
+  theta0 = 20.
 &end
 
 !&swm_bs_nl filename="input/bs_sc.nc" varname="PSI" chunksize=1 &end

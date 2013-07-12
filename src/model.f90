@@ -15,7 +15,7 @@
 !! model.h, io.h
 !!
 !! @par Uses:
-!! vars_module, calc_lib, diag_module,
+!! vars_module, calc_lib, diag_module, domain_module, 
 !! dynFromFile_module, swm_module, tracer_module
 !!
 !! @todo Put init, timestep and finish calls in a subroutine
@@ -201,16 +201,4 @@ PROGRAM model
       CALL advanceCalcLib
     END SUBROUTINE model_advance
 
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Initialise domain specific variables of vars_module
-    !!
-    !! This is goin on here:
-    !! - computation of nearest neighbour indices
-    !! - computation of coordinate vectors of the various grids
-    !! - computation of the cosines and tangents of the latitude for the various grids
-    !! - reading the bathimetry dataset
-    !! - interpolate bathimetry onto u,v and eta grid
-    !! - create land/ocean masks
-    !! - if H_OVERWRITE is defined, overwrite bathimetry (not ocean/land mask) with vars_module::H_overwrite
-    !------------------------------------------------------------------
 END PROGRAM model

@@ -134,7 +134,7 @@ swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o 
 domain_module.o : domain_module.f90 grid_module.o io_module.o io.h
 	$(COMPILE)
 
-grid_module.o : grid_module.f90
+grid_module.o : grid_module.f90 model.h
 	$(COMPILE)
 
 %.o : %.f90

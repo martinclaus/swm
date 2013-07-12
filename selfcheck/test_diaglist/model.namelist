@@ -21,6 +21,7 @@
   RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
   Nx = 61,               ! number of grid points in x-dir.
   Ny = 41,               ! number of grif points in y-dir.
+  theta0 = 20.,
   lon_s = -30.,           ! min. lon. of the domain (H-grid)
   lon_e = 0.          ! max. lon. of the domain (H-grid),
   lat_s = -10.     ! min. lat. of the domain (H-grid),

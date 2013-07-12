@@ -551,14 +551,14 @@ MODULE swm_timestep_module
       SWM_Coef_u(1,:,:) = 1.
       SWM_Coef_u(2:9,:,:) = 0.
       FORALL (j=1:Ny)
-        SWM_Coef_u(6:9,:,j) = dt*2*OMEGA*SIN(lat_u(j)*D2R)/4.
+        SWM_Coef_u(6:9,:,j) = dt*u_grid%f(j)/4._8
         SWM_Coef_u(10,:,j) = -(dt*G)/(dLambda*A*cosTheta_u(j))
       END FORALL
       SWM_Coef_u(11,:,:) = - SWM_Coef_u(10,:,:)
       ! init coefficients for v-equation
       SWM_Coef_v(1,:,:) = 1.
       SWM_Coef_v(2:9,:,:) = 0.
-      FORALL (j=1:Ny) SWM_Coef_v(6:9,:,j) = -dt*2*OMEGA*SIN(lat_v(j)*D2R)/4.
+      FORALL (j=1:Ny) SWM_Coef_v(6:9,:,j) = -dt*v_grid%f(j)/4.
       SWM_Coef_v(10,:,:) = -(dt*G)/(dTheta*A)
       SWM_Coef_v(11,:,:) = - SWM_Coef_v(10,:,:)
       ! add lateral mixing
@@ -644,8 +644,7 @@ MODULE swm_timestep_module
       CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       ! compute ambient vorticity
       FORALL (i=1:Nx, j=1:Ny)
-        f(i,j) =  2*OMEGA*SIN(D2R*lat_H(j)) & ! coriolis parameter
-                + ocean_H(i,j)/(A*cosTheta_v(j))*(&
+        f(i,j) =  ocean_H(i,j)/(A*cosTheta_v(j))*(&
                   (v_bs(i,j)-v_bs(im1(i),j))/dLambda &
                   - (cosTheta_u(j)*u_bs(i,j) - cosTheta_u(jm1(j))*u_bs(i,jm1(j)))/dTheta)
         U_v(i,j) = .25_8*(u_bs(i,j)+u_bs(ip1(i),j)+u_bs(ip1(i),jm1(j))+u_bs(i,jm1(j)))
@@ -655,7 +654,11 @@ MODULE swm_timestep_module
         f_u(i,j) = .5_8 * (f(i,j)+f(i,jp1(j)))
         f_v(i,j) = .5_8 * (f(i,j)+f(ip1(i),j))
       END FORALL
-
+      FORALL (j=1:Ny)
+        f(:,j) = H_grid%f(j)+f(:,j)
+        f_u(:,j) = u_grid%f(j) + f_u(:,j)
+        f_v(:,j) = v_grid%f(j) + f_v(:,j)
+      END FORALL
       FORALL (i=1:Nx, j=1:Ny)
         ! eta coefficients
         SWM_Coef_eta(1,i,j) = -(u_bs(ip1(i),j)-u_bs(i,j))/(2.*A*cosTheta_u(j)*dLambda) &

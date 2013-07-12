@@ -16,19 +16,20 @@ MODULE domain_module
     REAL(8)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
     INTEGER               :: Nx = 100            !< Number of grid points in zonal direction
     INTEGER               :: Ny = 100            !< Number of grid points in meridional direction
-    REAL(8)               :: dLambda             !< Zonal grid resolution. Computed in vars_module::initVars. \f$[rad]\f$
-    REAL(8)               :: dTheta              !< Meridional grid resolution. Computed in vars_module::initVars. \f$[rad]\f$
+    REAL(8)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    REAL(8)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
     ! nearest neighbour indices, derived from domain specs
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in model:initDomain
+    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     ! constant fieds H, allocated during initialization
     REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H     !< Size Nx,Ny \n Bathimetry on H grid.
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in model:initDomain
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in model:initDomain
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in model:initDomain
+    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
+    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
+    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
 
+    REAL(8)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
 
     TYPE(grid_t), TARGET    :: H_grid, u_grid, v_grid, eta_grid
     CONTAINS
@@ -46,7 +47,8 @@ MODULE domain_module
               A, OMEGA, RHO0, &
               Nx, Ny, H_overwrite, &
               lon_s, lon_e, lat_s, lat_e, &
-              in_file_H, in_varname_H
+              in_file_H, in_varname_H, &
+              theta0
 
             open(UNIT_DOMAIN_NL, file = DOMAIN_NL)
             read(UNIT_DOMAIN_NL, nml = domain_nl)
@@ -157,5 +159,9 @@ MODULE domain_module
             CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v)
             CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta)
 
+            CALL setf(H_grid, theta0, OMEGA, A)
+            CALL setf(u_grid, theta0, OMEGA, A)
+            CALL setf(v_grid, theta0, OMEGA, A)
+            CALL setf(eta_grid, theta0, OMEGA, A)
         END SUBROUTINE initDomain
 END MODULE domain_module
