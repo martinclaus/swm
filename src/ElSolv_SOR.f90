@@ -102,14 +102,13 @@ MODULE ElSolv_SOR
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Free memory of index space variables
     !!
-    !! Deallocates ElSolv_SOR::i_odd and ElSolv_SOR::i_even
+    !! Deallocates ElSolv_SOR::i_odd, ElSolv_SOR::i_even and ElSolv_SOR::i_oe
     !!
-    !! @todo Deallocation of ElSolv_SOR::i_oe missing
     !------------------------------------------------------------------
     SUBROUTINE finish_oe_index_space
       IMPLICIT NONE
       INTEGER   :: alloc_error
-      deallocate(i_odd,i_even, STAT=alloc_error)
+      deallocate(i_odd,i_even,i_oe STAT=alloc_error)
       if(alloc_error.ne.0) print *,"Deallocation failed"
     END SUBROUTINE finish_oe_index_space
 

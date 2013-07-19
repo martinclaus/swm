@@ -121,7 +121,6 @@ MODULE calc_lib
     !! @par Uses:
     !! vars_module, ONLY : itt
     !! domain_module, ONLY : Nx,Ny,u_grid,v_grid,eta_grid
-    !! @todo replace magic number for epsilon
     !------------------------------------------------------------------
     SUBROUTINE computeNonDivergentFlowField(u_in,v_in,u_nd,v_nd)
       USE vars_module, ONLY : itt
@@ -134,7 +133,7 @@ MODULE calc_lib
       INTEGER(1),DIMENSION(Nx,Ny)           :: ocean_u, ocean_v, ocean_eta
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
-      REAL(8)                               :: epsilon
+      REAL(8)                               :: epsilon !< Default Value EPS in calc_lib.h
 #endif
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean
@@ -144,7 +143,7 @@ MODULE calc_lib
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       u_corr = 0._8
       v_corr = 0._8
-      epsilon = 1e-4
+      epsilon = EPS
       IF (.NOT.chi_computed) THEN
         ! compute divergence of velocity field
         call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)

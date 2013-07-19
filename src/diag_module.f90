@@ -12,8 +12,6 @@
 !! model.h
 !! @par Uses:
 !! vars_module, diagTask
-!!
-!! @todo Replace DIAG_START macro by namelist entry
 !------------------------------------------------------------------
 MODULE diag_module
 #include "model.h"
@@ -58,9 +56,7 @@ MODULE diag_module
     !------------------------------------------------------------------
     SUBROUTINE Diag
       IMPLICIT NONE
-#ifdef DIAG_START
-      IF (itt*dt .lt. DIAG_START) RETURN
-#endif
+      IF (itt*dt .lt. diag_start) RETURN
       CALL processTaskList
     END SUBROUTINE Diag
 

@@ -64,7 +64,6 @@ MODULE io_module
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read attribute from a variable in a dataset
   !!
-  !! @todo replace calls to nf90_get_att where possible
   !------------------------------------------------------------------
   INTERFACE getAtt
     MODULE PROCEDURE getCHARAtt
@@ -267,7 +266,6 @@ MODULE io_module
     !> @brief  Write a time slice to disk
     !!
     !! Write a variables time slice to a existing dataset.
-    !! @todo Check if var_dummy is neccessary. I think Fortan creates a copy of varData when calling this routine.
     !------------------------------------------------------------------
 
     SUBROUTINE putVar(FH,varData,rec,time,ocean_mask)
@@ -319,10 +317,10 @@ MODULE io_module
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
-        IF ( nf90_get_att(FH%ncid, FH%varid, 'missing_value', missing_value) .EQ. NF90_NOERR ) &
-          WHERE ( var .eq. missing_value ) missmask = 1
-        IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
-          WHERE ( var .eq. missing_value ) missmask = 1
+        CALL getAtt(FH, 'missing_value', missing_value) 
+        WHERE (var .eq. missing_value) missmask = 1
+        CALL getAtt(FH, '_FillValue', missing_value)
+        WHERE (var .eq. missing_value) missmask = 1
       END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar3Dhandle
@@ -348,11 +346,11 @@ MODULE io_module
                               count=(/SIZE(var,1),SIZE(var,2),1/)))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
-        missmask = 0
-        IF ( nf90_get_att(FH%ncid, FH%varid, 'missing_value', missing_value) .EQ. NF90_NOERR ) &
-          WHERE ( var .eq. missing_value ) missmask = 1
-        IF ( nf90_get_att(FH%ncid, FH%varid, '_FillValue', missing_value) .EQ. NF90_NOERR ) &
-          WHERE ( var .eq. missing_value ) missmask = 1
+       missmask = 0
+       CALL getAtt(FH, 'missing_value', missing_value) 
+       WHERE (var .eq. missing_value) missmask = 1
+       CALL getAtt(FH, '_FillValue', missing_value)
+       WHERE (var .eq. missing_value) missmask = 1
       END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getVar2Dhandle

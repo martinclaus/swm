@@ -48,6 +48,8 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
+  REAL(8)                 :: diag_start
+
   ! runtime variables
   INTEGER(8) :: itt                                     !< time step index
 
@@ -111,7 +113,8 @@ MODULE vars_module
         dt, meant_out, & ! time step and mean step
         file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
         file_u_init,varname_u_init, & ! Initial condition for zonal velocity
-        file_v_init, varname_v_init ! Initial condition for meridionl velocity
+        file_v_init, varname_v_init, & ! Initial condition for meridionl velocity
+        diag_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)
       read(UNIT_MODEL_NL, nml = model_nl)

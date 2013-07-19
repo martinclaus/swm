@@ -9,6 +9,7 @@
   dt = 25,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init="input/eta_init_gauss.nc"
+  diag_start=0.
 &end
 
 &calendar_nl

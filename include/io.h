@@ -8,6 +8,9 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define CHARLEN 80
 #define FULLREC_STRLEN 12
 
+/* Default chunk size for MemChunk */
+#define DEF_NT_CHUNKSIZE 100
+
 /* Default values for fileHandle Type */
 #define DEF_NCID  -99999
 #define DEF_VARID -99999

@@ -50,8 +50,6 @@ MODULE dynFromFile_module
     !! memchunk_module, ONLY : initMemChunk, isInitialised \n
     !! vars_module, ONLY : Nx, Ny, addToRegister
     !!
-    !! @todo replace hard-coded default value for memChunk chunk size by
-    !! preprocessor macro.
     !------------------------------------------------------------------
     SUBROUTINE DFF_initDynFromFile
     ! initial conditions will be overwritten (must be call befor any module using initial conditions is initialised)
@@ -61,7 +59,7 @@ MODULE dynFromFile_module
       IMPLICIT NONE
       CHARACTER(CHARLEN)    :: FileName_u="", FileName_v="", FileName_eta="", FileName_psi="",&
                                varname_eta=OVARNAMEETA, varname_u=OVARNAMEU, varname_v=OVARNAMEV, varname_psi=OVARNAMEPSI
-      INTEGER :: DFF_Nt_chunksize=100
+      INTEGER :: DFF_Nt_chunksize=DEF_NT_CHUNKSIZE
       INTEGER :: alloc_error
       namelist / dynFromFile / &
         FileName_u, FileName_v, FileName_eta, FileName_psi, & ! Filenames of input files of dynamical variables

@@ -10,6 +10,8 @@ Header file for calc_lib module of shallow water model.
 /*#define CALC_LIB_ELLIPTIC_SOLVER ElSolv_SOR */
 
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
+
+#define EPS 1e-4
 /* include headder of used Elliptic Solver Module and copy caller functions and module name */
 #include CALC_LIB_ELLIPTIC_SOLVER_HEADER /*defined in Makefile if CALC_ELLIPTIC_SOLVER is defined there */
 #define CALC_LIB_ELLIPTIC_SOLVER_INIT FUNC_INIT_ELSOLV

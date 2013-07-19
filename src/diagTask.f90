@@ -75,7 +75,6 @@ MODULE diagTask
     !! to this task. If this task needs a data buffer for processing, e.g. averaging, this buffer
     !! will be allocated. Finally, the output dataset is created.
     !!
-    !! @todo simplify, when vars register is finished
     !------------------------------------------------------------------
     TYPE(diagTask_t) FUNCTION initDiagTask(FH,type,frequency, period, process, varname, NoutChunk, ID) RESULT(self)
       IMPLICIT NONE
@@ -174,7 +173,6 @@ MODULE diagTask
     !! First sets the default values of the task object, then reads the namelist.
     !! Values not given are guessed from input (like ovarname).
     !!
-    !! @todo Replace magic strings/numbers by cpp macros
     !------------------------------------------------------------------
     SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process,NoutChunk)
       IMPLICIT NONE
