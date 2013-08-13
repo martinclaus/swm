@@ -37,11 +37,10 @@ MODULE ElSolv_SOR
     !! Calls ElSolv_SOR::init_oe_index_space
     !!
     !! @par Uses:
-    !! vars_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, cosTheta_u, cosTheta_v, ocean_u, ocean_v
+    !! domain_module, ONLY : A, Nx, Ny, ip1, jp1, dLambda, dTheta, u_grid, v_grid, eta_grid
     !------------------------------------------------------------------
     SUBROUTINE init_ElSolv_SOR
-      USE vars_module, ONLY : Nx,Ny,ip1, jp1, dLambda, dTheta
-      USE domain_module, ONLY : A,cos_u,cos_v,ocean_u,ocean_v
+      USE domain_module, ONLY : Nx, Ny, A, u_grid, v_grid, eta_grid, ip1, jp1, dLambda, dTheta
       IMPLICIT NONE
       INTEGER  :: i,j, alloc_error
       ! allocate fields
@@ -51,12 +50,13 @@ MODULE ElSolv_SOR
       ElSolvSOR_c = 0._8
       ! compute coefficients for elliptic solver at all ocean points of the eta grid
       COEFFICIENTS: FORALL (i=1:Nx, j=1:Ny)
-        ElSolvSOR_c(i,j,1) = ocean_u(ip1(i),j) / (A * cos_u(j) * dLambda)**2
-        ElSolvSOR_c(i,j,2) = ocean_u(i,j) / (A * cos_u(j) * dLambda)**2
-        ElSolvSOR_c(i,j,3) = cos_v(jp1(j)) * ocean_v(i,jp1(j)) / (A**2 * cos_u(j) * dTheta**2)
-        ElSolvSOR_c(i,j,4) = cos_v(j) * ocean_v(i,j) / (A**2 * cos_u(j) * dTheta**2)
-        ElSolvSOR_c(i,j,5) = (-ocean_u(ip1(i),j)-ocean_u(i,j))/(A * cos_u(j) * dLambda)**2 &
-                           + (-cos_v(jp1(j))*ocean_v(i,jp1(j))-cos_v(j)*ocean_v(i,j))/(A**2*cos_u(j)*dTheta**2)
+        ElSolvSOR_c(i,j,1) = u_grid%ocean(ip1(i),j) / (A * eta_grid%cos_lat(j) * dLambda)**2
+        ElSolvSOR_c(i,j,2) = u_grid%ocean(i,j) / (A * eta_grid%cos_lat(j) * dLambda)**2
+        ElSolvSOR_c(i,j,3) = v_grid%cos_lat(jp1(j)) * v_grid%ocean(i,jp1(j)) / (A**2 * eta_grid%cos_lat(j) * dTheta**2)
+        ElSolvSOR_c(i,j,4) = v_grid%cos_lat(j) * v_grid%ocean(i,j) / (A**2 * eta_grid%cos_lat(j) * dTheta**2)
+        ElSolvSOR_c(i,j,5) = (-u_grid%ocean(ip1(i),j)-u_grid%ocean(i,j))/(A * eta_grid%cos_lat(j) * dLambda)**2 &
+                           + (-v_grid%cos_lat(jp1(j))*v_grid%ocean(i,jp1(j))-v_grid%cos_lat(j)*v_grid%ocean(i,j)) &
+                             /(A**2*eta_grid%cos_lat(j)*dTheta**2)
       END FORALL COEFFICIENTS
       ! initialise odd/even index spaces
       CALL init_oe_index_space
@@ -71,10 +71,10 @@ MODULE ElSolv_SOR
     !! Allocates ElSolv_SOR::i_oe, ElSolv_SOR::i_odd, ElSolv_SOR::i_even and populate them with data.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny
+    !! domain_module, ONLY : Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE init_oe_index_space
-      USE vars_module, ONLY: Nx,Ny
+      USE domain_module, ONLY: Nx,Ny
       IMPLICIT NONE
       INTEGER   :: i,j, alloc_error, odd_count, even_count
       n_odd = CEILING((Nx*Ny)/2.)
@@ -108,7 +108,7 @@ MODULE ElSolv_SOR
     SUBROUTINE finish_oe_index_space
       IMPLICIT NONE
       INTEGER   :: alloc_error
-      deallocate(i_odd,i_even,i_oe STAT=alloc_error)
+      deallocate(i_odd,i_even,i_oe, STAT=alloc_error)
       if(alloc_error.ne.0) print *,"Deallocation failed"
     END SUBROUTINE finish_oe_index_space
 
@@ -138,14 +138,13 @@ MODULE ElSolv_SOR
     !! parallelisation on odd/even points seperately.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,land_eta\n
+    !! domain_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,eta_grid
     !!
     !! @see Numerical Recepies, 2nd Edition, p. 858 ff
     !! @todo Think about using a better spectral radius by guessing (or computation)
     !------------------------------------------------------------------
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
-      USE vars_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1
-      USE domain_module, ONLY : land_eta
+      USE domain_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,eta_grid
       IMPLICIT NONE
       REAL(8), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B             !< rhs of PDE
       REAL(8), INTENT(in)                        :: epsilon                 !< Threshold for terminating the iteration
@@ -185,7 +184,7 @@ MODULE ElSolv_SOR
           ISPACE: DO isw=1,n_oe(oddeven)
             i = i_oe(oddeven,isw,1)
             j = i_oe(oddeven,isw,2)
-            IF (land_eta(i,j) .eq. 1) cycle ISPACE
+            IF (eta_grid%land(i,j) .eq. 1) cycle ISPACE
             ElSolvSOR_res =  ElSolvSOR_relax*(&
                 ElSolvSOR_c(i,j,1)*chi(ip1(i),j) + ElSolvSOR_c(i,j,2)*chi(im1(i),j) &
               + ElSolvSOR_c(i,j,3)*chi(i,jp1(j)) + ElSolvSOR_c(i,j,4)*chi(i,jm1(j)) &
