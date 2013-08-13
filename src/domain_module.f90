@@ -31,7 +31,7 @@ MODULE domain_module
 
     REAL(8)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
 
-    TYPE(grid_t), TARGET    :: H_grid, u_grid, v_grid, eta_grid
+    TYPE(grid_t), TARGET, SAVE    :: H_grid, u_grid, v_grid, eta_grid
     CONTAINS
 
         SUBROUTINE initDomain
@@ -99,19 +99,29 @@ MODULE domain_module
             lon_v   = lon_H + (lon_e - lon_s) / (2. * (Nx - 1))
             lon_eta = lon_v
 
-            !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            !! read bathimetry
-            !! Do not allow negative topography and set H=0 where H has missing values
-            !! close N/S boundary (should be done anyway in input H field)
-            !------------------------------------------------------------------
-            CALL initFH(in_file_H,in_varname_H,FH_H)
-            CALL readInitialCondition(FH_H,H,missmask)
-            missmask_H = missmask
-            WHERE(missmask_H .EQ. 1) H = 0._8
-            WHERE(H .LE. 0.) H = 0._8
+
+            if (len_trim(in_file_H).ne.0) then
+              !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+              !! read bathimetry
+              !! Do not allow negative topography and set H=0 where H has missing values
+              !! close N/S boundary (should be done anyway in input H field)
+              !------------------------------------------------------------------
+              CALL initFH(in_file_H,in_varname_H,FH_H)
+              CALL readInitialCondition(FH_H,H,missmask)
+              missmask_H = missmask
+              WHERE(missmask_H .EQ. 1) H = 0._8
+              WHERE(H .LE. 0.) H = 0._8
+            else
+              !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+              !! create rectangular basin with closed boundaries and depth of
+              !! 1 m. Use h_overwrite to set a different depth.
+              !------------------------------------------------------------------
+              H = 1._8
+              H(1,:) = 0._8
+              H(Nx,:) = 0._8
+            end if
             H(:,1)  = 0._8
             H(:,Ny) = 0._8
-
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! interpolate topography on all grids
