@@ -16,7 +16,8 @@ MODULE diagVar
 #include "io.h"
 #include "diag_module.h"
   USE vars_module, ONLY : addToRegister
-  USE domain_module, ONLY : Nx, Ny, H_grid
+  USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid
+  USE grid_module, only : grid_t
   USE generic_list
   IMPLICIT NONE
 
@@ -110,11 +111,20 @@ MODULE diagVar
     !! var%computed is set to .TRUE.
     !------------------------------------------------------------------
     SUBROUTINE computeDiagVar(var)
-      USE calc_lib, ONLY : computeStreamfunction
+      use vars_module, only : u, v, N0
+      USE calc_lib, ONLY : computeStreamfunction, computeVelocityPotential, &
+                           computeNonDivergentFlowField
       TYPE(diagVar_t), POINTER, INTENT(in) :: var
+      if (getComputed(var)) return
       SELECT CASE (var%name)
         CASE (DVARNAME_PSI)
-          IF (.NOT.getComputed(var)) CALL computeStreamfunction(var%data)
+          call computeStreamfunction(u(:,:,N0), v(:,:,N0), var%data)
+        case (DVARNAME_CHI)
+          call computeVelocityPotential(u(:,:,N0), v(:,:,N0), var%data)
+        case (DVARNAME_U_ND)
+          call computeNonDivergentFlowField(u(:,:,N0), v(:,:,N0), u_nd_out=var%data)
+        case (DVARNAME_V_ND)
+          call computeNonDivergentFlowField(u(:,:,N0), v(:,:,N0), v_nd_out=var%data)
         CASE DEFAULT
           PRINT *,"ERROR: Usupported diagnostic variable "//TRIM(var%name)
           STOP 1
@@ -180,6 +190,29 @@ MODULE diagVar
     END FUNCTION getComputed
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Returns a pointer to the grid associated with variable "name"
+    !------------------------------------------------------------------
+    function getGrid(name) result(gout)
+      character(*)          :: name
+      type(grid_t), pointer :: gout
+      
+      gout => null()
+      select case(name)
+        case (DVARNAME_PSI)
+          gout => H_grid
+        case (DVARNAME_CHI)
+          gout => eta_grid
+        case (DVARNAME_U_ND)
+          gout => u_grid
+        case (DVARNAME_V_ND)
+          gout => v_grid
+        case default
+          print *,"ERROR: No grid can be found for diagnostic variable "//TRIM(name)
+          STOP 1
+      end select
+    end function
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Destroy all diagnosic variables
     !!
     !! Itterate through diagVarList and destroy all associated variables.
@@ -226,7 +259,7 @@ MODULE diagVar
         ELSE
           CALL list_insert(diagVarList,TRANSFER(dVar_ptr,list_data))
         END IF
-        CALL addToRegister(dVar%data,dVar%name,H_grid)
+        CALL addToRegister(dVar%data,dVar%name,getGrid(name))
       END IF
     END SUBROUTINE getDiagVarFromList
 

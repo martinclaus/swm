@@ -50,7 +50,7 @@ MODULE swm_timestep_module
   REAL(8), PARAMETER                             :: AB_Chi=.1_8         !< AdamsBashforth displacement coefficient
   REAL(8), PARAMETER                             :: AB_C1=1.5_8+AB_Chi  !< AdamsBashforth weight factor for present time level
   REAL(8), PARAMETER                             :: AB_C2=.5_8+AB_Chi   !< AdamsBashforth weight factor for past time level
-  TYPE(memoryChunk)                              :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
+  TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
 
   CONTAINS
@@ -640,7 +640,7 @@ MODULE swm_timestep_module
       u_bs   = 0._8
       v_bs   = 0._8
       ! get basic state
-      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
+      psi_bs(:,:,1) = 1e6*getChunkData(SWM_MC_bs_psi,0._8)
       CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       ! compute ambient vorticity
       FORALL (i=1:Nx, j=1:Ny)

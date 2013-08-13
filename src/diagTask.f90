@@ -14,7 +14,7 @@
 !------------------------------------------------------------------
 MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
-  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out
+  USE vars_module, ONLY : getFromRegister, to_upper, Nt, dt, itt, meant_out
   USE domain_module, ONLY : grid_t, Nx, Ny
   USE generic_list
   USE diagVar
@@ -106,10 +106,16 @@ MODULE diagTask
       self%NoutChunk = NoutChunk
 
       !< Check for diagnostic variable
-      DiagVar: SELECT CASE (TRIM(self%varname))
-        CASE ("PSI","psi","Psi") !< PSI
+      DiagVar: SELECT CASE (to_upper(TRIM(self%varname)))
+        CASE (DVARNAME_PSI) !< PSI
             CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
             self%oScaleFactor = 1e-6
+        case (DVARNAME_CHI)
+            call getDiagVarFromList(self%diagVar, DVARNAME_CHI)
+        case (DVARNAME_U_ND)
+            call getDiagVarFromList(self%diagVar, DVARNAME_U_ND)
+        case (DVARNAME_V_ND)
+            call getDiagVarFromList(self%diagVar, DVARNAME_V_ND)
       END SELECT DiagVar
 
       !< Set pointer to variable register

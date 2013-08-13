@@ -19,7 +19,10 @@ MODULE calc_lib
   SAVE
 
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
   LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
+  LOGICAL                                :: u_nd_computed=.FALSE. !< .TRUE. if the nondivergent velocity field is computed at present time step
 
   CONTAINS
 
@@ -30,19 +33,22 @@ MODULE calc_lib
     !! If an elliptic solver module is defined, its will be initialised
     !!
     !! @par Uses
-    !! domain_module, ONLY : Nx,Ny
+    !! vars_module, ONLY : addToRegister\n
+    !! domain_module, ONLY : Nx,Ny, eta_grid
     !------------------------------------------------------------------
     SUBROUTINE initCalcLib
-      USE domain_module, ONLY : Nx,Ny
+      USE domain_module, ONLY : Nx,Ny, eta_grid, u_grid, v_grid
       IMPLICIT NONE
       INTEGER :: alloc_error
-      ALLOCATE(chi(1:Nx,1:Ny), stat=alloc_error)
+      ALLOCATE(chi(1:Nx,1:Ny), u_nd(1:Nx, 1:Ny), v_nd(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in initTracer"
         STOP 1
       END IF
       chi = 0._8
       chi_computed=.FALSE.
+      u_nd = 0._8
+      v_nd = 0._8
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_INIT
       ! initialise elliptic solver
       call CALC_LIB_ELLIPTIC_SOLVER_INIT
@@ -61,7 +67,7 @@ MODULE calc_lib
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_FINISH
       call CALC_LIB_ELLIPTIC_SOLVER_FINISH
 #endif
-      DEALLOCATE(chi, STAT=alloc_error)
+      DEALLOCATE(chi, u_nd, v_nd, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE finishCalcLib
 
@@ -73,6 +79,7 @@ MODULE calc_lib
     SUBROUTINE advanceCalcLib
       IMPLICIT NONE
       chi_computed=.FALSE.
+      u_nd_computed=.FALSE.
     END SUBROUTINE advanceCalcLib
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -98,20 +105,66 @@ MODULE calc_lib
     END FUNCTION interpLinear
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Computes velocity potential
+    !!
+    !! Computes the potential \f$\chi\f$ of the irrotational component of a flow by
+    !! solving the elliptic PDE
+    !! \f[
+    !!  \nabla^2\chi=\vec\nabla\cdot\vec u
+    !!\f]
+    !! where \f$\vec u\f$ is a horizonal velocity field.
+    !! If there is no elliptic solver defined, the output will be zero and no heavy
+    !! computation is done.
+    !! @see
+    !! Marshall, J.C. et al., 2006.
+    !! Estimates and Implications of Surface Eddy Diffusivity in the Southern Ocean
+    !! Derived from Tracer Transport.
+    !! Journal of Physical Oceanography, 36(9), pp.1806–1821.
+    !! Available at: http://journals.ametsoc.org/doi/abs/10.1175/JPO2949.1.
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : itt\n
+    !! domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
+    !------------------------------------------------------------------
+    subroutine computeVelocityPotential(u_in, v_in, chi_out)
+      use vars_module, only : itt
+      use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid
+      real(8), dimension(Nx, Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow 
+      real(8), dimension(Nx, Ny), intent(in)             :: u_in    !< Zonal component of input flow
+      real(8), dimension(Nx, Ny), intent(in)             :: v_in    !< Meridional component of input flow
+#ifdef CALC_LIB_ELLIPTIC_SOLVER
+      real(8), dimension(Nx,Ny)                   :: div_u
+      REAL(8)                                     :: epsilon !< Default Value EPS in calc_lib.h
+#endif
+
+      if (chi_computed) then
+        if (present(chi_out)) chi_out = chi
+        return
+      end if
+
+#ifdef CALC_LIB_ELLIPTIC_SOLVER
+      epsilon = EPS
+      ! compute divergence of velocity field
+      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid, eta_grid)
+      ! Solve elliptic PDE
+      call CALC_LIB_ELLIPTIC_SOLVER_MAIN(div_u,chi,epsilon,itt.EQ.1)
+#endif
+      chi_computed = .TRUE.
+      if (present(chi_out)) chi_out = chi
+    end subroutine computeVelocityPotential
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Computes non-divergent flow
     !!
-    !! Corrects for divergence in flow by solving the the elliptic PDE
+    !! Corrects for divergence in flow by substracting the irrotational part
     !! \f[
-    !! \nabla^2\chi=-\vec\nabla\cdot\vec u
-    !!\f]
-    !! for the divergert adjustment potential \f$\chi\f$, where \f$\vec u\f$ is
-    !! the horizonal velocity field from the model. The divergence free velocity
-    !! \f$\vec{u}_{nd}\f$ is then computed as
-    !! \f[
-    !! \vec{u}_{nd} = \vec u + \nabla\chi
+    !! \vec{u}_{nd} = \vec u - \nabla\chi
     !! \f]
     !! If there is no elliptic solver defined, the output will equal the input
     !! and no heavy computation is done.
+    !!
+    !! @see calc_lib::computeVelocityPotential
+    !!
     !! @see
     !! Marshall, J.C. et al., 2006.
     !! Estimates and Implications of Surface Eddy Diffusivity in the Southern Ocean Derived from Tracer Transport.
@@ -119,48 +172,46 @@ MODULE calc_lib
     !! Available at: http://journals.ametsoc.org/doi/abs/10.1175/JPO2949.1.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : itt
     !! domain_module, ONLY : Nx,Ny,u_grid,v_grid,eta_grid
     !------------------------------------------------------------------
-    SUBROUTINE computeNonDivergentFlowField(u_in,v_in,u_nd,v_nd)
-      USE vars_module, ONLY : itt
+    SUBROUTINE computeNonDivergentFlowField(u_in, v_in, u_nd_out, v_nd_out)
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)   :: u_in !< Zonal component of 2D velocity field
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)   :: v_in !< Meridional component of 2D velocity field
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out)  :: u_nd !< Zonal component of corrected flow
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out)  :: v_nd !< Meridional component of corrected flow
-      INTEGER(1),DIMENSION(Nx,Ny)           :: ocean_u, ocean_v, ocean_eta
+      REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: u_in     !< Zonal component of 2D velocity field
+      REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: v_in     !< Meridional component of 2D velocity field
+      REAL(8),DIMENSION(Nx,Ny),INTENT(out), optional :: u_nd_out !< Meridional component of 2D velocity field
+      REAL(8),DIMENSION(Nx,Ny),INTENT(out), optional :: v_nd_out !< Meridional component of 2D velocity field
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
-      REAL(8)                               :: epsilon !< Default Value EPS in calc_lib.h
 #endif
-      ocean_u = u_grid%ocean
-      ocean_v = v_grid%ocean
-      ocean_eta = eta_grid%ocean
+      
+      if (u_nd_computed) then
+        if(present(u_nd_out)) u_nd_out = u_nd
+        if(present(v_nd_out)) v_nd_out = v_nd
+        return
+      end if
+      
       u_nd = u_in
       v_nd = v_in
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       u_corr = 0._8
       v_corr = 0._8
-      epsilon = EPS
-      IF (.NOT.chi_computed) THEN
-        ! compute divergence of velocity field
-        call computeDivergence(u_in, v_in, div_u, ocean_u, ocean_v, ocean_eta)
-!        WRITE (*,'(A25,e20.15)') "Initial divergence:", sqrt(sum(div_u**2))
-        ! Solve elliptic PDE
-        call CALC_LIB_ELLIPTIC_SOLVER_MAIN((-1)*div_u,chi,epsilon,itt.EQ.1)
-        chi_computed = .TRUE.
-      END IF
+      call computeVelocityPotential(u_in, v_in)
       ! compute non-rotational flow
-      call computeGradient(chi,u_corr,v_corr, ocean_eta, ocean_u, ocean_v)
+      call computeGradient(chi,u_corr,v_corr, eta_grid, u_grid, v_grid)
       ! compute non-divergent flow
-      u_nd = u_in + u_corr
-      v_nd = v_in + v_corr
-!      call computeDivergence(u_nd,v_nd,res_div, ocean_u, ocean_v, ocean_eta)
-!      WRITE (*,'(A25,e20.15)') "Residual divergence:", sqrt(sum(res_div**2))
-!      WRITE (*,'(A25,e20.15)') "Ratio:", sqrt(sum(res_div**2))/sqrt(sum(div_u**2))
+      u_nd = u_in - u_corr
+      v_nd = v_in - v_corr
+      !< check results
+      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid, eta_grid)
+      call computeDivergence(u_nd, v_nd, res_div, u_grid, v_grid, eta_grid)
+      WRITE (*,'(A25,e20.15)') "Initial divergence:", sum(abs(div_u))
+      WRITE (*,'(A25,e20.15)') "Residual divergence:", sum(abs(res_div))
+      WRITE (*,'(A25,e20.15)') "Ratio:", sum(abs(res_div))/sum(abs(div_u))
 #endif
+      u_nd_computed=.TRUE.
+      if (present(u_nd_out)) u_nd_out = u_nd
+      if (present(v_nd_out)) v_nd_out = v_nd
     END SUBROUTINE computeNonDivergentFlowField
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -176,30 +227,34 @@ MODULE calc_lib
     !!
     !! @par Uses:
     !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
-    !!
-    !! @todo make it parallel
     !------------------------------------------------------------------
-    SUBROUTINE computeDivergence(CD_u,CD_v,div_u,mask_u,mask_v,mask_div)
-      USE domain_module, ONLY : Nx,Ny,ip1,jp1,dLambda,dTheta, A, u_grid, v_grid
+    SUBROUTINE computeDivergence(CD_u,CD_v,div_u,grid_u,grid_v,grid_div)
+      USE domain_module, ONLY : Nx,Ny,ip1,jp1,dLambda,dTheta, A
+      USE grid_module, ONLY : grid_t
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_u      !< Zonal component of input
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_v      !< Meridional component of input
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_u    !< Mask of valid points for CD_u. Missing values, such as land points, are set to zero
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_v    !< Mask of valid points for CD_v. Missing values, such as land points, are set to zero
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_div  !< Mask of valid points for output. If input is located on the velocity grids, this is the ocean mask of the eta grid
+      TYPE(grid_t), INTENT(in)               :: grid_u    !< Grid of the 1st component
+      TYPE(grid_t), INTENT(in)               :: grid_v    !< Grid of the 2nd component
+      TYPE(grid_t), INTENT(in)               :: grid_div  !< Output grid
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: div_u     !< Divergence of the input
-      REAL(8),DIMENSION(SIZE(u_grid%cos_lat)):: cosTheta_u 
-      REAL(8),DIMENSION(SIZE(v_grid%cos_lat)):: cosTheta_v
       INTEGER       :: i,j
-      cosTheta_u = u_grid%cos_lat
-      cosTheta_v = v_grid%cos_lat
       div_u = 0._8
-      FORALL (i=1:Nx, j=1:Ny, mask_div(i,j) .EQ. 1_1)
-        div_u(i,j) = 1._8/(A*cosTheta_u(j)) * (&
-          (mask_u(ip1(i),j)*CD_u(ip1(i),j) - mask_u(i,j)*CD_u(i,j)) / dLambda &
-          + (mask_v(i,jp1(j))*cosTheta_v(jp1(j))*CD_v(i,jp1(j)) &
-          - mask_v(i,j)*cosTheta_v(j)*CD_v(i,j)) / dTheta )
-      END FORALL
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j)
+!$OMP DO PRIVATE(i,j) &
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      DO j=1,Ny
+        DO i=1,Nx
+         if (grid_div%land(i,j) .EQ. 1_1) cycle
+         div_u(i,j) = 1._8/(A*grid_div%cos_lat(j)) * ( &
+                      (grid_u%ocean(ip1(i),j)*CD_u(ip1(i),j) - grid_u%ocean(i,j)*CD_u(i,j)) / dLambda &
+                      + (grid_v%ocean(i,jp1(j))*grid_v%cos_lat(jp1(j))*CD_v(i,jp1(j)) &
+                       - grid_v%ocean(i,j)*grid_v%cos_lat(j)*CD_v(i,j)) / dTheta )
+        END DO
+      END DO
+!$OMP END DO
+!$OMP END PARALLEL
     END SUBROUTINE computeDivergence
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -214,29 +269,35 @@ MODULE calc_lib
     !!
     !! @par Uses:
     !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
-    !!
-    !! @todo make it parallel
     !------------------------------------------------------------------
-    SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, mask_chi, mask_u, mask_v)
-      USE domain_module, ONLY : A,Nx,Ny,im1,jm1,dLambda,dTheta,u_grid,v_grid
+    SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, grid_chi, grid_u, grid_v)
+      USE domain_module, ONLY : A,Nx,Ny,im1,jm1,dLambda,dTheta
+      USE grid_module, ONLY : grid_t
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_u    !< Zonal component of gradient
       REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_v    !< Meridional component of gradient
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: GRAD_chi  !< Scalar field
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_chi  !< Valid data mask of input
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_u    !< Valid data mask of zonal component of output
-      INTEGER(1),DIMENSION(Nx,Ny),INTENT(in) :: mask_v    !< Valid data mask of meridional component of output
+      type(grid_t), intent(in)               :: grid_chi  !< Grid of the input scalar field
+      type(grid_t), intent(in)               :: grid_u    !< Grid of the 1st output component
+      type(grid_t), intent(in)               :: grid_v    !< Grid of the 2nd output component
       INTEGER       :: i,j
-      REAL(8),DIMENSION(SIZE(u_grid%cos_lat))               :: cosTheta_u
-      REAL(8),DIMENSION(SIZE(v_grid%cos_lat))               :: cosTheta_v
-      cosTheta_u = u_grid%cos_lat
-      cosTheta_v = u_grid%cos_lat
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j)
+!$OMP DO PRIVATE(i,j) &
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       DO j=1,Ny
         DO i=1,Nx
-            GRAD_u(i,j) = mask_u(i,j)*(mask_chi(i,j)*GRAD_chi(i,j)-mask_chi(im1(i),j)*GRAD_chi(im1(i),j))/(A*cosTheta_u(j)*dLambda)
-            GRAD_v(i,j) = mask_v(i,j)*(mask_chi(i,j)*GRAD_chi(i,j)-mask_chi(i,jm1(j))*GRAD_chi(i,jm1(j)))/(A*dTheta)
+            GRAD_u(i,j) = grid_u%ocean(i,j) &
+                         *(grid_chi%ocean(i,j)*GRAD_chi(i,j) &
+                          - grid_chi%ocean(im1(i),j)*GRAD_chi(im1(i),j)) &
+                          /(A*grid_u%cos_lat(j)*dLambda)
+            GRAD_v(i,j) = grid_v%ocean(i,j) &
+                          *(grid_chi%ocean(i,j)*GRAD_chi(i,j) &
+                           - grid_chi%ocean(i,jm1(j))*GRAD_chi(i,jm1(j)))/(A*dTheta)
         END DO
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
     END SUBROUTINE computeGradient
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -249,40 +310,63 @@ MODULE calc_lib
     !! where \f$L_E\f$ is the location of the eastern boundary, \f$L_S\f$ the location of the southern boundary and
     !! \f$A\f$ the radius of the earth.
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,N0,jm1,H_v,v,A,cosTheta_v,dLambda,H_u,u,A,dTheta
+    !! domain_module, ONLY : Nx, Ny, jm1, H_v, A, cosTheta_v, dLambda, H_u, A,dTheta
     !! @note If BAROTROPIC is not defined, the factors from bathimetry are droped from the equaton above.
     !! @note If CORRECT_FLOW_FOR_PSI is defined, the flow field will be rendered divergence free using
     !! calc_lib::computeNonDivergentFlowField
-    !!
-    !! @todo Make it parallel
     !------------------------------------------------------------------
-    SUBROUTINE computeStreamfunction(psi)
-      USE vars_module, ONLY : N0,v,u
-      USE domain_module, ONLY : A,Nx,Ny,jm1,H_v,dLambda,H_u,dTheta, v_grid
+    SUBROUTINE computeStreamfunction(u_in, v_in, psi)
+      USE domain_module, ONLY : A, Nx, Ny, jm1, H_v, dLambda, H_u, dTheta, v_grid
       IMPLICIT NONE
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out) :: psi   !< streamfunction to output
-      REAL(8),DIMENSION(Nx,Ny)             :: u_nd  !< zonal velocity
-      REAL(8),DIMENSION(Nx,Ny)             :: v_nd  !< meridional velocity
-      INTEGER  :: i,j                               !< spatial coordinate indices
-      REAL(8),DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
-      cosTheta_v = v_grid%cos_lat
+      REAL(8),DIMENSION(Nx,Ny), INTENT(out) :: psi   !< streamfunction to output
+      REAL(8),DIMENSION(Nx,Ny), intent(in)  :: u_in  !< zonal velocity
+      REAL(8),DIMENSION(Nx,Ny), intent(in)  :: v_in  !< meridional velocity
+      INTEGER  :: i,j                                !< spatial coordinate indices
+
       psi = 0.
-      u_nd = u(:,:,N0)
-      v_nd = v(:,:,N0)
-#ifdef CORRECT_FLOW_FOR_PSI
-      CALL computeNonDivergentFlowField(u(:,:,N0),v(:,:,N0),u_nd,v_nd)
+      CALL computeNonDivergentFlowField(u_in,v_in)
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j)
+!$OMP DO PRIVATE(i)&
+!$OMP SCHEDULE(OMPSCHEDULE, Nx/10)
+do i=1,Nx-1
+        psi(i,1) = (-1)*sum(&
+#ifdef BAROTROPIC
+                         H_v(i:Nx,1) * &
 #endif
-      FORALL (i=1:Nx, j=2:Ny) &
-        psi(i,j) = (-1)*SUM( &
+                         v_nd(i:Nx,1))*A*v_grid%cos_lat(j)*dLambda
+      end do
+!$OMP END DO
+!$OMP DO PRIVATE(j)&
+!$OMP SCHEDULE(OMPSCHEDULE, Ny/10)
+      do j=2,Ny
+        psi(Nx,j) = (-1)*sum(&
+#ifdef BAROTROPIC
+                         H_u(Nx,2:j) * &
+#endif
+                         u_nd(Nx,2:j))*A*dTheta
+      end do
+!$OMP END DO
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      do j=2, Ny
+        do i=1,Nx-1
+          psi(i,j) = ((-1)*SUM( &
 #ifdef BAROTROPIC
                             H_v(i:Nx,j) * &
 #endif
-                            v_nd(i:Nx,j))*A*cosTheta_v(j)*dLambda &
-                      - SUM( &
+                            v_nd(i:Nx,j))*A*v_grid%cos_lat(j)*dLambda &
+                     + psi(Nx, j) &
+                     - SUM( &
 #ifdef BAROTROPIC
                             H_u(i,1:jm1(j)) * &
 #endif
-                            u_nd(i,1:jm1(j)))*A*dTheta
+                            u_nd(i,1:jm1(j)))*A*dTheta &
+                     + psi(i,Nx)) / 2._8
+        end do
+      end do
+!$OMP END DO
+!$OMP END PARALLEL
     END SUBROUTINE computeStreamfunction
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -294,7 +378,6 @@ MODULE calc_lib
     !!
     !! @par Uses:
     !! vars_module, ONLY : ip1,jp1,ocean_u,ocean_H,ocean_v,H_u,H_v,A,dTheta,dLambda,cosTheta_v
-    !! @todo Compute eta from streamfunction (if neccessary at all?) assuming geostrophy
     !------------------------------------------------------------------
     SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)
       IMPLICIT NONE
