@@ -34,7 +34,7 @@
 &swm_bs_nl filename="input/bs_sc.nc" varname="PSI" chunksize=1 &end
 
 &swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
-&swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
+&swm_forcing_nl filename="input/tauy_sc_test.nc", varname="TAUY", forcingtype="W", component="M" &end
 
 &swm_damping_nl filename="input/gamma_n.nc", varname="GAMMA_N", type="GAMMA_LIN_ETA" &end
 

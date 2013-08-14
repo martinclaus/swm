@@ -203,6 +203,7 @@ MODULE io_module
     !! If the dataset is already open nothing will happen.
     !------------------------------------------------------------------
     SUBROUTINE openDS(FH)
+      use str, only : to_upper, to_lower
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
       TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
@@ -226,8 +227,11 @@ MODULE io_module
           CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
                    __LINE__,trim(FH%filename))
         END IF
-        IF(FH%timevid.EQ.DEF_TIMEVID) CALL check(nf90_inq_varid(FH%ncid,TAXISNAME,FH%timevid), &
+        IF(FH%timevid.EQ.DEF_TIMEVID) then !< if timeaxis haven't been identified
+          if(nf90_inq_varid(FH%ncid,to_upper(TAXISNAME),FH%timevid) .ne. nf90_noerr) &  !< Try to_upper(TAXISNAME)
+            CALL check(nf90_inq_varid(FH%ncid,to_lower(TAXISNAME),FH%timevid), &        !< Try to_lower(TAXISNAME)
                      __LINE__,FH%filename)
+        end if
       ELSE ! no time axis in dataset
         FH%nrec = 1
       END IF
@@ -317,7 +321,7 @@ MODULE io_module
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
-        CALL getAtt(FH, 'missing_value', missing_value) 
+        CALL getAtt(FH, 'missing_value', missing_value)
         WHERE (var .eq. missing_value) missmask = 1
         CALL getAtt(FH, '_FillValue', missing_value)
         WHERE (var .eq. missing_value) missmask = 1
@@ -347,7 +351,7 @@ MODULE io_module
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
        missmask = 0
-       CALL getAtt(FH, 'missing_value', missing_value) 
+       CALL getAtt(FH, 'missing_value', missing_value)
        WHERE (var .eq. missing_value) missmask = 1
        CALL getAtt(FH, '_FillValue', missing_value)
        WHERE (var .eq. missing_value) missmask = 1

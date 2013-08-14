@@ -14,10 +14,11 @@
 !------------------------------------------------------------------
 MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
-  USE vars_module, ONLY : getFromRegister, to_upper, Nt, dt, itt, meant_out
+  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out
   USE domain_module, ONLY : grid_t, Nx, Ny
   USE generic_list
   USE diagVar
+  use str
   IMPLICIT NONE
 #include "io.h"
 #include "diag_module.h"

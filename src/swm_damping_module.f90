@@ -148,11 +148,13 @@ MODULE swm_damping_module
     !! default values from model_nl will be returned.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : r, k, gamma_new, to_upper\n
+    !! vars_module, ONLY : r, k, gamma_new\n
+    !! str, only : to_upper\n
     !! memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
     !------------------------------------------------------------------
     FUNCTION getDampingCoefficient(coefName,shapeOfCoef) RESULT(coef)
-      USE vars_module, ONLY : r, k, gamma_new, to_upper
+      USE vars_module, ONLY : r, k, gamma_new
+      use str, only : to_upper
       USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
       CHARACTER(*), INTENT(in)                         :: coefName    !< String naming the requested coefficient
       INTEGER, DIMENSION(2), INTENT(in)                :: shapeOfCoef !< Shape of the metrix to be returned

@@ -64,7 +64,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module
 objects = $(modules:%=$(builddir)%.o)
 
 
@@ -79,7 +79,7 @@ model$(EXEEXT)   : $(modules:%=%.o) model.o
 model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h
 	$(COMPILE)
 
-vars_module.o : vars_module.f90 generic_list.o domain_module.o io.h
+vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
 	$(COMPILE)
 
 calendar_module.o : calendar_module.f90 calendar.h udunits.inc
@@ -95,13 +95,13 @@ swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm
 diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
 	$(COMPILE)
 
-diagTask.o : diagTask.f90 io.h io_module.o vars_module.o domain_module.o diagVar.o generic_list.o
+diagTask.o : diagTask.f90 io.h io_module.o vars_module.o domain_module.o diagVar.o generic_list.o str.o
 	$(COMPILE)
 
 diagVar.o : diagVar.f90 vars_module.o io.h domain_module.o calc_lib.o generic_list.o
 	$(COMPILE)
 
-io_module.o : io_module.f90 io.h calendar_module.o grid_module.o
+io_module.o : io_module.f90 io.h calendar_module.o grid_module.o str.o
 	$(COMPILE)
 
 ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h
@@ -125,7 +125,7 @@ swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_mod
 swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
-swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o domain_module.o memchunk_module.o
+swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o domain_module.o memchunk_module.o str.o
 	$(COMPILE)
 
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o domain_module.o
@@ -172,10 +172,5 @@ clean-doc :
 	@rm -rvf $(docdir)latex $(docdir)html $(docdir)doxygen_objdb_*
 
 clean-selfcheck :
-	@rm -rf $(selfcheck_dir)/*/output/new_*
-
-qtest.o : qtest.f90
-	$(COMPILE)
-
-qtest$(EXEEXT): qtest.o
-	$(FC) $(FFLAGS) $(builddir)qtest.o -o$(builddir)$@ $(LDFLAGS)
+	@rm -rf $(selfcheck_dir)*/output/new_*
+	@rm -rf $(selfcheck_dir)utest_str/utest_str

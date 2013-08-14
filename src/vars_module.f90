@@ -14,6 +14,7 @@ MODULE vars_module
 #include "io.h"
   USE generic_list
   USE domain_module
+  use str
   IMPLICIT NONE
 
   ! Constants (default parameters), contained in model.namelist (except PI and D2R)
@@ -377,29 +378,5 @@ MODULE vars_module
       IF (ASSOCIATED(var%grid)) grid => var%grid
 
     END SUBROUTINE get1DFromRegister
-
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Convert a string to upper case
-    !!
-    !! @todo Move this function to calc_lib or somewhere else.
-    !----------------------------------------------------------------------------
-    function to_upper(strIn) result(strOut)
-    ! Adapted from http://www.star.le.ac.uk/~cgp/fortran.html (25 May 2012)
-
-      character(len=*), intent(in) :: strIn
-      character(len=len(strIn)) :: strOut
-      integer :: i,j
-
-      do i = 1, len(strIn)
-        j = iachar(strIn(i:i))
-        if (j>= iachar("a") .and. j<=iachar("z") ) then
-          strOut(i:i) = achar(iachar(strIn(i:i))-32)
-        else
-          strOut(i:i) = strIn(i:i)
-        end if
-      end do
-
-    end function to_upper
 
 END MODULE vars_module
