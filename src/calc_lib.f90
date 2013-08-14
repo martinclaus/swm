@@ -129,7 +129,7 @@ MODULE calc_lib
     subroutine computeVelocityPotential(u_in, v_in, chi_out)
       use vars_module, only : itt
       use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid
-      real(8), dimension(Nx, Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow 
+      real(8), dimension(Nx, Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow
       real(8), dimension(Nx, Ny), intent(in)             :: u_in    !< Zonal component of input flow
       real(8), dimension(Nx, Ny), intent(in)             :: v_in    !< Meridional component of input flow
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
@@ -184,13 +184,13 @@ MODULE calc_lib
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
 #endif
-      
+
       if (u_nd_computed) then
         if(present(u_nd_out)) u_nd_out = u_nd
         if(present(v_nd_out)) v_nd_out = v_nd
         return
       end if
-      
+
       u_nd = u_in
       v_nd = v_in
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
@@ -310,13 +310,13 @@ MODULE calc_lib
     !! where \f$L_E\f$ is the location of the eastern boundary, \f$L_S\f$ the location of the southern boundary and
     !! \f$A\f$ the radius of the earth.
     !! @par Uses:
-    !! domain_module, ONLY : Nx, Ny, jm1, H_v, A, cosTheta_v, dLambda, H_u, A,dTheta
+    !! domain_module, ONLY : A, Nx, Ny, jm1, im1, H_v, dLambda, H_u, dTheta, v_grid, u_grid
     !! @note If BAROTROPIC is not defined, the factors from bathimetry are droped from the equaton above.
     !! @note If CORRECT_FLOW_FOR_PSI is defined, the flow field will be rendered divergence free using
     !! calc_lib::computeNonDivergentFlowField
     !------------------------------------------------------------------
     SUBROUTINE computeStreamfunction(u_in, v_in, psi)
-      USE domain_module, ONLY : A, Nx, Ny, jm1, H_v, dLambda, H_u, dTheta, v_grid
+      USE domain_module, ONLY : A, Nx, Ny, jm1, im1, H_v, dLambda, H_u, dTheta, v_grid, u_grid
       IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny), INTENT(out) :: psi   !< streamfunction to output
       REAL(8),DIMENSION(Nx,Ny), intent(in)  :: u_in  !< zonal velocity
@@ -328,13 +328,13 @@ MODULE calc_lib
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i)&
-!$OMP SCHEDULE(OMPSCHEDULE, Nx/10)
+!$OMP SCHEDULE(OMPSCHEDULE, 10)
 do i=1,Nx-1
         psi(i,1) = (-1)*sum(&
 #ifdef BAROTROPIC
-                         H_v(i:Nx,1) * &
+                         H_v(i:im1(Nx), 1) * &
 #endif
-                         v_nd(i:Nx,1))*A*v_grid%cos_lat(j)*dLambda
+                         v_grid%ocean(i:im1(Nx), 1) * v_nd(i:im1(Nx), 1)) * A * v_grid%cos_lat(1) * dLambda
       end do
 !$OMP END DO
 !$OMP DO PRIVATE(j)&
@@ -342,9 +342,9 @@ do i=1,Nx-1
       do j=2,Ny
         psi(Nx,j) = (-1)*sum(&
 #ifdef BAROTROPIC
-                         H_u(Nx,2:j) * &
+                         H_u(Nx, 1:jm1(j)) * &
 #endif
-                         u_nd(Nx,2:j))*A*dTheta
+                         u_grid%ocean(Nx, 1:jm1(j)) * u_nd(Nx, 1:jm1(j))) * A * dTheta
       end do
 !$OMP END DO
 !$OMP DO PRIVATE(i,j)&
@@ -353,16 +353,16 @@ do i=1,Nx-1
         do i=1,Nx-1
           psi(i,j) = ((-1)*SUM( &
 #ifdef BAROTROPIC
-                            H_v(i:Nx,j) * &
+                            H_v(i:im1(Nx),j) * &
 #endif
-                            v_nd(i:Nx,j))*A*v_grid%cos_lat(j)*dLambda &
+                            v_nd(i:im1(Nx),j)) * A * v_grid%cos_lat(j) * dLambda &
                      + psi(Nx, j) &
                      - SUM( &
 #ifdef BAROTROPIC
                             H_u(i,1:jm1(j)) * &
 #endif
                             u_nd(i,1:jm1(j)))*A*dTheta &
-                     + psi(i,Nx)) / 2._8
+                     + psi(i,1)) / 2._8
         end do
       end do
 !$OMP END DO

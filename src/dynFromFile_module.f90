@@ -136,7 +136,7 @@ MODULE dynFromFile_module
     !------------------------------------------------------------------
     SUBROUTINE DFF_advance
       USE vars_module, ONLY : u,v,eta,dt,itt,N0
-      USE domain_module, ONLY : eta_grid, u_grid, v_grid 
+      USE domain_module, ONLY : eta_grid, u_grid, v_grid
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
       REAL(8)    :: model_time
@@ -187,7 +187,7 @@ MODULE dynFromFile_module
           PRINT *,"Memory allocation failed in ",__FILE__,__LINE__
           STOP 1
         END IF
-        psi(:,:,1) = 1e6*getChunkData(memChunk,time)
+        psi(:,:,1) = getChunkData(memChunk,time)
         DFF_psi_u = evSF_zonal(psi)
         DFF_psi_v = evSF_meridional(psi)
         IF (ALLOCATED(psi)) DEALLOCATE(psi,stat=alloc_error)

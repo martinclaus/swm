@@ -107,15 +107,8 @@ MODULE diagTask
 
       !< Check for diagnostic variable
       DiagVar: SELECT CASE (to_upper(TRIM(self%varname)))
-        CASE (DVARNAME_PSI) !< PSI
-            CALL getDiagVarFromList(self%diagVar,DVARNAME_PSI)
-            self%oScaleFactor = 1e-6
-        case (DVARNAME_CHI)
-            call getDiagVarFromList(self%diagVar, DVARNAME_CHI)
-        case (DVARNAME_U_ND)
-            call getDiagVarFromList(self%diagVar, DVARNAME_U_ND)
-        case (DVARNAME_V_ND)
-            call getDiagVarFromList(self%diagVar, DVARNAME_V_ND)
+        CASE (DVARNAME_LIST) !< PSI
+            CALL getDiagVarFromList(self%diagVar,to_upper(TRIM(self%varname)))
       END SELECT DiagVar
 
       !< Set pointer to variable register
