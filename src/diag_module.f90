@@ -30,7 +30,6 @@ MODULE diag_module
     !------------------------------------------------------------------
     SUBROUTINE initDiag
       IMPLICIT NONE
-      INTEGER           :: alloc_error
       !< Init diagnostic tasks
       CALL initDiagTaskList
       !< be verbose
@@ -44,7 +43,6 @@ MODULE diag_module
     !------------------------------------------------------------------
     SUBROUTINE finishDiag
       IMPLICIT NONE
-      INTEGER           :: alloc_error
       CALL finishDiagTaskList
     END SUBROUTINE finishDiag
 

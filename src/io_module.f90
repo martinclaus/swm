@@ -17,7 +17,6 @@ MODULE io_module
   USE calendar_module
   USE grid_module
   IMPLICIT NONE
-  SAVE
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to store variables associated with a variable of
@@ -55,11 +54,27 @@ MODULE io_module
   TYPE(calendar)        :: modelCalendar !< Internal Calendar of the model
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief creates a dataset with a given grid
+  !------------------------------------------------------------------
+  interface createDS
+    module procedure createDSEuler
+    module procedure createDSLagrange
+  end interface createDS
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read time slice of a variable from a dataset
   !------------------------------------------------------------------
   INTERFACE getVar
     MODULE PROCEDURE getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
   END INTERFACE getVar
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Write time slice of a variable to a dataset
+  !------------------------------------------------------------------
+  interface putVar
+    module procedure putVarEuler
+    module procedure putVarLagrange
+  end interface putVar
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read attribute from a variable in a dataset
@@ -68,7 +83,7 @@ MODULE io_module
   INTERFACE getAtt
     MODULE PROCEDURE getCHARAtt
     MODULE PROCEDURE getDOUBLEAtt
-  END INTERFACE
+  END INTERFACE getAtt
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -132,7 +147,7 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE readInitialCondition(FH,var,missmask)
       IMPLICIT NONE
-      TYPE(fileHandle), INTENT(inout)           :: FH                   !< File handle pointing to the requested variable
+      TYPE(fileHandle), INTENT(inout)           :: FH               !< File handle pointing to the requested variable
       REAL(8), DIMENSION(:,:), INTENT(out)  :: var                  !< Data to return
       INTEGER, DIMENSION(:,:), OPTIONAL, INTENT(out)  :: missmask   !< missing value mask
       call getVar(FH,var,getNrec(FH),missmask)
@@ -147,8 +162,7 @@ MODULE io_module
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
     !------------------------------------------------------------------
-
-    SUBROUTINE createDS(FH,grid)
+    SUBROUTINE createDSEuler(FH,grid)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
       TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Grid used to create dataset
@@ -162,24 +176,28 @@ MODULE io_module
       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
                  __LINE__,FH%filename)
       FH%isOpen = .TRUE.
+
       ! create dimensions
       call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid))
       call check(nf90_def_dim(FH%ncid,YAXISNAME,Ny,lat_dimid))
       call check(nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
+
       ! define variables
       ! longitude vector
       call check(nf90_def_var(FH%ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
       call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
       call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+
       ! latitude vector
       call check(nf90_def_var(FH%ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
       call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
       call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
+
       ! time vector
       call check(nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
-      !call check(nf90_put_att(ncid,time_varid, str_cal, time_cal))
+
       ! variable field
       call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
       call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
@@ -193,7 +211,56 @@ MODULE io_module
 #ifdef DIAG_FLUSH
       call closeDS(FH)
 #endif
-    END SUBROUTINE createDS
+    END SUBROUTINE createDSEuler
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Creates a dataset for a lagrange variable
+    !!
+    !! Creates an empty 2D dataset with a variable and proper dimension
+    !! specifications. The file handle used must be initialised using io_module::initFH.
+    !! If DIAG_FLUSH is defined, the dataset will be closed after creation. Since all routines
+    !! of io_module preserve the isOpen state of the file handle, this forces the module to
+    !! close the file after every single operation which guarantees a consisten dataset at any time.
+    !------------------------------------------------------------------
+    subroutine createDSLagrange(FH, grid)
+       type(filehandle), intent(inout)     :: FH
+       type(t_grid_lagrange), intent(in)   :: grid
+       INTEGER                             :: id_dimid, id_varid, &
+                                             Nr
+       Nr=SIZE(grid%id)
+       FH%filename = getFname(FH%filename)
+
+       ! create file
+       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
+                 __LINE__,FH%filename)
+       FH%isOpen = .TRUE.
+
+       ! create dimensions
+       call check(nf90_def_dim(FH%ncid,IDAXISNAME,Nr,id_dimid))
+       call check(nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
+
+       ! define variables
+       ! id vector
+       call check(nf90_def_var(FH%ncid,IDAXISNAME,NF90_DOUBLE,(/id_dimid/),id_varid))
+       call check(nf90_put_att(FH%ncid,id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
+       ! time vector
+       call check(nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
+       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
+       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
+       ! variable field
+      call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/id_dimid,FH%timedid/), FH%varid))
+       call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
+       ! end define mode
+       call check(nf90_enddef(FH%ncid))
+       ! write domain variables
+       call check(nf90_put_var(FH%ncid, id_varid, grid%id))   ! Fill id dimension variable
+
+       FH%nrec = 0
+       call setCal(FH%calendar, time_unit)
+#ifdef DIAG_FLUSH
+       call closeDS(FH)
+#endif
+     end subroutine createDSLagrange
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Opens a dataset
@@ -203,38 +270,23 @@ MODULE io_module
     !! If the dataset is already open nothing will happen.
     !------------------------------------------------------------------
     SUBROUTINE openDS(FH)
-      use str, only : to_upper, to_lower
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
       TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
       character(CHARLEN)               :: t_string  !< String of time unit
-      REAL(8)                          :: missval
-      INTEGER    :: nDims
       IF ( FH%isOpen ) RETURN
       CALL check(nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
                  __LINE__,FH%filename)
-      ! get missing value
+      FH%isOpen = .TRUE.
 
       IF (FH%varid.EQ.DEF_VARID) CALL check(nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
                                             __LINE__,FH%filename)
-      CALL check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
-      IF (nDims.GE.3) THEN ! read time axis information
-        IF (FH%timedid.EQ.DEF_TIMEDID) THEN
-          CALL check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid),&
-                     __LINE__,FH%filename)
-          IF (FH%timedid .EQ. NF90_NOTIMEDIM) &
-            CALL check(nf90_inq_dimid(FH%ncid,TAXISNAME,dimid=FH%timedid),__LINE__,FH%filename)
-          CALL check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec),&
-                   __LINE__,trim(FH%filename))
-        END IF
-        IF(FH%timevid.EQ.DEF_TIMEVID) then !< if timeaxis haven't been identified
-          if(nf90_inq_varid(FH%ncid,to_upper(TAXISNAME),FH%timevid) .ne. nf90_noerr) &  !< Try to_upper(TAXISNAME)
-            CALL check(nf90_inq_varid(FH%ncid,to_lower(TAXISNAME),FH%timevid), &        !< Try to_lower(TAXISNAME)
-                     __LINE__,FH%filename)
-        end if
-      ELSE ! no time axis in dataset
-        FH%nrec = 1
-      END IF
+      ! get time dimension id
+      call getTDimId(FH)
+
+      ! get time variable id
+      if (FH%timedid .ne. NF90_NOTIMEDIM) call getTVarId(FH)
+
       ! Set calendar
       IF (.NOT.isSetCal(FH%calendar)) THEN
         IF (FH%nrec.NE.1 .AND. FH%timevid.NE.DEF_TIMEVID) THEN ! dataset is not constant in time and has a time axis
@@ -249,7 +301,6 @@ MODULE io_module
           CALL setCal(FH%calendar,time_unit)
         END IF
       END IF
-      FH%isOpen = .TRUE.
     END SUBROUTINE openDS
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -271,21 +322,20 @@ MODULE io_module
     !!
     !! Write a variables time slice to a existing dataset.
     !------------------------------------------------------------------
-
-    SUBROUTINE putVar(FH,varData,rec,time,ocean_mask)
+    SUBROUTINE putVarEuler(FH,varData,rec,time,grid)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH               !< Initialised file handle pointing to the variable to write data to
       REAL(8), DIMENSION(:,:), INTENT(in) :: varData          !< Data to write
       REAL(8), DIMENSION(SIZE(varData,1),SIZE(varData,2)):: var_dummy        !< Copy of varData to apply missing values to
-      INTEGER(1), DIMENSION(:,:), INTENT(in), OPTIONAL    :: ocean_mask !< Mask of valid data. All other grid points will be set to FH%missval
+      type(grid_t), intent(in), optional  :: grid
       INTEGER, INTENT(in), OPTIONAL       :: rec              !< Record index of time slice
       REAL(8), INTENT(in), OPTIONAL       :: time             !< Time coordinate of time slice
       LOGICAL                             :: wasOpen          !< Flag, if the dataset was open when the routine was called
       INTEGER                             :: local_rec=1      !< default value for rec
       REAL(8)                             :: local_time=0.    !< default value for time
       var_dummy=varData
-      IF (PRESENT(ocean_mask)) THEN
-        WHERE (ocean_mask .ne. 1) var_dummy = FH%missval
+      IF (PRESENT(grid)) THEN
+        WHERE (grid%ocean .ne. 1_1) var_dummy = FH%missval
       END IF
       IF (PRESENT(rec)) local_rec = rec
       IF (PRESENT(time)) local_time = time
@@ -298,7 +348,39 @@ MODULE io_module
       CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)),&
                  __LINE__,TRIM(FH%filename))
       IF ( .NOT. wasOpen ) call closeDS(FH)
-    END SUBROUTINE putVar
+    END SUBROUTINE putVarEuler
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+     !> @brief  Write a time slice to disk
+     !!
+     !! Write a lagrangian variable time slice to a existing dataset.
+     !! @par Uses:
+     !------------------------------------------------------------------
+     subroutine putVarLagrange(FH,varData,rec,time,grid)
+      type(fileHandle), intent(inout)     :: FH             !< Initialised file handle pointing to the variable to write data to
+      real(8), dimension(:), intent(in)   :: varData        !< Data to write
+      real(8), dimension(size(varData,1)) :: var_dummy      !< Copy of varData to apply missing values to
+      type(t_grid_lagrange), intent(in), optional :: grid   !< grid object of variable. Used to get ocean mask
+      integer, intent(in), optional       :: rec            !< Record index of time slice
+      real(8), intent(in), optional       :: time           !< Time coordinate of time slice
+      logical                             :: wasOpen        !< Flag, if the dataset was open when the routine was called
+      integer                             :: local_rec=1    !< default value for rec
+      real(8)                             :: local_time=0.  !< default value for time
+
+      var_dummy = varData
+      if (present(grid))  where(grid%valid .ne. 1_1) var_dummy = FH%missval
+      if (present(rec))   local_rec = rec
+      if (present(time))  local_time = time
+      wasOpen = FH%isOpen
+      call openDS(FH)
+      call check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
+                              start = (/1,local_rec/), &
+                              count=(/size(varData),1/)), &
+                 __LINE__,TRIM(FH%filename))
+      call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/local_rec/)), &
+                 __LINE__,TRIM(FH%filename))
+      if (.not.wasOpen) call closeDS(FH)
+    end subroutine putVarLagrange
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Load a 3D data block into memory
@@ -306,16 +388,16 @@ MODULE io_module
     !! Read a 3D (2D space + 1D time) chunk of a variable from disk.
     !! If specified, also a mask of missing values is returned
     !------------------------------------------------------------------
-    SUBROUTINE getVar3Dhandle(FH,var,tstart,tlen, missmask)
+    SUBROUTINE getVar3Dhandle(FH,var,tstart, missmask)
       TYPE(fileHandle), INTENT(inout)             :: FH                 !< File handle pointing to the variable to read from
       INTEGER, INTENT(in)                         :: tstart             !< Time index to start reading
-      INTEGER, INTENT(in)                         :: tlen               !< Length of chunk to read
-      REAL(8), DIMENSION(:,:,:), INTENT(out) :: var                !< Data read from disk
+      REAL(8), DIMENSION(:,:,:), INTENT(out)      :: var                !< Data read from disk
       INTEGER, DIMENSION(:,:,:), OPTIONAL, INTENT(out) :: missmask !< Missing value mask
       REAL(8)                                     :: missing_value
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
+      print *, "Read file "//trim(FH%filename)//":"//trim(FH%varname)
       call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=SHAPE(var)),&
                  __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
@@ -574,5 +656,66 @@ MODULE io_module
       END IF
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE getDOUBLEAtt
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Retrieve the time dimension id and dimension length
+    !!
+    !! If there is a unlimited dimension, it will be assumed that this is the
+    !! time dimension. If not and there are less than three dimensions in the
+    !! dataset, it willl be assumed that there is no time dimension.
+    !! If there are three or more dimensions, the dimension with name TAXISNAME
+    !! (either upper or lower case or starting with a capital) will be chosen.
+    !! If such an axis does not exist, an error will be thrown and the program will
+    !! be terminated.
+    !!
+    !! @par Uses:
+    !! str, only : to_upper, to_lower
+    !------------------------------------------------------------------
+    subroutine getTDimId(FH)
+      use str, only : to_upper, to_lower
+      type(fileHandle), intent(inout) :: FH
+      integer                         :: nDims
+      if (FH%timedid .ne. DEF_TIMEDID) then
+        return
+      end if
+      call check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid), __LINE__, FH%filename) !< get dimid by record dimension
+      if (FH%timedid .ne. NF90_NOTIMEDIM) then
+        call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec), __LINE__, FH%filename)
+        return
+      end if
+      call check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
+      if (nDims .lt. 3) then                                                              !< no time dimension
+        FH%nrec = 1
+        return
+      end if
+      if (nf90_inq_dimid(FH%ncid, TAXISNAME, dimid=FH%timedid) .ne. nf90_noerr) then         !< get dimid by name
+        if (nf90_inq_dimid(FH%ncid, to_upper(TAXISNAME), dimid=FH%timedid) .ne. nf90_noerr) &
+          call check(nf90_inq_dimid(FH%ncid, to_lower(TAXISNAME), dimid=FH%timedid), __LINE__, FH%filename)
+      end if
+      call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec), __LINE__, FH%filename)
+    end subroutine getTDimId
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Retrieve the time variable id
+    !!
+    !! The time variable is assumed to have the name TAXISNAME
+    !! (either upper or lower case or starting with a capital).
+    !! If such an variable does not exist, an error will be thrown and the program will
+    !! be terminated.
+    !!
+    !! @par Uses:
+    !! str, only : to_upper, to_lower
+    !------------------------------------------------------------------
+    subroutine getTVarId(FH)
+      use str, only : to_upper, to_lower
+      type(fileHandle), intent(inout) :: FH
+      if (FH%timevid .ne. DEF_TIMEVID) return
+      if (nf90_inq_varid(FH%ncid, TAXISNAME, FH%timevid) .ne. nf90_noerr) then
+        if (nf90_inq_varid(FH%ncid, to_upper(TAXISNAME), FH%timevid) .ne. nf90_noerr) &
+          call check(nf90_inq_varid(FH%ncid, to_lower(TAXISNAME), FH%timevid), __LINE__, FH%filename)
+      end if
+    end subroutine getTVarId
 
 END MODULE io_module

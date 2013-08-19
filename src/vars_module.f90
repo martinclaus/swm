@@ -17,7 +17,7 @@ MODULE vars_module
   use str
   IMPLICIT NONE
 
-  ! Constants (default parameters), contained in model.namelist (except PI and D2R)
+  ! Constants (default parameters), contained in model_nl
   REAL(8)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
   REAL(8)                :: r=0.                             !< linear friction parameter \f$[ms^{-1}]\f$
   REAL(8)                :: k=0.                             !< quadratic friction parameter
@@ -36,7 +36,7 @@ MODULE vars_module
 
   INTEGER, PARAMETER     :: Ndims = 3                   !< Number of dimensions
   REAL(8)                :: run_length = 100000         !< Length of model run \f$[s]\f$
-  INTEGER                :: Nt = 1e5                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
+  INTEGER                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
   REAL(8)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
   REAL(8)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
 
@@ -69,6 +69,7 @@ MODULE vars_module
     REAL(8), DIMENSION(:), POINTER     :: data1d => null()
     CHARACTER(CHARLEN) :: nam = ""
     TYPE(grid_t), POINTER              :: grid => null()
+    type(t_grid_lagrange), pointer     :: grid_l => null()
   END TYPE variable_t
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -84,6 +85,7 @@ MODULE vars_module
     MODULE PROCEDURE add3dToRegister
     MODULE PROCEDURE add2dToRegister
     MODULE PROCEDURE add1dToRegister
+    module procedure addLagrangeToRegister
   END INTERFACE addToRegister
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -153,7 +155,6 @@ MODULE vars_module
     !! Checks if a variable of the same name already exists in the register. If not,
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
-    !! TODO Initialize grid with respective grid instead of NULL
     !----------------------------------------------------------------------------
     SUBROUTINE add3dToRegister(var, varname, grid)
       IMPLICIT NONE
@@ -191,7 +192,6 @@ MODULE vars_module
     !! Checks if a variable of the same name already exists in the register. If not,
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
-    !! TODO Initialize grid with respective grid instead of NULL
     !----------------------------------------------------------------------------
     SUBROUTINE add2dToRegister(var, varname, grid)
       IMPLICIT NONE
@@ -227,7 +227,6 @@ MODULE vars_module
     !! Checks if a variable of the same name already exists in the register. If not,
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
-    !! TODO Initialize grid with respective grid instead of NULL
     !----------------------------------------------------------------------------
     SUBROUTINE add1dToRegister(var, varname, grid)
       IMPLICIT NONE
@@ -255,6 +254,36 @@ MODULE vars_module
       CALL addVarPtrToRegister(dat_ptr)
 
     END SUBROUTINE add1dToRegister
+
+
+    !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+     !> @brief Adds lagrangian variables to the register
+     !!
+     !! Checks if a variable of the same name already exists in the register. If not,
+     !! a variable object is created, the data is assigned and the name will be
+     !! converted to upper case.
+     !----------------------------------------------------------------------------
+     subroutine addLagrangeToRegister(var, varname, grid)
+      real(8), dimension(:), target, intent(in)          :: var
+      character(*), intent(in)                           :: varname
+      type(t_grid_lagrange), target, intent(in)          :: grid
+      type(variable_ptr)                                 :: dat_ptr
+
+      !< check for duplicate
+      if(associated(getVarPtrFromRegister(varname))) then
+        print *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
+        stop 1
+      end if
+      !< create variable object
+      allocate(dat_ptr%var)
+      dat_ptr%var%data1d => var
+      dat_ptr%var%nam = to_upper(varname)
+      dat_ptr%var%grid_l => grid
+
+      !< add to register
+      call addVarPtrToRegister(dat_ptr)
+    end subroutine addLagrangeToRegister
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds a variable object container to the register
@@ -299,10 +328,8 @@ MODULE vars_module
         END IF
         currentNode => list_next(currentNode)
       END DO
-
-!      IF (.NOT.ASSOCIATED(var)) PRINT *, "Variable "//TRIM(varname)// " not found."
-
     END FUNCTION getVarPtrFromRegister
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Returns a pointer to the data of the variable "varname" in the register
@@ -311,20 +338,20 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get3DFromRegister(varname,vardata,grid)
-      CHARACTER(*), INTENT(in)                        :: varname
-      REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out) :: vardata
-      TYPE(variable_t), POINTER                       :: var
-      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL    :: grid
+    SUBROUTINE get3DFromRegister(varname, vardata, grid, grid_l)
+      CHARACTER(*), INTENT(in)                                 :: varname
+      REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out)          :: vardata
+      TYPE(variable_t), POINTER                                :: var
+      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL             :: grid
+      type(t_grid_lagrange), pointer, intent(out), optional    :: grid_l
 
       NULLIFY(vardata)
 
       var => getVarPtrFromRegister(varname)
 
-      IF (.NOT.ASSOCIATED(var)) RETURN
-
       IF (ASSOCIATED(var%data3d)) vardata => var%data3d
       IF (ASSOCIATED(var%grid)) grid => var%grid
+      if (associated(var%grid_l)) grid_l => var%grid_l
 
     END SUBROUTINE get3DFromRegister
 
@@ -335,24 +362,20 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get2DFromRegister(varname,vardata,grid)
-      CHARACTER(*), INTENT(in)              :: varname
-      REAL(8), DIMENSION(:,:), POINTER, INTENT(out)            :: vardata
-      TYPE(variable_t), POINTER                            :: var
-      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL    :: grid
+    SUBROUTINE get2DFromRegister(varname, vardata, grid, grid_l)
+      CHARACTER(*), INTENT(in)                              :: varname
+      REAL(8), DIMENSION(:,:), POINTER, INTENT(out)         :: vardata
+      TYPE(variable_t), POINTER                             :: var
+      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL          :: grid
+      type(t_grid_lagrange), pointer, intent(out), optional :: grid_l
 
       NULLIFY(vardata)
 
       var => getVarPtrFromRegister(varname)
 
-      IF (.NOT.ASSOCIATED(var)) THEN
-        PRINT *, "Requested variable "//TRIM(varname)//" not found."
-        RETURN
-      END IF
-
       IF (ASSOCIATED(var%data2d)) vardata => var%data2d
       IF (ASSOCIATED(var%grid)) grid => var%grid
-      IF (.NOT.ASSOCIATED(vardata)) PRINT *,"Requested variable "//TRIM(VARNAME)//" empty!"
+      if(associated(var%grid_l)) grid_l => var%grid_l
     END SUBROUTINE get2DFromRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -362,21 +385,20 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get1DFromRegister(varname,vardata,grid)
-      CHARACTER(*), INTENT(in)              :: varname
-      REAL(8), DIMENSION(:), POINTER, INTENT(out)              :: vardata
-      TYPE(variable_t), POINTER                            :: var
-      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL    :: grid
+    SUBROUTINE get1DFromRegister(varname, vardata, grid, grid_l)
+      CHARACTER(*), INTENT(in)                              :: varname
+      REAL(8), DIMENSION(:), POINTER, INTENT(out)           :: vardata
+      TYPE(variable_t), POINTER                             :: var
+      TYPE(grid_t), POINTER, INTENT(out), OPTIONAL          :: grid
+      type(t_grid_lagrange), pointer, intent(out), optional :: grid_l
 
       NULLIFY(vardata)
 
       var => getVarPtrFromRegister(varname)
 
-      IF (.NOT.ASSOCIATED(var)) RETURN
-
       IF (ASSOCIATED(var%data1d)) vardata => var%data1d
       IF (ASSOCIATED(var%grid)) grid => var%grid
-
+      if (associated(var%grid_l)) grid_l => var%grid_l
     END SUBROUTINE get1DFromRegister
 
 END MODULE vars_module

@@ -16,13 +16,54 @@ MODULE calc_lib
   USE CALC_LIB_ELLIPTIC_SOLVER_MODULE
 #endif
   IMPLICIT NONE
-  SAVE
+
+  interface pder_meridional
+    module procedure pder_meridional2D
+    module procedure pder_meridional3D
+  end interface pder_meridional
+
+  interface pder_zonal
+    module procedure pder_zonal2D
+    module procedure pder_zonal3D
+  end interface pder_zonal
+
+  interface pder2_zonal
+    module procedure pder2_zonal2D
+    module procedure pder2_zonal3D
+  end interface pder2_zonal
+
+  interface pder2_meridional
+    module procedure pder2_meridional2D
+    module procedure pder2_meridional3D
+  end interface pder2_meridional
+
+  interface evaluateStreamfunction
+    module procedure evaluateStreamfunction2D
+    module procedure evaluateStreamfunction3D
+  end interface evaluateStreamfunction
+
+  interface vorticity
+    module procedure laplacian2D
+    module procedure vorticityFromVelocities
+  end interface vorticity
+
+  interface laplacian
+    module procedure laplacian2D
+  end interface laplacian
 
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
   REAL(8), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
   LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
   LOGICAL                                :: u_nd_computed=.FALSE. !< .TRUE. if the nondivergent velocity field is computed at present time step
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Weighting factors for bilinear interpolation
+  !------------------------------------------------------------------
+  type :: t_linInterp2D_weight
+    real(8)                 :: area=4    !< size of the grid box
+    real(8), dimension(2,2) :: factors=1 !< weighting factors
+  end type
 
   CONTAINS
 
@@ -38,7 +79,6 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE initCalcLib
       USE domain_module, ONLY : Nx,Ny, eta_grid, u_grid, v_grid
-      IMPLICIT NONE
       INTEGER :: alloc_error
       ALLOCATE(chi(1:Nx,1:Ny), u_nd(1:Nx, 1:Ny), v_nd(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
@@ -62,7 +102,6 @@ MODULE calc_lib
     !! solver module, if such module is defined.
     !------------------------------------------------------------------
     SUBROUTINE finishCalcLib
-      IMPLICIT NONE
       INTEGER :: alloc_error
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_FINISH
       call CALC_LIB_ELLIPTIC_SOLVER_FINISH
@@ -77,7 +116,6 @@ MODULE calc_lib
     !! Set calc_lib::chi_computed to .FALSE.
     !------------------------------------------------------------------
     SUBROUTINE advanceCalcLib
-      IMPLICIT NONE
       chi_computed=.FALSE.
       u_nd_computed=.FALSE.
     END SUBROUTINE advanceCalcLib
@@ -95,7 +133,6 @@ MODULE calc_lib
     !! @return Ordinate of requested point.
     !------------------------------------------------------------------
     ELEMENTAL REAL(8) FUNCTION interpLinear(y0,y1,x0,x1,x) RESULT(y)
-      IMPLICIT NONE
       REAL(8), INTENT(in)  :: y0 !< Ordinate of first point
       REAL(8), INTENT(in)  :: y1 !< Ordinate of second point
       REAL(8), INTENT(in)  :: x0 !< Abscissa of first point
@@ -103,6 +140,61 @@ MODULE calc_lib
       REAL(8), INTENT(in)  :: x !< Abscissa of requested point
       y = y0 + (x-x0)*(y1-y0)/(x1-x0)
     END FUNCTION interpLinear
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+     !> @brief Get a weighting object for spatial bilinear interolation
+     !!
+     !! Returns a weighting object for spatial bilinear interpolation. Also returned
+     !! are the indices of the four nearest points, which will be used for interpolation.
+     !!
+     !! @par Uses:
+     !! grid_module, only : grid_t \n
+     !! domain_module, only : ip1, jp1
+     !------------------------------------------------------------------
+     subroutine getWeight(weight, ind, x_in,y_in,grid)
+      use grid_module, only : grid_t
+      use domain_module, only : ip1, jp1
+      type(t_linInterp2D_weight), intent(out) :: weight
+      integer, dimension(2,2), intent(out)    :: ind
+      real(8), intent(in)                     :: x_in
+      real(8), intent(in)                     :: y_in
+      type(grid_t), intent(in)                :: grid
+      real(8), dimension(2)                   :: x_grid, y_grid
+
+      !< get indices of surrounding points
+      ind = reshape(&
+                    (/minloc(grid%lon,mask=grid%lon.ge.x_in), minloc(grid%lat,mask=grid%lat.ge.y_in), 0, 0/), &
+                    (/2,2/))
+      ind(:,2) = (/ ip1(ind(1,1)), jp1(ind(2,1)) /)
+
+      x_grid = grid%lon(ind(1,:))
+      y_grid = grid%lat(ind(2,:))
+
+      !< set interpolation coefficients
+      weight%area      = 1/((x_grid(2)-x_grid(1))*(y_grid(2)-y_grid(1)))
+      weight%factors   = reshape(&
+                           (/(x_grid(2) - x_in) * (y_grid(2) - y_in), & !! ll
+                             (x_in - x_grid(1)) * (y_grid(2) - y_in), & !! lr
+                             (x_grid(2) - x_in) * (y_in - y_grid(1)), & !! ul
+                             (x_in - x_grid(1)) * (y_in - y_grid(1))  & !! ur
+                           /), (/2,2/))
+
+     end subroutine getWeight
+
+
+     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+     !> @brief Spatial bilinear interpolation
+     !!
+     !! Interpolates the four values of var using the weighting object.
+     !------------------------------------------------------------------
+     function interp2d(var,weight) result(var_interp)
+      real(8), dimension(2,2), intent(in)  :: var
+      type(t_linInterp2D_weight), intent(in) :: weight
+      real(8)                              :: var_interp
+      var_interp = weight%area * sum(var*weight%factors)
+     end function interp2d
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Computes velocity potential
@@ -145,7 +237,7 @@ MODULE calc_lib
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
       epsilon = EPS
       ! compute divergence of velocity field
-      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid, eta_grid)
+      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid)
       ! Solve elliptic PDE
       call CALC_LIB_ELLIPTIC_SOLVER_MAIN(div_u,chi,epsilon,itt.EQ.1)
 #endif
@@ -176,7 +268,6 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE computeNonDivergentFlowField(u_in, v_in, u_nd_out, v_nd_out)
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
-      IMPLICIT NONE
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: u_in     !< Zonal component of 2D velocity field
       REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: v_in     !< Meridional component of 2D velocity field
       REAL(8),DIMENSION(Nx,Ny),INTENT(out), optional :: u_nd_out !< Meridional component of 2D velocity field
@@ -198,13 +289,13 @@ MODULE calc_lib
       v_corr = 0._8
       call computeVelocityPotential(u_in, v_in)
       ! compute non-rotational flow
-      call computeGradient(chi,u_corr,v_corr, eta_grid, u_grid, v_grid)
+      call computeGradient(chi,u_corr,v_corr, eta_grid)
       ! compute non-divergent flow
       u_nd = u_in - u_corr
       v_nd = v_in - v_corr
       !< check results
-      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid, eta_grid)
-      call computeDivergence(u_nd, v_nd, res_div, u_grid, v_grid, eta_grid)
+      call computeDivergence(u_in, v_in, div_u, u_grid, v_grid)
+      call computeDivergence(u_nd, v_nd, res_div, u_grid, v_grid)
       WRITE (*,'(A25,e20.15)') "Initial divergence:", sum(abs(div_u))
       WRITE (*,'(A25,e20.15)') "Residual divergence:", sum(abs(res_div))
       WRITE (*,'(A25,e20.15)') "Ratio:", sum(abs(res_div))/sum(abs(div_u))
@@ -226,35 +317,25 @@ MODULE calc_lib
     !! \f]
     !!
     !! @par Uses:
-    !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
+    !! domain_module, ONLY : A, dLambda, dTheta \n
+    !! grid_module, only : grid_t
     !------------------------------------------------------------------
-    SUBROUTINE computeDivergence(CD_u,CD_v,div_u,grid_u,grid_v,grid_div)
-      USE domain_module, ONLY : Nx,Ny,ip1,jp1,dLambda,dTheta, A
+    SUBROUTINE computeDivergence(CD_u,CD_v,div_u,grid_u,grid_v)
+      USE domain_module, ONLY : dLambda, dTheta, A
       USE grid_module, ONLY : grid_t
-      IMPLICIT NONE
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_u      !< Zonal component of input
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: CD_v      !< Meridional component of input
-      TYPE(grid_t), INTENT(in)               :: grid_u    !< Grid of the 1st component
-      TYPE(grid_t), INTENT(in)               :: grid_v    !< Grid of the 2nd component
-      TYPE(grid_t), INTENT(in)               :: grid_div  !< Output grid
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: div_u     !< Divergence of the input
-      INTEGER       :: i,j
+      REAL(8), DIMENSION(:,:), INTENT(in)                        :: CD_u      !< Zonal component of input
+      REAL(8), DIMENSION(size(CD_u,1), size(CD_u,2)), INTENT(in) :: CD_v      !< Meridional component of input
+      TYPE(grid_t), INTENT(in)                                   :: grid_u    !< Grid of the 1st component
+      TYPE(grid_t), INTENT(in)                                   :: grid_v    !< Grid of the 2nd component
+      REAL(8),DIMENSION(size(CD_u,1), size(CD_u,2)),INTENT(out)  :: div_u     !< Divergence of the input
+      type(t_grid), pointer                                      :: grid_div => null()
+
       div_u = 0._8
-!$OMP PARALLEL &
-!$OMP PRIVATE(i,j)
-!$OMP DO PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      DO j=1,Ny
-        DO i=1,Nx
-         if (grid_div%land(i,j) .EQ. 1_1) cycle
-         div_u(i,j) = 1._8/(A*grid_div%cos_lat(j)) * ( &
-                      (grid_u%ocean(ip1(i),j)*CD_u(ip1(i),j) - grid_u%ocean(i,j)*CD_u(i,j)) / dLambda &
-                      + (grid_v%ocean(i,jp1(j))*grid_v%cos_lat(jp1(j))*CD_v(i,jp1(j)) &
-                       - grid_v%ocean(i,j)*grid_v%cos_lat(j)*CD_v(i,j)) / dTheta )
-        END DO
-      END DO
-!$OMP END DO
-!$OMP END PARALLEL
+      getOutGrid(grid_v,"meridional", grid_div)
+
+      div_u(i,j) = pder_zonal(CD_u, grid_u) &
+                   + pder_meridional(spread(grid_v%cos_lat, 1, size(CD_v,1)) * CD_v, grid_v) &
+                     / spread(grid_div%cos_lat, 1, size(CD_v,1))
     END SUBROUTINE computeDivergence
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -268,37 +349,48 @@ MODULE calc_lib
     !! \f]
     !!
     !! @par Uses:
-    !! domain_module, ONLY : Nx,Ny,ip1,jp1,A,u_grid,v_grid,dLambda,dTheta
+    !! domain_module, ONLY : A, dLambda, dTheta \n
+    !! grid_module, only : grid_t
     !------------------------------------------------------------------
-    SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, grid_chi, grid_u, grid_v)
-      USE domain_module, ONLY : A,Nx,Ny,im1,jm1,dLambda,dTheta
+    SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, grid_chi)
+      USE domain_module, ONLY : A, dLambda, dTheta
       USE grid_module, ONLY : grid_t
-      IMPLICIT NONE
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_u    !< Zonal component of gradient
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out)   :: GRAD_v    !< Meridional component of gradient
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)    :: GRAD_chi  !< Scalar field
-      type(grid_t), intent(in)               :: grid_chi  !< Grid of the input scalar field
-      type(grid_t), intent(in)               :: grid_u    !< Grid of the 1st output component
-      type(grid_t), intent(in)               :: grid_v    !< Grid of the 2nd output component
-      INTEGER       :: i,j
-!$OMP PARALLEL &
-!$OMP PRIVATE(i,j)
-!$OMP DO PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      DO j=1,Ny
-        DO i=1,Nx
-            GRAD_u(i,j) = grid_u%ocean(i,j) &
-                         *(grid_chi%ocean(i,j)*GRAD_chi(i,j) &
-                          - grid_chi%ocean(im1(i),j)*GRAD_chi(im1(i),j)) &
-                          /(A*grid_u%cos_lat(j)*dLambda)
-            GRAD_v(i,j) = grid_v%ocean(i,j) &
-                          *(grid_chi%ocean(i,j)*GRAD_chi(i,j) &
-                           - grid_chi%ocean(i,jm1(j))*GRAD_chi(i,jm1(j)))/(A*dTheta)
-        END DO
-      END DO
-!$OMP END DO
-!$OMP END PARALLEL
+      REAL(8), DIMENSION(:,:), INTENT(in)                                 :: GRAD_chi  !< Scalar field
+      REAL(8), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_u    !< Zonal component of gradient
+      REAL(8), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_v    !< Meridional component of gradient
+      type(grid_t), intent(in)                                            :: grid_chi  !< Grid of the input scalar field
+
+      GRAD_u = pder_zonal(GRAD_chi, grid_chi)
+      GRAD_v = pder_meridional(GRAD_chi, grid_chi)
+
     END SUBROUTINE computeGradient
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Computes the vorticity of a staggered vector field on a sphere
+    !!
+    !! Computes the vorticity of a vector field which components are staggered like the velocities on a c-grid
+    !! @result
+    !! \f[
+    !! \zeta = \frac{1}{a\cos\theta}\left(\frac{\partial v}{\partial\lambda} - \frac{\partial\cos\theta u}{\partial\theta}\right)
+    !! \f]
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function vorticityFromVelocities(u_in,v_in,u_grid_in,v_grid_in) result(vort)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)                       :: u_in
+      real(8), dimension(size(u_in,1),size(u_in,2)), intent(in) :: v_in
+      type(grid_t), intent(in)                                  :: u_grid_in
+      type(grid_t), intent(in)                                  :: v_grid_in
+      real(8), dimension(size(u_in,1),size(u_in,2))             :: vort
+      type(grid_t), pointer                                     :: out_grid => null()
+
+      call getOutGrid(u_grid_in,"theta",out_grid)
+      vort = pder_zonal(v_in,v_grid_in) &
+            - pder_meridional(spread(u_grid_in%cos_lat,1,size(u_in,1))*u_in,u_grid_in)/spread(out_grid%cos_lat,1,size(u_in,1))
+    end function vorticityFromVelocities
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Computes the streamfunction from a velocity field
@@ -316,13 +408,14 @@ MODULE calc_lib
     !! calc_lib::computeNonDivergentFlowField
     !------------------------------------------------------------------
     SUBROUTINE computeStreamfunction(u_in, v_in, psi)
-      USE domain_module, ONLY : A, Nx, Ny, jm1, im1, H_v, dLambda, H_u, dTheta, v_grid, u_grid
-      IMPLICIT NONE
-      REAL(8),DIMENSION(Nx,Ny), INTENT(out) :: psi   !< streamfunction to output
-      REAL(8),DIMENSION(Nx,Ny), intent(in)  :: u_in  !< zonal velocity
-      REAL(8),DIMENSION(Nx,Ny), intent(in)  :: v_in  !< meridional velocity
-      INTEGER  :: i,j                                !< spatial coordinate indices
+      USE domain_module, ONLY : A, jm1, im1, H_v, dLambda, H_u, dTheta, v_grid, u_grid
+      REAL(8),DIMENSION(:,:), intent(in)                          :: u_in  !< zonal velocity
+      REAL(8),DIMENSION(size(u_in, 1), size(u_in, 2)), intent(in) :: v_in  !< meridional velocity
+      REAL(8),DIMENSION(size(u_in, 1), size(u_in, 2)), INTENT(out):: psi   !< streamfunction to output
+      INTEGER  :: i,j, Nx, Ny                                !< spatial coordinate indices
 
+      Nx = size(u_in, 1)
+      Ny = size(u_in, 2)
       psi = 0.
       CALL computeNonDivergentFlowField(u_in,v_in)
 !$OMP PARALLEL &
@@ -370,26 +463,49 @@ do i=1,Nx-1
     END SUBROUTINE computeStreamfunction
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Computes velocities from a given streamfunction
+    !> @brief Computes velocities from a given streamfunction on a 3D grid (space + time)
     !!
     !! Computes both velocity components from a given streamfunction
     !! using calc_lib::evSF_zonal and calc_lib::evSF_meridional
     !! The actual size of input in any dimension is not specified, works for time slices and time series.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : ip1,jp1,ocean_u,ocean_H,ocean_v,H_u,H_v,A,dTheta,dLambda,cosTheta_v
     !------------------------------------------------------------------
-    SUBROUTINE evaluateStreamfunction(evSF_psi,evSF_u,evSF_v,evSF_eta)
-      IMPLICIT NONE
+    SUBROUTINE evaluateStreamfunction3D(evSF_psi,evSF_u,evSF_v,evSF_eta)
       REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u   !< Zonal velocity
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_v   !< Meridional velocity
       REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
-      INTEGER   :: i,i_bound(2),j,j_bound(2),l,l_bound(2)
       evSF_u = evSF_zonal(evSF_psi)
       evSF_v = evSF_meridional(evSF_psi)
       IF (PRESENT(evSF_eta)) evSF_eta = 0._8
-    END SUBROUTINE evaluateStreamfunction
+    END SUBROUTINE evaluateStreamfunction3D
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Computes velocities from a given streamfunction on a 2D grid (space only)
+    !!
+    !! Computes both velocity components from a given streamfunction
+    !! using calc_lib::evSF_zonal and calc_lib::evSF_meridional
+    !! The actual size of input in any dimension is not specified, works for time slices and time series.
+    !! This is a wrapper for calc_lib::evaluateStreamfunction3D
+    !!
+    !! @todo Compute eta from streamfunction (if neccessary at all?) assuming geostrophy
+    !------------------------------------------------------------------
+    SUBROUTINE evaluateStreamfunction2D(evSF_psi,evSF_u,evSF_v,evSF_eta)
+      REAL(8), DIMENSION(:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
+      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_u   !< Zonal velocity
+      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_v   !< Meridional velocity
+      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
+      real(8), dimension(size(evSF_psi,1),size(evSF_psi,2),1)   :: zonal_temp, meridional_temp, psi_temp
+      psi_temp = spread(evSF_psi,3,1)
+      zonal_temp = evSF_zonal(psi_temp)
+      meridional_temp = evSF_meridional(psi_temp)
+      evSF_u = zonal_temp(:,:,1)
+      evSF_v = meridional_temp(:,:,1)
+      if (present(evSF_eta)) evSF_eta = 0._8
+    END SUBROUTINE evaluateStreamfunction2D
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  computes zonal velocity from a streamfunction
@@ -401,42 +517,21 @@ do i=1,Nx-1
     !! The actual size of the arrays does not matter, works for both time slices and time series
     !!
     !! @par Uses:
-    !! vars_module, ONLY : jp1,ocean_u,ocean_H,H_u,A,dTheta
+    !! domain_module, ONLY : u_grid, H_grid, H_u
     !! @note If BAROTROPIC is not defined, the H_u factor will be droped from the equation above.
     !------------------------------------------------------------------
-    FUNCTION evSF_zonal(evSF_psi)
-      USE domain_module, ONLY : u_grid, H_grid, A, jp1, H_u, dTheta
-      IMPLICIT NONE
-      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                          !< Streamfunction to process
-      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_zonal  !< Zonal velocity
-      INTEGER   :: i,i_bound,j,j_bound,l,l_bound
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
-      ocean_u = u_grid%ocean
-      ocean_H = H_grid%ocean
-      i_bound = UBOUND(evSF_psi,1)
-      j_bound = UBOUND(evSF_psi,2)
-      l_bound = UBOUND(evSF_psi,3)
-      evSF_zonal = 0.
-!$OMP PARALLEL &
-!$OMP PRIVATE(i,j,l)
-!$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2)
-      YSPACE: DO j=1,j_bound
-        XSPACE: DO i=1,i_bound
-          IF (ocean_u(i,j) .NE. 1_1) CYCLE XSPACE
-          TSPACE: DO l=1,l_bound
-            evSF_zonal(i,j,l) =  -(ocean_H(i,jp1(j))*evSF_psi(i,jp1(j),l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*dTheta &
+    FUNCTION evSF_zonal(evSF_psi) result(u_psi)
+      USE domain_module, ONLY : u_grid, H_grid, H_u
+      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                    !< Streamfunction to process
+      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: u_psi !< Zonal velocity
+      INTEGER   :: i, j
+      u_psi = 0.
+
+      u_psi = -pder_meridional(evSF_psi, H_grid)
 #ifdef BAROTROPIC
-                  *H_u(i,j) &
+      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), u_grid%ocean(i,j) .eq. 1_1) &
+        u_psi(i,j,:) = u_psi(i,j,:)/H_u(i,j)
 #endif
-                 )
-          ENDDO TSPACE
-        ENDDO XSPACE
-      ENDDO YSPACE
-!$OMP END DO
-!$OMP END PARALLEL
     END FUNCTION evSF_zonal
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -449,45 +544,448 @@ do i=1,Nx-1
     !! The actual size of the arrays does not matter, works for both time slices and time series
     !!
     !! @par Uses:
-    !! vars_module, ONLY : ip1,ocean_H,ocean_v,H_v,A,dLambda,cosTheta_v
+    !! domain_module, ONLY : H_grid, v_grid, H_v
     !! @note If BAROTROPIC is not defined, the H_u factor will be droped from the equation above.
     !------------------------------------------------------------------
-    FUNCTION evSF_meridional(evSF_psi)
-      USE vars_module, ONLY : ip1,H_v,dLambda
-      USE domain_module, ONLY : H_grid, v_grid, A
-      IMPLICIT NONE
-      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to process
-      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: evSF_meridional !< Meridional velocity computed
-      INTEGER   :: i,i_bound,j,j_bound,l,l_bound
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
-      INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
-      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
-      ocean_v = v_grid%ocean
-      ocean_H = H_grid%ocean
-      cosTheta_v = v_grid%cos_lat
-      i_bound = UBOUND(evSF_psi,1)
-      j_bound = UBOUND(evSF_psi,2)
-      l_bound = UBOUND(evSF_psi,3)
-      evSF_meridional = 0.
+    FUNCTION evSF_meridional(evSF_psi) result(v_psi)
+      USE domain_module, ONLY : H_grid, v_grid, H_v
+      REAL(8), DIMENSION(:,:,:), INTENT(in)                                        :: evSF_psi !< Streamfunction to process
+      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: v_psi !< Meridional velocity computed
+      INTEGER   :: i, j
+      v_psi = 0.
+      v_psi = pder_zonal(evSF_psi, H_grid)
+#ifdef BAROTROPIC
+      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), v_grid%ocean(i,j) .eq. 1_1) &
+        v_psi(i,j,:) = v_psi(i,j,:)/H_v(i,j)
+#endif
+    END FUNCTION evSF_meridional
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the zonal partial derivative for a 3D array
+    !!
+    !! The zonal partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{A\cos\theta}\frac{\partial x}{\partial \lambda}
+    !!\f]
+    !!
+    !! @par Uses:
+    !! domain_module, ONLY : A, dLambda \n
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder_zonal3D(var,grid) result(var_lambda)
+      use domain_module, only : A, dLambda
+      use grid_module, only : grid_t
+      real(8), dimension(:,:,:), intent(in)                   :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda
+      type(grid_t), pointer :: grid_out=>null()
+      integer, dimension(:), pointer  :: ind0=>null(), indm1=>null()
+      integer               :: i, j, l
+
+      var_lambda = 0._8
+
+      !< get out grid
+      call getOutGrid(grid,"lambda",grid_out, ind0, indm1)
+
+      !< compute derivative
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, i_bound) COLLAPSE(2)
-      YSPACE: DO j=1,j_bound
-        XSPACE: DO i=1,i_bound
-          IF (ocean_v(i,j) .NE. 1_1) CYCLE XSPACE
-          TSPACE: DO l=1,l_bound
-            evSF_meridional(i,j,l) = (ocean_H(ip1(i),j)*evSF_psi(ip1(i),j,l)-ocean_H(i,j)*evSF_psi(i,j,l)) &
-                /(A*cosTheta_v(j)*dLambda &
-#ifdef BAROTROPIC
-                  * H_v(i,j) &
-#endif
-                 )
-          ENDDO TSPACE
-        ENDDO XSPACE
-      ENDDO YSPACE
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+      TSPACE: do l=1,size(var,3)
+        YSPACE: do j=1,size(var,2)
+          XSPACE: do i=1,size(var,1)
+            if (grid_out%ocean(i,j) .eq. 0_1) cycle
+            var_lambda(i,j,l) = grid%ocean(ind0(i),j)*grid%ocean(indm1(i),j)/(A*grid_out%cos_lat(j)*dLambda)&
+                                *(grid%ocean(ind0(i),j)*var(ind0(i),j,l)-grid%ocean(indm1(i),j)*var(indm1(i),j,l))
+          end do XSPACE
+        end do YSPACE
+      end do TSPACE
 !$OMP END DO
 !$OMP END PARALLEL
-    END FUNCTION evSF_meridional
+    end function pder_zonal3D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the zonal partial derivative for a 2D array
+    !!
+    !! The zonal partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{A\cos\theta}\frac{\partial x}{\partial \lambda}
+    !!\f]
+    !! This is a wrapper routine for pder_zonal3D
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder_zonal2D(var,grid) result(var_lambda)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)                     :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2))             :: var_lambda
+      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+
+      var_temp = spread(var,3,1)
+      var_temp = pder_zonal3D(var_temp,grid)
+      var_lambda = var_temp(:,:,1)
+
+    end function pder_zonal2D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the meridional partial derivative fro a 3D array
+    !!
+    !! The meridional partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{A}\frac{\partial x}{\partial \theta}
+    !!\f]
+    !!
+    !! @par Uses:
+    !! domain_module, ONLY : A, dTheta \n
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder_meridional3D(var,grid) result(var_theta)
+      use domain_module, only : A, dTheta
+      use grid_module, only : grid_t
+      real(8), dimension(:,:,:), intent(in)                   :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta
+      type(grid_t), pointer :: grid_out=>null()
+      integer, dimension(:), pointer  :: ind0=>null(), indm1=>null()
+      integer               :: i, j, l
+
+      var_theta = 0._8
+
+      !< get out grid and index vectors
+      call getOutGrid(grid,"theta",grid_out, ind0, indm1)
+
+      !< compute derivative
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+      TSPACE: do l=1,size(var,3)
+        YSPACE: do j=1,size(var,2)
+          XSPACE: do i=1,size(var,1)
+            if (grid_out%ocean(i,j) .eq. 0_1) cycle
+            var_theta(i,j,l) = grid%ocean(i,ind0(j))*grid%ocean(i,indm1(j))*&
+                                 (grid%ocean(i,ind0(j))*var(i,ind0(j),l)-grid%ocean(i,indm1(j))*var(i,indm1(j),l))/(A*dTheta)
+          end do XSPACE
+        end do YSPACE
+      end do TSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+    end function pder_meridional3D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the meridional partial derivative for a 2D array
+    !!
+    !! The meridional partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{A}\frac{\partial x}{\partial \theta}
+    !!\f]
+    !! This is a wrapper routine for pder_meridional3D
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder_meridional2D(var,grid) result(var_theta)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)                     :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2))             :: var_theta
+      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+
+      var_temp = spread(var,3,1)
+      var_temp = pder_meridional3D(var_temp,grid)
+      var_theta = var_temp(:,:,1)
+
+    end function pder_meridional2D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the second zonal partial derivative for a 3D array
+    !!
+    !! The second zonal partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{a^2\cos^2\theta}\frac{\partial^2 x}{\partial \lambda^2}
+    !!\f]
+    !!
+    !! @par Uses:
+    !! domain_module, ONLY : A, dLambda, im1, ip1 \n
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder2_zonal3D(var, grid) result(var_lambda2)
+      use domain_module, only : A, dLambda, im1, ip1
+      use grid_module, only : grid_t
+      real(8), dimension(:,:,:), intent(in)                   :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda2
+      type(grid_t), pointer          :: grid_d1
+      integer, dimension(:), pointer :: ip_d1, im_d1
+      integer                        :: i, j, l
+
+      call getOutGrid(grid,"lambda2",grid_d1,ip_d1,im_d1)
+
+      !< compute derivative
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+      TSPACE: do l=1,size(var,3)
+        YSPACE: do j=1,size(var,2)
+          XSPACE: do i=1,size(var,1)
+            if (grid%ocean(i,j) .ne. 1_1) cycle
+            var_lambda2(i,j,l) = grid%ocean(i,j)/(A*grid%cos_lat(j)*dLambda)**2 &
+                                *(grid_d1%ocean(ip_d1(i),j)*grid%ocean(ip1(i),j)*var(ip1(i),j,l)&
+                                  -(grid_d1%ocean(ip_d1(i),j)+grid_d1%ocean(im_d1(i),j))*grid%ocean(i,j)*var(i,j,l)&
+                                  +grid_d1%ocean(im_d1(i),j)*grid%ocean(im1(i),j)*var(im1(i),j,l))
+          end do XSPACE
+        end do YSPACE
+      end do TSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+
+    end function pder2_zonal3D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the second zonal partial derivative for a 2D array
+    !!
+    !! The second zonal partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{a^2\cos^2\theta}\frac{\partial^2 x}{\partial \lambda^2}
+    !!\f]
+    !! This is a wrapper routine for pder2_zonal3D
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder2_zonal2D(var,grid) result(var_lambda2)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)                     :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2))             :: var_lambda2
+      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+
+      var_temp = spread(var,3,1)
+      var_temp = pder2_zonal3D(var_temp,grid)
+      var_lambda2 = var_temp(:,:,1)
+    end function pder2_zonal2D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the second meridional partial derivative for a 3D array
+    !!
+    !! The second meridional partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{a^2}\frac{\partial^2 x}{\partial \theta^2}
+    !!\f]
+    !!
+    !! @par Uses:
+    !! domain_module, ONLY : A, dTheta, jp1, jm1 \n
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder2_meridional3D(var, grid) result(var_theta2)
+      use domain_module, only : A, dTheta, jp1, jm1
+      use grid_module, only : grid_t
+      real(8), dimension(:,:,:), intent(in)                   :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta2
+      type(grid_t), pointer          :: grid_d1
+      integer, dimension(:), pointer :: ip_d1, im_d1
+      integer               :: i, j, l
+
+      call getOutGrid(grid,"theta2",grid_d1,ip_d1,im_d1)
+
+      !< compute derivative
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j,l)
+!$OMP DO PRIVATE(i,j,l)&
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+      TSPACE: do l=1,size(var,3)
+        YSPACE: do j=1,size(var,2)
+          XSPACE: do i=1,size(var,1)
+            if (grid%ocean(i,j) .eq. 0_1) cycle
+            var_theta2(i,j,l) = grid%ocean(i,j)/(A*dTheta)**2 *&
+                                 (grid_d1%ocean(i,ip_d1(j))*grid%ocean(i,jp1(j))*var(i,jp1(j),l)&
+                                  -(grid_d1%ocean(i,ip_d1(j))+grid_d1%ocean(i,im_d1(j)))*grid%ocean(i,j)*var(i,j,l)&
+                                  +grid_d1%ocean(i,im_d1(j))*grid%ocean(i,jm1(j))*var(i,jm1(j),l))
+          end do XSPACE
+        end do YSPACE
+      end do TSPACE
+!$OMP END DO
+!$OMP END PARALLEL
+
+    end function pder2_meridional3D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the second meridional partial derivative for a 2D array
+    !!
+    !! The second meridional partial derivative of a variable x is given by
+    !!\f[
+    !! \frac{1}{a^2}\frac{\partial^2 x}{\partial \theta^2}
+    !!\f]
+    !! This is a wrapper routine for pder2_meridional3D
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function pder2_meridional2D(var,grid) result(var_theta2)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)                     :: var
+      type(grid_t), intent(in)                                :: grid
+      real(8), dimension(size(var,1),size(var,2))             :: var_theta2
+      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+
+      var_temp = spread(var,3,1)
+      var_temp = pder2_meridional3D(var_temp,grid)
+      var_theta2 = var_temp(:,:,1)
+
+    end function pder2_meridional2D
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  computes the laplacian of a 2D scalar field
+    !!
+    !! The laplacian is given by
+    !!\f[
+    !! \nabla^2\gamma = \frac{1}{a^2\cos^2\theta}\frac{\partial^2\gamma}{\partial\lambda^2} + \frac{1}{a^2\cos\theta}\frac\partial{\partial\theta}\left(\cos\theta\frac{\partial\gamma}{\partial\theta}\right)
+    !!\f]
+    !!
+    !! @par Uses:
+    !! domain_module, ONLY : A, dLambda, dTheta \n
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function laplacian2D(var,grid) result(var_lap)
+      use domain_module, only : A, dLambda, dTheta, ip1, im1, jp1, jm1
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)         :: var
+      type(grid_t), intent(in)                    :: grid
+      real(8), dimension(size(var,1),size(var,2)) :: var_lap
+      type(grid_t), pointer           :: grid_d1x, grid_d1y
+      integer, dimension(:), pointer  :: ip_d1x,im_d1x,ip_d1y,im_d1y
+      integer :: i,j
+
+      var_lap = 0._8
+
+      call getOutGrid(grid,"lambda2",grid_d1x,ip_d1x,im_d1x)
+      call getOutGrid(grid,"theta2",grid_d1y,ip_d1y,im_d1y)
+
+!$OMP PARALLEL &
+!$OMP PRIVATE(i,j)
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(2)
+      do j=1,size(var,2)
+        do i=1,size(var,1)
+          if (grid%ocean(i,j).ne.1_1) cycle
+          var_lap(i,j) = 1/(A * grid%cos_lat(j) * dLambda)**2 &
+                          * (grid_d1x%ocean(ip_d1x(i),j)*grid%ocean(ip1(i),j)*var(ip1(i),j) &
+                             - (grid_d1x%ocean(ip_d1x(i),j)+grid_d1x%ocean(im_d1x(i),j))*grid%ocean(i,j)*var(i,j) &
+                             + grid_d1x%ocean(im_d1x(i),j)*grid%ocean(im1(i),j)*var(im1(i),j)) &
+                         + 1/(A**2 * grid%cos_lat(j) * dTheta**2) &
+                          * (grid_d1y%ocean(i,ip_d1y(j))*grid%ocean(i,jp1(j))*grid%cos_lat(jp1(j))*var(i,jp1(j)) &
+                             - (grid_d1y%ocean(i,ip_d1y(j))+grid_d1y%ocean(i,im_d1y(j)))*grid%ocean(i,j)*grid%cos_lat(j)*var(i,j) &
+                             + grid_d1y%ocean(i,im_d1y(j))*grid%ocean(i,jm1(j))*grid%cos_lat(jm1(j))*var(i,jm1(j)))
+        end do
+      end do
+!$OMP END DO
+!$OMP END PARALLEL
+    end function laplacian2D
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Returns a pointer to a grid shifted by half a grid size in the griven direction
+    !!
+    !! The returned indices can be used to adress the neighbouring elements of the target grid point.
+    !! In the case of the second derivatives, the indices can be used to get the points where the
+    !! first derivated would be located, so that the free-slip boundary condition can be applied.
+    !!
+    !! @par Uses:
+    !! grid_module, ONLY : grid_t \n
+    !! domain_module, ONLY : u_grid, v_grid, H_grid, eta_grid, ip0, im1, ip1, jp0, jm1, jp1
+    !------------------------------------------------------------------
+    subroutine getOutGrid(grid,direction, grid_out, ind0, indm1)
+      use grid_module
+      use domain_module, only : u_grid, v_grid, H_grid, eta_grid, ip0, ip1, im1, jp0, jm1, jp1
+      type(grid_t), intent(in)                              :: grid
+      character(*), intent(in)                              :: direction
+      type(grid_t), pointer, intent(out)                    :: grid_out=>null()
+      integer, pointer, dimension(:), intent(out), optional :: ind0
+      integer, pointer, dimension(:), intent(out), optional :: indm1
+      ind0 => null()
+      indm1 => null()
+      select case(direction)
+        case ("X","x","lambda","zonal")    !< zonal derivative
+          if (grid .eq. u_grid) then
+            grid_out => eta_grid
+            ind0  => ip1
+            indm1 => ip0
+          else if (grid .eq. H_grid) then
+            grid_out => v_grid
+            ind0  => ip1
+            indm1 => ip0
+          else if (grid .eq. v_grid) then
+            grid_out => H_grid
+            ind0  => ip0
+            indm1 => im1
+          else if (grid .eq. eta_grid) then
+            grid_out => u_grid
+            ind0  => ip0
+            indm1 => im1
+          end if
+        case ("X2","x2","lambda2","zonal2") !< second zonal derivative
+          if (grid .eq. u_grid) then
+            grid_out => eta_grid
+            ind0  => ip0
+            indm1 => im1
+          else if (grid .eq. H_grid) then
+            grid_out => v_grid
+            ind0  => ip0
+            indm1 => im1
+          else if (grid .eq. v_grid) then
+            grid_out => H_grid
+            ind0  => ip1
+            indm1 => ip0
+          else if (grid .eq. eta_grid) then
+            grid_out => u_grid
+            ind0  => ip1
+            indm1 => ip0
+          end if
+        case ("Y","y","theta","meridional") !< meridional derivative
+          if (grid .eq. u_grid) then
+            grid_out => H_grid
+            ind0  => jp0
+            indm1 => jm1
+          else if (grid .eq. H_grid) then
+            grid_out => u_grid
+            ind0  => jp1
+            indm1 => jp0
+          else if (grid .eq. v_grid) then
+            grid_out => eta_grid
+            ind0  => jp1
+            indm1 => jp0
+          else if (grid .eq. eta_grid) then
+            grid_out => v_grid
+            ind0  => jp0
+            indm1 => jm1
+          end if
+        case ("Y2","y2","theta2","meridional2") !< second meridional derivative
+          if (grid .eq. u_grid) then
+            grid_out => H_grid
+            ind0  => jp1
+            indm1 => jp0
+          else if (grid .eq. H_grid) then
+            grid_out => u_grid
+            ind0  => jp0
+            indm1 => jm1
+          else if (grid .eq. v_grid) then
+            grid_out => eta_grid
+            ind0  => jp0
+            indm1 => jm1
+          else if (grid .eq. eta_grid) then
+            grid_out => v_grid
+            ind0  => jp1
+            indm1 => jp0
+          end if
+        case default
+          print *,"ERROR: Wrong direction for getOutGrid specified. Check your code!"
+          stop 1
+      end select
+    end subroutine getOutGrid
 
 END MODULE calc_lib

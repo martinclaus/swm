@@ -19,8 +19,10 @@ MODULE domain_module
     REAL(8)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
     REAL(8)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
     ! nearest neighbour indices, derived from domain specs
+    integer, dimension(:), allocatable, target :: ip0  !< Size Nx \n Index in zonal direction, i.e i+0.
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer, dimension(:), allocatable, target :: jp0  !< Size Nx \n Index in meridional direction, i.e j+0.
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     ! constant fieds H, allocated during initialization
@@ -61,7 +63,7 @@ MODULE domain_module
             ALLOCATE(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny))
             ALLOCATE(H(1:Nx,1:Ny))
             ALLOCATE(H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
-            ALLOCATE(ip1(1:Nx), im1(1:Nx), jp1(1:Nx), jm1(1:Ny))
+            ALLOCATE(ip0(1:Nx), ip1(1:Nx), im1(1:Nx), jp0(1:Ny), jp1(1:Ny), jm1(1:Ny))
 
 
             dLambda = D2R * (lon_e-lon_s)/(Nx-1)
@@ -74,18 +76,16 @@ MODULE domain_module
             !! but it is switched off by closing the EW / NS coast line using the
             !! land masks
             !------------------------------------------------------------------
-            DO i = 1,Nx
-                im1(i) = i - 1
-                ip1(i) = i + 1
-            END DO
-            im1(1)  = Nx
-            ip1(Nx) = 1
-            DO j = 1,Ny
-                jm1(j) = j - 1
-                jp1(j) = j + 1
-            END DO
-            jm1(1)  = Ny
-            jp1(Ny) = 1
+            do i = 1,Nx
+              ip0(i) = i
+            end do
+            im1 = cshift(ip0, -1)
+            ip1 = cshift(ip0,  1)
+            do j = 1,Ny
+                jp0(j) = j
+            end do
+            jm1 = cshift(jp0, -1)
+            jp1 = cshift(jp0,  1)
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! Coordinate vectors for all grids
@@ -169,9 +169,9 @@ MODULE domain_module
             CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v)
             CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta)
 
-            CALL setf(H_grid, theta0, OMEGA, A)
-            CALL setf(u_grid, theta0, OMEGA, A)
-            CALL setf(v_grid, theta0, OMEGA, A)
-            CALL setf(eta_grid, theta0, OMEGA, A)
+            CALL setf(H_grid, theta0, OMEGA)
+            CALL setf(u_grid, theta0, OMEGA)
+            CALL setf(v_grid, theta0, OMEGA)
+            CALL setf(eta_grid, theta0, OMEGA)
         END SUBROUTINE initDomain
 END MODULE domain_module

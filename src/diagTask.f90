@@ -15,7 +15,7 @@
 MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out
-  USE domain_module, ONLY : grid_t, Nx, Ny
+  use grid_module, only : grid_t, t_grid_lagrange
   USE generic_list
   USE diagVar
   use str
@@ -46,8 +46,10 @@ MODULE diagTask
     CHARACTER(CHARLEN)  :: period       !< Sampling period for AVERAGE output.
     CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
     CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-    TYPE(grid_t), POINTER :: grid=>null() !< grid of the variable
-    REAL(8), DIMENSION(:,:), POINTER     :: varData=>null()   !< data, which should be processed
+    TYPE(grid_t), POINTER :: grid=>null() !< euler grid of the variable
+    type(t_grid_lagrange), pointer  :: grid_l=>null() !< Lagrangian grid of the variable
+    REAL(8), DIMENSION(:,:), POINTER     :: varData2D=>null()   !< 2D data, which should be processed
+    real(8), dimension(:), pointer       :: varData1D=>null()   !< 1D data, which should be processed
     REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
     REAL(8)             :: bufferCount=0.   !< Counter, counting time
     REAL(8)             :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
@@ -88,7 +90,6 @@ MODULE diagTask
       INTEGER, intent(in)             :: ID          !< ID of diagTask
       INTEGER, intent(in)             :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
       POINTER :: self
-      REAL(8), DIMENSION(:,:,:), POINTER :: tmp_var3D
       INTEGER :: alloc_error
 
       ALLOCATE(self, stat=alloc_error)
@@ -113,8 +114,8 @@ MODULE diagTask
       END SELECT DiagVar
 
       !< Set pointer to variable register
-      CALL getFromRegister(self%varname,self%varData,self%grid)
-      IF (.NOT.ASSOCIATED(self%varData)) THEN
+      CALL getVarDataFromRegister(self)
+      IF (.NOT.ASSOCIATED(self%varData2D).and..not.associated(self%varData1D)) THEN
         PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
         STOP 2
       END IF
@@ -126,7 +127,11 @@ MODULE diagTask
           self%nstep = MAX(INT(Nt / self%frequency),1)
 
         CASE ("A","a")
-          ALLOCATE(self%buffer(Nx,Ny), stat=alloc_error)
+          if(associated(self%varData2D)) then !< euler grid
+            allocate(self%buffer(size(self%varData2D,1), size(self%varData2D,2)), stat=alloc_error)
+          else if (associated(self%varData1D)) then !< lagrangian grid
+            allocate(self%buffer(size(self%varData1D),1), stat=alloc_error)
+          end if
           IF (alloc_error .ne. 0) THEN
             PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
             STOP 1
@@ -159,8 +164,10 @@ MODULE diagTask
         IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
       END IF
 
-      nullify(self%varData)
+      nullify(self%varData2D)
+      nullify(self%varData1D)
       nullify(self%grid)
+      nullify(self%grid_l)
 
       DEALLOCATE(self, stat=alloc_error)
       IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
@@ -221,18 +228,25 @@ MODULE diagTask
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(in) :: self !< Task to output
       REAL(8), INTENT(in)                   :: time !< Timestamp in model time
-      REAL(8), DIMENSION(:,:), POINTER      :: outData => null()
+      REAL(8), DIMENSION(:,:), POINTER      :: outData2D => null()
+      real(8), dimension(:), pointer        :: outData1D => null()
 
       SELECT CASE (self%type(1:1))
         CASE ("A","a")
-          outData=>self%buffer
+          if (associated(self%varData2D)) outData2D => self%buffer
+          if (associated(self%varData1D)) outData1D => self%buffer(:,1)
         CASE DEFAULT
-          outData=>self%varData
+          if (associated(self%varData2D)) outData2D => self%varData2D
+          if (associated(self%varData1D)) outData1D => self%varData1D
       END SELECT
 
       IF (self%rec .gt. self%NoutChunk) CALL createTaskDS(self)
 
-      CALL putVar(self%FH,outData*self%oScaleFactor, self%rec, time, self%grid%ocean)
+      if (associated(outData2D).and.associated(self%grid)) then
+        call putVar(self%FH, outData2D * self%oScaleFactor, self%rec, time, self%grid)
+      else if (associated(outData1D).and.associated(self%grid_l)) then
+        call putVar(self%FH, outData1D * self%oScaleFactor, self%rec, time, self%grid_l)
+      end if
       self%rec = self%rec+1
       self%fullrec = self%fullrec+1
 
@@ -294,14 +308,24 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE addDataToTaskBuffer(task,deltaT)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in)     :: task
-      REAL(8), INTENT(in)                     :: deltaT
+      TYPE(diagTask_t), POINTER, INTENT(in)     :: task   !< Task to process
+      REAL(8), INTENT(in)                       :: deltaT !< length of time interval
+      integer                                   :: power
+
       SELECT CASE (task%process(1:1))
         CASE ("S","s") !< square averaging
-          task%buffer = task%buffer + deltaT*task%varData**2
+          power = 2
         CASE DEFAULT  !< normal averaging
-          task%buffer = task%buffer + deltaT*task%varData
+          power = 1
       END SELECT
+
+      !< add data to buffer
+      if (associated(task%varData2D)) then
+        task%buffer = task%buffer + deltaT * task%varData2D ** power
+      else if (associated(task%varData1D)) then
+        task%buffer = task%buffer + deltaT * spread(task%varData1D,2,1) ** power
+      end if
+
       !< Increase bufferCounter
       task%bufferCount = task%bufferCount + deltaT
     END SUBROUTINE addDataToTaskBuffer
@@ -317,9 +341,21 @@ MODULE diagTask
     SUBROUTINE createTaskDS(task)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(in) :: task
+
+      !< close dataset if exists
       CALL closeDS(task%FH)
+
+      !< update io_module::fullrecstr
       WRITE (fullrecstr, '(i12.12)') task%fullrec
-      CALL createDS(task%FH,task%grid)
+
+      !< create dataset
+      if (associated(task%grid)) then
+        call createDS(task%FH,task%grid)
+      else if (associated(task%grid_l)) then
+        call createDS(task%FH, task%grid_l)
+      end if
+
+      !< reset record counter
       task%rec = 1
     END SUBROUTINE createTaskDS
 
@@ -336,7 +372,7 @@ MODULE diagTask
       IMPLICIT NONE
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagTask_ptr)  :: task_ptr
-      INTEGER             :: io_stat=0, nlist=0, alloc_error
+      INTEGER             :: io_stat=0, nlist=0
       TYPE(fileHandle)    :: FH
       CHARACTER(CHARLEN)  :: filename    !< Name and path of output file
       CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
@@ -451,5 +487,25 @@ MODULE diagTask
         "Frequency:", self%frequency
       WRITE (*,'(A52)') "****************************************************"
     END SUBROUTINE
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Set vardata pointer of a diagTask object to a variable stored in
+    !! the variable register
+    !!
+    !! Tries to find a variable with name self%varname in the variable register
+    !! of the vars_module. First it tries to set the 2D variable pointer. If it fails,
+    !! it will try to set the 1D variable pointer, mainly used for lagrangian variables.
+    !------------------------------------------------------------------
+    subroutine getVarDataFromRegister(self)
+      type(diagTask_t), intent(inout)   :: self
+      !< try to read 2d variable
+      call getFromRegister(self%varname,self%varData2D,self%grid,self%grid_l)
+      if (.not.associated(self%varData2D)) &
+        call getFromRegister(self%varname,self%varData1D, self%grid, self%grid_l)
+       if (.not.associated(self%varData2D).and..not.associated(self%varData1D)) then
+         print *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
+         stop 2
+       end if
+    end subroutine
 
 END MODULE diagTask

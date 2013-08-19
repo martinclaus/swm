@@ -335,7 +335,7 @@ MODULE swm_forcing_module
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
       USE vars_module, ONLY : itt, dt
       USE domain_module, ONLY : H_u, H_v, H, H_eta, Nx, Ny, dLambda, dTheta, &
-                                ip1, jp1, im1, jm1, A, u_grid, v_grid 
+                                ip1, jp1, im1, jm1, A, u_grid, v_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm_x, forcingTerm_y
       REAL(8), DIMENSION(:,:), ALLOCATABLE        :: data
@@ -401,7 +401,8 @@ MODULE swm_forcing_module
     !!
     !! @par Uses:
     !! memchunk_module, ONLY : getChunkData, isConstant \n
-    !! vars_module, ONLY : ocean_eta, itt, dt
+    !! vars_module, ONLY : itt, dt \n
+    !! domain_module, ONLY : eta_grid
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processHeating(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant
@@ -409,16 +410,13 @@ MODULE swm_forcing_module
       USE domain_module, ONLY : eta_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
-      INTEGER     :: i,j
-      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
 
-      ocean_eta = eta_grid%ocean
       IF (isConstant(iStream%memChunk)) THEN
         forcingTerm => F_eta_const
       ELSE
         forcingTerm => F_eta
       END IF
-      WHERE (ocean_eta.EQ.1) forcingTerm = forcingTerm + getChunkData(iStream%memChunk, itt*dt)
+      WHERE (eta_grid%ocean.EQ.1) forcingTerm = forcingTerm + getChunkData(iStream%memChunk, itt*dt)
     END SUBROUTINE SWM_forcing_processHeating
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

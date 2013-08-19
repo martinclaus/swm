@@ -87,7 +87,7 @@ calendar_module.o : calendar_module.f90 calendar.h udunits.inc
 
 include/udunits.inc : $(subst -I,,$(includeud))/udunits.inc include
 	@echo Convert F77 udunits interface to F90
-	@$(SED) -e 's/^C/!/' -e '/#define UD_POINTER/d' $< > $@
+	@$(SED) -e 's/\t/  /g' -e 's/^C/!/g' -e '/#define UD_POINTER/d' $< > $@
 
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
 	$(COMPILE)

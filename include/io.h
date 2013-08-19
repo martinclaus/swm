@@ -60,6 +60,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define TAXISNAME "TIME"
 #define XAXISNAME "LONGITUDE"
 #define YAXISNAME "LATITUDE"
+#define IDAXISNAME "ID"
 #define XUNIT     "degrees_east"
 #define YUNIT     "degrees_north"
 #define TUNIT     "seconds since 0000-01-01 00:00:00"

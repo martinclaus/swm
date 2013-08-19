@@ -606,8 +606,8 @@ MODULE swm_timestep_module
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
       INTEGER :: alloc_error, i, j
-      REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v, u_bs, v_bs
-      REAL(8), DIMENSION(:,:,:), ALLOCATABLE ::  psi_bs
+      REAL(8), DIMENSION(:,:), ALLOCATABLE :: U_v, V_u, f, f_u, f_v
+      REAL(8), DIMENSION(:,:,:), ALLOCATABLE ::  psi_bs,  u_bs, v_bs
       INTEGER(1), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2)) :: ocean_H
       REAL(8), DIMENSION(SIZE(H_grid%lat)) :: lat_H
       REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
@@ -622,7 +622,7 @@ MODULE swm_timestep_module
       cosTheta_v = v_grid%cos_lat
       ALLOCATE(SWM_Coef_eta(1:9,1:Nx, 1:Ny), SWM_Coef_v(1:11, 1:Nx, 1:Ny), SWM_Coef_u(1:11, 1:Nx, 1:Ny),&
                U_v(1:Nx, 1:Ny), V_u(1:Nx, 1:Ny), f(1:Nx, 1:Ny), f_u(1:Nx, 1:Ny), f_v(1:Nx, 1:Ny), &
-               psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny),v_bs(1:Nx,1:Ny), stat=alloc_error)
+               psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
         STOP 1
@@ -645,10 +645,10 @@ MODULE swm_timestep_module
       ! compute ambient vorticity
       FORALL (i=1:Nx, j=1:Ny)
         f(i,j) =  ocean_H(i,j)/(A*cosTheta_v(j))*(&
-                  (v_bs(i,j)-v_bs(im1(i),j))/dLambda &
-                  - (cosTheta_u(j)*u_bs(i,j) - cosTheta_u(jm1(j))*u_bs(i,jm1(j)))/dTheta)
-        U_v(i,j) = .25_8*(u_bs(i,j)+u_bs(ip1(i),j)+u_bs(ip1(i),jm1(j))+u_bs(i,jm1(j)))
-        V_u(i,j) = .25_8*(v_bs(im1(i),jp1(j))+v_bs(im1(i),j)+v_bs(i,j)+v_bs(i,jp1(j)))
+                  (v_bs(i,j,1)-v_bs(im1(i),j,1))/dLambda &
+                  - (cosTheta_u(j)*u_bs(i,j,1) - cosTheta_u(jm1(j))*u_bs(i,jm1(j),1))/dTheta)
+        U_v(i,j) = .25_8*(u_bs(i,j,1)+u_bs(ip1(i),j,1)+u_bs(ip1(i),jm1(j),1)+u_bs(i,jm1(j),1))
+        V_u(i,j) = .25_8*(v_bs(im1(i),jp1(j),1)+v_bs(im1(i),j,1)+v_bs(i,j,1)+v_bs(i,jp1(j),1))
       END FORALL
       FORALL (i=1:Nx, j=1:Ny)
         f_u(i,j) = .5_8 * (f(i,j)+f(i,jp1(j)))
@@ -661,12 +661,12 @@ MODULE swm_timestep_module
       END FORALL
       FORALL (i=1:Nx, j=1:Ny)
         ! eta coefficients
-        SWM_Coef_eta(1,i,j) = -(u_bs(ip1(i),j)-u_bs(i,j))/(2.*A*cosTheta_u(j)*dLambda) &
-                              -(cosTheta_v(jp1(j))*v_bs(i,jp1(j))-cosTheta_v(j)*v_bs(i,j))/(2.*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(2,i,j) = - u_bs(ip1(i),j) / (2.*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(3,i,j) =   u_bs(i     ,j) / (2.*A*cosTheta_u(j)*dLambda)
-        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v_bs(i,jp1(j)))/(2.*A*cosTheta_u(j)*dTheta)
-        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v_bs(i,j))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(1,i,j) = -(u_bs(ip1(i),j,1)-u_bs(i,j,1))/(2.*A*cosTheta_u(j)*dLambda) &
+                              -(cosTheta_v(jp1(j))*v_bs(i,jp1(j),1)-cosTheta_v(j)*v_bs(i,j,1))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(2,i,j) = - u_bs(ip1(i),j,1) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(3,i,j) =   u_bs(i     ,j,1) / (2.*A*cosTheta_u(j)*dLambda)
+        SWM_Coef_eta(4,i,j) = -(cosTheta_v(jp1(j))*v_bs(i,jp1(j),1))/(2.*A*cosTheta_u(j)*dTheta)
+        SWM_Coef_eta(5,i,j) =  (cosTheta_v(j)*v_bs(i,j,1))/(2.*A*cosTheta_u(j)*dTheta)
         SWM_Coef_eta(6,i,j) = -(H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(7,i,j) =  (H_eta(i,j))/(A*cosTheta_u(j)*dLambda)
         SWM_Coef_eta(8,i,j) = -(cosTheta_v(jp1(j))*H_eta(i,j))/(A*cosTheta_u(j)*dTheta)
@@ -674,34 +674,34 @@ MODULE swm_timestep_module
         ! u coefficients
         SWM_Coef_u(1,i,j)   =  (cosTheta_u(j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j))) &
                                  - cosTheta_u(j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j)))*V_u(i,j)
-        SWM_Coef_u(2,i,j)   = - u_bs(ip1(i),j)/(2.*A*dLambda*cosTheta_u(j))
-        SWM_Coef_u(3,i,j)   =   u_bs(im1(i),j)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(2,i,j)   = - u_bs(ip1(i),j,1)/(2.*A*dLambda*cosTheta_u(j))
+        SWM_Coef_u(3,i,j)   =   u_bs(im1(i),j,1)/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(4,i,j)   = - cosTheta_u(jp1(j))*V_u(i,j)*ocean_H(i,jp1(j))/(2.*A*dTheta*cosTheta_v(jp1(j)))
         SWM_Coef_u(5,i,j)   =   cosTheta_u(jm1(j))*V_u(i,j)*ocean_H(i,j)/(2.*A*dTheta*cosTheta_v(j))
         SWM_Coef_u(6,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
-                                 - (v_bs(i,j))/(2.*A*dLambda*cosTheta_u(j))
+                                 - (v_bs(i,j,1))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(7,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j)) &
-                                 + (v_bs(im1(i),j))/(2.*A*dLambda*cosTheta_u(j))
+                                 + (v_bs(im1(i),j,1))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(8,i,j)   =   f_u(i,j)/4. - (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
-                                 + (v_bs(im1(i),jp1(j)))/(2.*A*dLambda*cosTheta_u(j))
+                                 + (v_bs(im1(i),jp1(j),1))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(9,i,j)   =   f_u(i,j)/4. + (V_u(i,j)*ocean_H(i,jp1(j)))/(2.*A*dLambda*cosTheta_v(jp1(j))) &
-                                 - (v_bs(i,jp1(j)))/(2.*A*dLambda*cosTheta_u(j))
+                                 - (v_bs(i,jp1(j),1))/(2.*A*dLambda*cosTheta_u(j))
         SWM_Coef_u(10,i,j)  = - g / (A*cosTheta_u(j)*dLambda)
         SWM_Coef_u(11,i,j)  =   g / (A*cosTheta_u(j)*dLambda)
         ! v coefficients
         SWM_Coef_v(1,i,j)   =  ((ocean_H(ip1(i),j)-ocean_H(i,j))*U_v(i,j))/(2.*A*dLambda*cosTheta_v(j))
         SWM_Coef_v(2,i,j)   =  (-U_v(i,j)*ocean_H(ip1(i),j))/(2.*A*dLambda*cosTheta_v(j))
         SWM_Coef_v(3,i,j)   =  (U_v(i,j)*ocean_H(i,j))/(2.*A*dLambda*cosTheta_v(j))
-        SWM_Coef_v(4,i,j)   =  (-v_bs(i,jp1(j)))/(2.*A*dTheta)
-        SWM_Coef_v(5,i,j)   =  (v_bs(i,jm1(j)))/(2.*A*dTheta)
+        SWM_Coef_v(4,i,j)   =  (-v_bs(i,jp1(j),1))/(2.*A*dTheta)
+        SWM_Coef_v(5,i,j)   =  (v_bs(i,jm1(j),1))/(2.*A*dTheta)
         SWM_Coef_v(6,i,j)   = - f_v(i,j)/4. - (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 + (u_bs(ip1(i),jm1(j)))/(2.*A*dTheta)
+                                 + (u_bs(ip1(i),jm1(j),1))/(2.*A*dTheta)
         SWM_Coef_v(7,i,j)   = - f_v(i,j)/4. - (ocean_H(i,j)*U_v(i,j)*cosTheta_u(jm1(j)))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 + (u_bs(i,jm1(j)))/(2.*A*dTheta)
+                                 + (u_bs(i,jm1(j),1))/(2.*A*dTheta)
         SWM_Coef_v(8,i,j)   = - f_v(i,j)/4. + (ocean_H(i,j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 - (u_bs(i,j))/(2.*A*dTheta)
+                                 - (u_bs(i,j,1))/(2.*A*dTheta)
         SWM_Coef_v(9,i,j)   = - f_v(i,j)/4. + (ocean_H(ip1(i),j)*U_v(i,j)*cosTheta_u(j))/(2.*A*dTheta*cosTheta_v(j)) &
-                                 - (u_bs(ip1(i),j))/(2.*A*dTheta)
+                                 - u_bs(ip1(i),j,1)/(2.*A*dTheta)
         SWM_Coef_v(10,i,j)  = - g / (A*dTheta)
         SWM_Coef_v(11,i,j)  =   g / (A*dTheta)
       END FORALL

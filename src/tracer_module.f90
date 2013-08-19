@@ -396,7 +396,7 @@ MODULE tracer_module
       USE vars_module, ONLY : dt, itt
       USE domain_module, ONLY : Nx,Ny,dLambda,dTheta,u_grid, A
       REAL(8), DIMENSION(Nx,Ny), INTENT(in) :: u,v
-      REAL(8)                               :: a_sq, b, c
+      REAL(8)                               :: a_sq, b
       REAL(8), DIMENSION(SIZE(u_grid%cos_lat))    :: cosTheta_u
       cosTheta_u = u_grid%cos_lat
 
@@ -489,7 +489,7 @@ MODULE tracer_module
     !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initABScheme
-      USE vars_module, ONLY: Nx,Ny,dLambda,dTheta,ip1,jp1, addToRegister 
+      USE vars_module, ONLY: Nx,Ny,dLambda,dTheta,ip1,jp1, addToRegister
       USE domain_module, ONLY : Nx, Ny, dLambda, dTheta, ip1, jp1, &
                                 eta_grid, u_grid, v_grid, A
       INTEGER       :: alloc_error

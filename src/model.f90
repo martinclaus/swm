@@ -15,7 +15,7 @@
 !! model.h, io.h
 !!
 !! @par Uses:
-!! vars_module, calc_lib, diag_module, domain_module, 
+!! vars_module, calc_lib, diag_module, domain_module,
 !! dynFromFile_module, swm_module, tracer_module
 !!
 !! @todo Put init, timestep and finish calls in a subroutine

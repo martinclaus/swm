@@ -33,7 +33,7 @@ USE swm_timestep_module
       USE vars_module, ONLY : Ns, N0, addToRegister
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
-      INTEGER :: alloc_error, stat ! return status
+      INTEGER :: alloc_error ! return status
       ! allocate what's necessary
       ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
       CALL addToRegister(SWM_u,"SWM_U", u_grid)

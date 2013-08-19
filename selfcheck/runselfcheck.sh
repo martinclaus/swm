@@ -34,8 +34,11 @@ cd $testDir
 time $buildDir/./model
 
 # Compare results
-set -x
-for dataset in $referenceDatasetList
-do
-cdo diff $dataset $(echo $dataset | sed 's/reference/new/')
-done
+if [ $? -eq 0 ]
+  then
+    set -x
+    for dataset in $referenceDatasetList
+    do
+      cdo diff $dataset $(echo $dataset | sed 's/reference/new/')
+    done
+fi

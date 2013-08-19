@@ -81,7 +81,7 @@ MODULE memchunk_module
       CALL initFH(fileName,varName,memChunk%FH)
       IF (.NOT.isSetChunk(memChunk)) RETURN
       nrec = getNrec(memChunk%FH)
-      IF (nrec.EQ.1) THEN ! constant in time
+      IF (nrec.LE.1) THEN ! constant in time
         memChunk%isPersistent = .TRUE.
         memChunk%isConstant = .TRUE.
         memChunk%chunkSize  = 1
@@ -188,7 +188,7 @@ MODULE memchunk_module
       ! set length to at ! least one
       len2 = MAX(nend-nstart,0) + 1
       ! read chunk from file
-      call getVar(memChunk%FH,var(:,:,:len2),nstart,len2)
+      call getVar(memChunk%FH,var(:,:,:len2),nstart)
       ! check if there is something left to read
       IF (len2.LT.len) THEN
         nstart2 = 1
