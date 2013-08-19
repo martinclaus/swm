@@ -328,14 +328,14 @@ MODULE calc_lib
       TYPE(grid_t), INTENT(in)                                   :: grid_u    !< Grid of the 1st component
       TYPE(grid_t), INTENT(in)                                   :: grid_v    !< Grid of the 2nd component
       REAL(8),DIMENSION(size(CD_u,1), size(CD_u,2)),INTENT(out)  :: div_u     !< Divergence of the input
-      type(t_grid), pointer                                      :: grid_div => null()
+      type(grid_t), pointer                                      :: grid_div => null()
 
       div_u = 0._8
-      getOutGrid(grid_v,"meridional", grid_div)
+      call getOutGrid(grid_v,"meridional", grid_div)
 
-      div_u(i,j) = pder_zonal(CD_u, grid_u) &
-                   + pder_meridional(spread(grid_v%cos_lat, 1, size(CD_v,1)) * CD_v, grid_v) &
-                     / spread(grid_div%cos_lat, 1, size(CD_v,1))
+      div_u = pder_zonal(CD_u, grid_u) &
+              + pder_meridional(spread(grid_v%cos_lat, 1, size(CD_v,1)) * CD_v, grid_v) &
+                / spread(grid_div%cos_lat, 1, size(CD_v,1))
     END SUBROUTINE computeDivergence
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

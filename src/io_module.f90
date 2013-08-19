@@ -51,7 +51,7 @@ MODULE io_module
   CHARACTER(FULLREC_STRLEN)   :: fullrecstr=""      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
-  TYPE(calendar)        :: modelCalendar !< Internal Calendar of the model
+  TYPE(calendar), save        :: modelCalendar !< Internal Calendar of the model
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief creates a dataset with a given grid
@@ -397,7 +397,6 @@ MODULE io_module
       LOGICAL                                     :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      print *, "Read file "//trim(FH%filename)//":"//trim(FH%varname)
       call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=SHAPE(var)),&
                  __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
