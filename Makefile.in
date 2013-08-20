@@ -119,7 +119,7 @@ dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_
 memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
-swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o
+swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o generic_list.o
 	$(COMPILE)
 
 swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o

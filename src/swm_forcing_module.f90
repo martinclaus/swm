@@ -15,14 +15,13 @@
 !!
 !! @par Includes:
 !! model.h, swm_module.h, io.h
-!!
-!! @todo replace forcing stream array by linked list
 !------------------------------------------------------------------
 MODULE swm_forcing_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
   USE memchunk_module, ONLY : memoryChunk
+  USE generic_list
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -50,7 +49,11 @@ MODULE swm_forcing_module
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_x_const !< Constant forcing term in zonal momentum equation. Size Nx,Ny
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_y_const !< Constant forcing term in meridional momentum equation, Size Nx,Ny
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_eta_const !< Constant forcing term in continuity equation, Size Nx,Ny
-  TYPE(SWM_forcingStream), DIMENSION(SWM_MAX_FORCING_INPUT) :: SWM_forcing_iStream !< Array of forcing streams
+  TYPE(list_node_t), POINTER                   :: SWM_forcing_iStream => null() !< Linked List of forcing Streams
+
+  TYPE :: stream_ptr
+      TYPE(SWM_forcingStream), POINTER :: stream=>null() !< Type containing forcing Streams to put into a linked list
+  END TYPE stream_ptr
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -71,6 +74,9 @@ MODULE swm_forcing_module
       INTEGER   :: stat, i
       CHARACTER(CHARLEN) :: filename, varname, forcingtype, component
       INTEGER            :: chunksize
+      TYPE(list_node_t), POINTER :: forcinglist
+      TYPE(stream_ptr)           :: sptr
+
       !< namelist definition of forcing variable
       NAMELIST / swm_forcing_nl / &
         filename, varname, forcingtype, component, chunksize
@@ -99,12 +105,13 @@ MODULE swm_forcing_module
         component=""
         chunksize=SWM_DEF_FORCING_CHUNKSIZE
         READ(UNIT_SWM_FORCING_NL, nml=swm_forcing_nl, iostat=stat)
-        IF (stat.NE.0) EXIT
-        CALL SWM_forcing_initStream(filename,varname,chunksize,forcingtype,component,SWM_forcing_iStream(i))
-        IF (i.EQ.SWM_MAX_FORCING_INPUT) WRITE(*,*) "WARNING: Maximum number of forcing streams for shallow water module reached."&
+        IF (stat .NE. 0) EXIT
+        CALL SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
+        IF (i .EQ. SWM_MAX_FORCING_INPUT) WRITE(*,*) "WARNING: Maximum number of forcing streams for shallow water module reached."&
           //" The rest will be skipped."
       END DO
       CLOSE(UNIT_SWM_FORCING_NL)
+
       ! compute constant forcing
       CALL SWM_forcing_getForcing(isTDF=.FALSE.)
     END SUBROUTINE SWM_forcing_init
@@ -140,10 +147,23 @@ MODULE swm_forcing_module
       IMPLICIT NONE
       LOGICAL, INTENT(in) :: isTDF  !< Defines which forcing datasets should be processed.
       INTEGER     :: i
-      DO i=1,SWM_MAX_FORCING_INPUT
-        IF (.NOT.SWM_forcing_iStream(i)%isInitialised) cycle
-        IF (isTDF.EQV.isConstant(SWM_forcing_iStream(i)%memChunk)) CYCLE
-        CALL SWM_forcing_processInputStream(SWM_forcing_iStream(i))
+      TYPE(list_node_t), POINTER    :: streamlist
+      TYPE(stream_ptr)              :: sptr
+
+      streamlist => SWM_forcing_iStream
+
+      IF (.NOT. ASSOCIATED(streamlist)) THEN
+          WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list"
+          STOP 2
+      END IF
+      DO WHILE (ASSOCIATED(streamlist))
+        IF (ASSOCIATED(list_get(streamlist))) THEN
+            sptr = transfer(list_get(streamlist), sptr)
+            IF ((sptr%stream%isInitialised) .AND. (.NOT. (isTDF .EQV. isConstant(sptr%stream%memChunk)))) THEN
+                    CALL SWM_forcing_processInputStream(sptr%stream)
+            END IF
+        END IF
+        streamlist => list_next(streamlist)
       END DO
     END SUBROUTINE SWM_forcing_getForcing
 
@@ -427,12 +447,26 @@ MODULE swm_forcing_module
     SUBROUTINE SWM_forcing_finish
       IMPLICIT NONE
       INTEGER :: alloc_error, i
+      TYPE(list_node_t), POINTER    :: streamlist
+      TYPE(stream_ptr)              :: sptr
+
+      streamlist => SWM_forcing_iStream
+
       DEALLOCATE(F_x,F_y,F_x_const,F_y_const,F_eta,F_eta_const,stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-      DO i=1,SWM_MAX_FORCING_INPUT
-        IF (.NOT.SWM_forcing_iStream(i)%isInitialised) cycle
-        CALL SWM_forcing_finishStream(SWM_forcing_iStream(i))
+
+      IF (.NOT. ASSOCIATED(streamlist)) THEN
+            WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list"
+            STOP 2
+      END IF
+
+      DO WHILE(ASSOCIATED(streamlist))
+        sptr = transfer(list_get(streamlist), sptr)
+        IF (sptr%stream%isInitialised) CALL SWM_forcing_finishStream(sptr%stream)
+        streamlist => list_next(streamlist)
       END DO
+
+      CALL list_free(SWM_forcing_iStream)
     END SUBROUTINE SWM_forcing_finish
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -445,25 +479,34 @@ MODULE swm_forcing_module
     !! @par Uses:
     !! memchunk_module, ONLY : initMemChunk, isInitialised
     !------------------------------------------------------------------
-    SUBROUTINE SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component, iStream)
-      USE memchunk_module, ONLY : initMemChunk, isInitialised
+    SUBROUTINE SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
+      USE memchunk_module, ONLY : initMemChunk, isInitialised, isConstant, getVarNameMC
       IMPLICIT NONE
       CHARACTER(CHARLEN), INTENT(in)    :: filename       !< Name of file of the dataset to access
       CHARACTER(CHARLEN), INTENT(in)    :: varname        !< Name of variable to access in filename
       INTEGER, INTENT(in)               :: chunksize      !< Chunksize of memChunk member
       CHARACTER(CHARLEN), INTENT(in)    :: forcingtype    !< forcingType. @see SWM_forcing_module::SWM_forcing_processInputStream
       CHARACTER(CHARLEN), INTENT(in)    :: component      !< Component of the forcing, e.g. zonal or meridional
-      TYPE(SWM_forcingStream), INTENT(inout) :: iStream
-      IF (iStream%isInitialised) RETURN
-      CALL initMemChunk(filename,varname,chunksize,iStream%memChunk)
-      IF (.NOT.isInitialised(iStream%memChunk)) THEN
-        WRITE(*,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
-          TRIM(filename),TRIM(varname),TRIM(forcingtype),TRIM(component)
-        STOP 2
+      TYPE(stream_ptr)                  :: sptr
+
+
+      ALLOCATE(sptr%stream)
+
+      CALL initMemChunk(filename, varname, chunksize, sptr%stream%memChunk)
+      IF (.NOT. isInitialised(sptr%stream%memChunk)) THEN
+          WRITE(*,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
+              TRIM(filename),TRIM(varname),TRIM(forcingtype),TRIM(component)
+          STOP 2
       END IF
-      iStream%forcingType = forcingtype
-      iStream%component   = component
-      iStream%isInitialised = isInitialised(iStream%memChunk)
+      sptr%stream%forcingType = forcingtype
+      sptr%stream%component   = component
+      sptr%stream%isInitialised = isInitialised(sptr%stream%memChunk)
+
+      IF (.NOT. ASSOCIATED(SWM_forcing_iStream)) THEN
+          CALL list_init(SWM_forcing_iStream, transfer(sptr, list_data))
+      ELSE
+          CALL list_insert(SWM_forcing_iStream, transfer(sptr, list_data))
+      END IF
     END SUBROUTINE SWM_forcing_initStream
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
