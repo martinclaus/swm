@@ -37,11 +37,12 @@
 !! tracer_module.h
 !! @par Uses:
 !! io_module, ONLY : initFH,fileHandle
-!! @todo replace AB_Chi by namelist entry
+!! vars_module, ONLY : AB_Chi, AB_C1, AB_C2
 !------------------------------------------------------------------
 MODULE tracer_module
 #include "tracer_module.h"
   USE io_module, ONLY : initFH,fileHandle
+  USE vars_module, ONLY : AB_Chi, AB_C1, AB_C2
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -55,7 +56,6 @@ MODULE tracer_module
   INTEGER(1), PARAMETER                           :: NG=2                  !< Number of increments to hold in memory
   INTEGER(1), PARAMETER                           :: NG0=NG                !< Index of present increment
   INTEGER(1), PARAMETER                           :: NG0m1=NG0-1           !< Index of youngest passed increment
-  REAL(8), PARAMETER                              :: AB_Chi=.1_8, AB_C1=1.5_8+AB_Chi, AB_C2=.5_8+AB_Chi !< Parameters for Adams-Bashforth scheme
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: TRC_C1                !< Tracer field. Size Nx,Ny,TRC_NLEVEL_SCHEME.
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_C1_0              !< Field to which the tracer should be relaxed. Size Nx, Ny
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET    :: TRC_C1_relax          !< Local relaxation timescale. Size Nx, Ny

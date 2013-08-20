@@ -25,6 +25,7 @@ MODULE vars_module
   REAL(8)                :: gamma_new=0.                     !< Newtonian cooling coefficient \f$[s^{-1}]\f$
   REAL(8)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
   REAL(8)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
+  REAL(8)                :: AB_Chi=.1_8                      !< AdamsBashforth displacement coefficient
 
   CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
   CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
@@ -49,7 +50,9 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
-  REAL(8)                 :: diag_start
+  REAL(8)                :: AB_C1                       !< AdamsBashforth weight factor for present time level (set in vars_module::initVars)
+  REAL(8)                :: AB_C2                       !< AdamsBashforth weight factor for past time level (set in vars_module::initVars)
+  REAL(8)                :: diag_start
 
   ! runtime variables
   INTEGER(8) :: itt                                     !< time step index
@@ -111,7 +114,7 @@ MODULE vars_module
     SUBROUTINE initVars
       ! definition of the namelist
       namelist / model_nl / &
-        G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding, & ! friction and forcing parameter
+        G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding,AB_Chi, & !friction and forcing parameter
         run_length, &
         dt, meant_out, & ! time step and mean step
         file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
@@ -124,6 +127,9 @@ MODULE vars_module
       close(UNIT_MODEL_NL)
       ! set vars depending on run_length, dt
       Nt = INT(run_length / dt)
+      ! set vars depending on AB_Chi
+      AB_C1 = 1.5_8 + AB_Chi
+      AB_C2 = .5_8 + AB_Chi
 
       ! allocate vars depending on Nx, Ny, Ns
       allocate(u(1:Nx, 1:Ny, 1:Ns))

@@ -17,8 +17,7 @@
 !! swm_forcing_module, ONLY : F_x, F_y, F_eta\n
 !! swm_lateralmixing_module \n
 !! memchunk_module, ONLY : memoryChunk
-!!
-!! @todo Replace AB_Chi by namelist entry
+!! vars_module, ONLY : AB_Chi, AB_C1, AB_C2
 !------------------------------------------------------------------
 MODULE swm_timestep_module
 #include "model.h"
@@ -27,6 +26,7 @@ MODULE swm_timestep_module
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
   USE swm_lateralmixing_module
+  USE vars_module, ONLY : AB_Chi, AB_C1, AB_C2
   USE memchunk_module, ONLY : memoryChunk
   IMPLICIT NONE
   PRIVATE
@@ -47,9 +47,6 @@ MODULE swm_timestep_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), PARAMETER                             :: AB_Chi=.1_8         !< AdamsBashforth displacement coefficient
-  REAL(8), PARAMETER                             :: AB_C1=1.5_8+AB_Chi  !< AdamsBashforth weight factor for present time level
-  REAL(8), PARAMETER                             :: AB_C2=.5_8+AB_Chi   !< AdamsBashforth weight factor for past time level
   TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
 
