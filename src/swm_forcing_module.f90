@@ -71,11 +71,9 @@ MODULE swm_forcing_module
       USE vars_module, ONLY : addToRegister
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
-      INTEGER   :: stat, i
+      INTEGER            :: stat
       CHARACTER(CHARLEN) :: filename, varname, forcingtype, component
       INTEGER            :: chunksize
-      TYPE(list_node_t), POINTER :: forcinglist
-      TYPE(stream_ptr)           :: sptr
 
       !< namelist definition of forcing variable
       NAMELIST / swm_forcing_nl / &
@@ -98,7 +96,7 @@ MODULE swm_forcing_module
       F_eta_const = 0.
       ! read input namelists
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
-      DO i=1,SWM_MAX_FORCING_INPUT
+      DO WHILE (stat .EQ. 0)
         filename=""
         varname=""
         forcingtype=""
@@ -107,8 +105,6 @@ MODULE swm_forcing_module
         READ(UNIT_SWM_FORCING_NL, nml=swm_forcing_nl, iostat=stat)
         IF (stat .NE. 0) EXIT
         CALL SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
-        IF (i .EQ. SWM_MAX_FORCING_INPUT) WRITE(*,*) "WARNING: Maximum number of forcing streams for shallow water module reached."&
-          //" The rest will be skipped."
       END DO
       CLOSE(UNIT_SWM_FORCING_NL)
 

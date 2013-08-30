@@ -121,21 +121,16 @@ MODULE swm_timestep_module
     !!
     !! @par Uses:
     !! memchunk_module, ONLY : finishMemChunk
-    !!
-    !! @todo swm_timestep_module::SWM_timestep_finishHeapsScheme and
-    !! swm_timestep_module::SWM_timestep_finishLiMeanState are identical. There is no need
-    !! to keep both of them.
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_finish
       USE memchunk_module, ONLY : finishMemChunk
       IMPLICIT NONE
       INTEGER   :: alloc_error
-#ifdef SWM_TSTEP_ADAMSBASHFORTH
-      CALL SWM_timestep_finishLiMeanState
-      CALL finishMemChunk(SWM_MC_bs_psi)
+#if defined SWM_TSTEP_ADAMSBASHFORTH || defined SWM_TSTEP_HEAPS
+      CALL SWM_timestep_finish_Heaps_LiMeanState
 #endif
-#ifdef SWM_TSTEP_HEAPS
-      CALL SWM_timestep_finishHeapsScheme
+#ifdef SWM_TSTEP_ADAMSBASHFORTH
+      CALL finishMemChunk(SWM_MC_bs_psi)
 #endif
       DEALLOCATE(G_u, G_v, G_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
@@ -567,11 +562,11 @@ MODULE swm_timestep_module
     END SUBROUTINE SWM_timestep_initHeapsScheme
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Deallocate the coefficient matrix of the heaps scheme
+    !> @brief  Deallocate the coefficient matrix 
     !!
-    !! If definde, the lateral mixing coefficients will be deallocated as well.
+    !! If defined, the lateral mixing coefficients will be deallocated as well.
     !------------------------------------------------------------------
-    SUBROUTINE SWM_timestep_finishHeapsScheme
+    SUBROUTINE SWM_timestep_finish_Heaps_LiMeanState
       IMPLICIT NONE
       INTEGER   :: alloc_error
       DEALLOCATE(SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, stat=alloc_error)
@@ -579,9 +574,9 @@ MODULE swm_timestep_module
 #ifdef LATERAL_MIXING
       CALL SWM_LateralMixing_finish
 #endif
-    END SUBROUTINE SWM_timestep_finishHeapsScheme
+    END SUBROUTINE SWM_timestep_finish_Heaps_LiMeanState
 
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Intialise the coefficient matrix of a model linearised about a basic state
     !!
     !! This method has to be called, if the AdamsBashforth or Euler forward
@@ -710,21 +705,6 @@ MODULE swm_timestep_module
       SWM_Coef_v(1:9,:,:) = SWM_Coef_v(1:9,:,:) + lat_mixing_v
 #endif
     END SUBROUTINE SWM_timestep_initLiMeanState
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Deallocate the coefficient matrix
-    !!
-    !! If definde, the lateral mixing coefficients will be deallocated as well.
-    !------------------------------------------------------------------
-    SUBROUTINE SWM_timestep_finishLiMeanState
-      IMPLICIT NONE
-      INTEGER :: alloc_error
-      DEALLOCATE(SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-#ifdef LATERAL_MIXING
-      CALL SWM_LateralMixing_finish
-#endif
-    END SUBROUTINE SWM_timestep_finishLiMeanState
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Checks if the time stepping flag is .FALSE.
