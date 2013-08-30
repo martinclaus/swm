@@ -9,8 +9,6 @@
 !! io.h, diag_module.h
 !! @par Uses:
 !! io_module, vars_module, domain_module, generic_list, diagVar
-!!
-!! @todo Implement correct interpretation of averaging periods
 !------------------------------------------------------------------
 MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
@@ -43,7 +41,7 @@ MODULE diagTask
     INTEGER             :: fullrec=1    !< Number of records written to all files
     CHARACTER(CHARLEN)  :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
     INTEGER             :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-    CHARACTER(CHARLEN)  :: period       !< Sampling period for AVERAGE output.
+    REAL(8)             :: period       !< Sampling period in seconds for AVERAGE output.
     CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
     CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
     TYPE(grid_t), POINTER :: grid=>null() !< euler grid of the variable
@@ -84,7 +82,7 @@ MODULE diagTask
       TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
       INTEGER, intent(in)             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      CHARACTER(CHARLEN), intent(in)  :: period      !< Sampling period for AVERAGE output.
+      REAL(8), intent(in)             :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER, intent(in)             :: ID          !< ID of diagTask
@@ -189,7 +187,7 @@ MODULE diagTask
       CHARACTER(CHARLEN), INTENT(out)  :: ovarname  !< Name of output variable
       CHARACTER(CHARLEN), INTENT(out)  :: type      !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
       INTEGER, INTENT(out)             :: frequency !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      CHARACTER(CHARLEN), INTENT(out)  :: period    !< Sampling period for AVERAGE output.
+      REAL(8), INTENT(out)             :: period    !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), INTENT(out)  :: process   !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER, INTENT(out)             :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
@@ -280,12 +278,16 @@ MODULE diagTask
           CALL writeTaskToFile(task, itt*dt)
 
         CASE ("A","a") !< Averaging output
-          deltaT=MIN(mod(dt*itt, meant_out),dt)
+          IF (task%period .NE. DEF_DIAG_PERIOD) THEN
+              deltaT=MIN(mod(dt*itt, task%period),dt)
+          ELSE 
+              deltaT=MIN(mod(dt*itt, meant_out),dt)
+          END IF
           IF (deltaT.LT.dt .AND. itt .NE. 0) THEN
             CALL addDataToTaskBuffer(task,dt-deltaT)
             task%buffer = task%buffer/task%bufferCount
             CALL writeTaskToFile(task,dt*itt-deltaT)
-            !< reselt task buffer
+            !< reset task buffer
             task%buffer=0.
             task%bufferCount=0.
           END IF
@@ -378,7 +380,7 @@ MODULE diagTask
       CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
       INTEGER             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      CHARACTER(CHARLEN)  :: period      !< Sampling period for AVERAGE output.
+      REAL(8)             :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       INTEGER             :: NoutChunk

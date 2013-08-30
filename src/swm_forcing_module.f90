@@ -96,7 +96,7 @@ MODULE swm_forcing_module
       F_eta_const = 0.
       ! read input namelists
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
-      DO WHILE (stat .EQ. 0)
+      DO
         filename=""
         varname=""
         forcingtype=""

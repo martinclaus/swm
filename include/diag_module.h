@@ -9,7 +9,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define DEF_OVARNAME   "var"
 #define DEF_DIAG_TYPE  "S"
 #define DEF_DIAG_FREQUENCY  1
-#define DEF_DIAG_PERIOD     "1M"
+#define DEF_DIAG_PERIOD  2.628e6
 #define DEF_DIAG_PROCESS    "A"
 
 /* Diagnostic Variables (must be upper case!) */
