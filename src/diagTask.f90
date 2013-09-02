@@ -12,7 +12,7 @@
 !------------------------------------------------------------------
 MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
-  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out
+  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start
   use grid_module, only : grid_t, t_grid_lagrange
   USE generic_list
   USE diagVar
@@ -122,7 +122,7 @@ MODULE diagTask
       SELECT CASE (self%type(1:1))
 
         CASE ("S","s")
-          self%nstep = MAX(INT(Nt / self%frequency),1)
+          self%nstep = MAX(INT((Nt - (diag_start / dt)) / self%frequency),1)
 
         CASE ("A","a")
           if(associated(self%varData2D)) then !< euler grid
@@ -280,7 +280,7 @@ MODULE diagTask
         CASE ("A","a") !< Averaging output
           IF (task%period .NE. DEF_DIAG_PERIOD) THEN
               deltaT=MIN(mod(dt*itt, task%period),dt)
-          ELSE 
+          ELSE
               deltaT=MIN(mod(dt*itt, meant_out),dt)
           END IF
           IF (deltaT.LT.dt .AND. itt .NE. 0) THEN
