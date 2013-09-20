@@ -316,37 +316,53 @@ MODULE io_module
                  __LINE__,TRIM(FH%filename))
       FH%isOpen = .FALSE.
     END SUBROUTINE closeDS
+    
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Updates the number of records in a file 
+    !!
+    !! If no value is specified, nrec will be incremented by one.
+    !! Otherwise it will be set to the specified update-value.
+    !------------------------------------------------------------------
+    SUBROUTINE updateNrec(FH, update)
+      IMPLICIT NONE
+      TYPE(fileHandle), INTENT(inout)   :: FH
+      INTEGER, OPTIONAL                 :: update
+      IF (PRESENT(update)) THEN
+          FH%nrec = update
+      ELSE
+          FH%nrec = FH%nrec + 1
+      END IF
+    END SUBROUTINE updateNrec
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Write a time slice to disk
     !!
     !! Write a variables time slice to a existing dataset.
     !------------------------------------------------------------------
-    SUBROUTINE putVarEuler(FH,varData,rec,time,grid)
+    SUBROUTINE putVarEuler(FH,varData,time,grid)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)     :: FH               !< Initialised file handle pointing to the variable to write data to
       REAL(8), DIMENSION(:,:), INTENT(in) :: varData          !< Data to write
       REAL(8), DIMENSION(SIZE(varData,1),SIZE(varData,2)):: var_dummy        !< Copy of varData to apply missing values to
       type(grid_t), intent(in), optional  :: grid
-      INTEGER, INTENT(in), OPTIONAL       :: rec              !< Record index of time slice
       REAL(8), INTENT(in), OPTIONAL       :: time             !< Time coordinate of time slice
       LOGICAL                             :: wasOpen          !< Flag, if the dataset was open when the routine was called
-      INTEGER                             :: local_rec=1      !< default value for rec
       REAL(8)                             :: local_time=0.    !< default value for time
       var_dummy=varData
       IF (PRESENT(grid)) THEN
         WHERE (grid%ocean .ne. 1_1) var_dummy = FH%missval
       END IF
-      IF (PRESENT(rec)) local_rec = rec
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
       CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
-                              start = (/1,1,local_rec/), &
+                              start = (/1,1,FH%nrec/), &
                               count=(/SIZE(varData,1),SIZE(varData,2),1/)),&
                  __LINE__,TRIM(FH%filename))
-      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/local_rec/)),&
+      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/FH%nrec/)),&
                  __LINE__,TRIM(FH%filename))
+      CALL updateNrec(FH)
       IF ( .NOT. wasOpen ) call closeDS(FH)
     END SUBROUTINE putVarEuler
 
@@ -356,29 +372,27 @@ MODULE io_module
      !! Write a lagrangian variable time slice to a existing dataset.
      !! @par Uses:
      !------------------------------------------------------------------
-     subroutine putVarLagrange(FH,varData,rec,time,grid)
+     subroutine putVarLagrange(FH,varData,time,grid)
       type(fileHandle), intent(inout)     :: FH             !< Initialised file handle pointing to the variable to write data to
       real(8), dimension(:), intent(in)   :: varData        !< Data to write
       real(8), dimension(size(varData,1)) :: var_dummy      !< Copy of varData to apply missing values to
       type(t_grid_lagrange), intent(in), optional :: grid   !< grid object of variable. Used to get ocean mask
-      integer, intent(in), optional       :: rec            !< Record index of time slice
       real(8), intent(in), optional       :: time           !< Time coordinate of time slice
       logical                             :: wasOpen        !< Flag, if the dataset was open when the routine was called
-      integer                             :: local_rec=1    !< default value for rec
       real(8)                             :: local_time=0.  !< default value for time
 
       var_dummy = varData
       if (present(grid))  where(grid%valid .ne. 1_1) var_dummy = FH%missval
-      if (present(rec))   local_rec = rec
       if (present(time))  local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
       call check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
-                              start = (/1,local_rec/), &
+                              start = (/1,FH%nrec/), &
                               count=(/size(varData),1/)), &
                  __LINE__,TRIM(FH%filename))
-      call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/local_rec/)), &
+      call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/FH%nrec/)), &
                  __LINE__,TRIM(FH%filename))
+      CALL updateNrec(FH)
       if (.not.wasOpen) call closeDS(FH)
     end subroutine putVarLagrange
 

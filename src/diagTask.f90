@@ -11,7 +11,7 @@
 !! io_module, vars_module, domain_module, generic_list, diagVar
 !------------------------------------------------------------------
 MODULE diagTask
-  USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr
+  USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr, updateNrec
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start
   use grid_module, only : grid_t, t_grid_lagrange
   USE generic_list
@@ -30,14 +30,11 @@ MODULE diagTask
   !! A diagnostic task is a task which will output data to disk.
   !! It will be configured in a diag_nl namelist.
   !!
-  !! @todo rec maybe replaced by FH%nrec. However, io_module::putVar have
-  !! to keep track of the real record length
   !------------------------------------------------------------------
   TYPE :: diagTask_t
     PRIVATE
     INTEGER             :: ID=0         !< Task index, starting at 1, incrementing by 1
     TYPE(fileHandle)    :: FH           !< File handle to variable in output dataset
-    INTEGER             :: rec=1        !< Index of last record in file.
     INTEGER             :: fullrec=1    !< Number of records written to all files
     CHARACTER(CHARLEN)  :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
     INTEGER             :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
@@ -238,14 +235,13 @@ MODULE diagTask
           if (associated(self%varData1D)) outData1D => self%varData1D
       END SELECT
 
-      IF (self%rec .gt. self%NoutChunk) CALL createTaskDS(self)
+      IF (MOD(self%fullrec ,self%NoutChunk) .EQ. 0) CALL createTaskDS(self)
 
       if (associated(outData2D).and.associated(self%grid)) then
-        call putVar(self%FH, outData2D * self%oScaleFactor, self%rec, time, self%grid)
+        CALL putVar(self%FH, outData2D * self%oScaleFactor, time, self%grid)
       else if (associated(outData1D).and.associated(self%grid_l)) then
-        call putVar(self%FH, outData1D * self%oScaleFactor, self%rec, time, self%grid_l)
+        call putVar(self%FH, outData1D * self%oScaleFactor, time, self%grid_l)
       end if
-      self%rec = self%rec+1
       self%fullrec = self%fullrec+1
 
     END SUBROUTINE writeTaskToFile
@@ -358,7 +354,7 @@ MODULE diagTask
       end if
 
       !< reset record counter
-      task%rec = 1
+      CALL updateNrec(task%FH, 1)
     END SUBROUTINE createTaskDS
 
 
