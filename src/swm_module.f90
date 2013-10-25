@@ -120,13 +120,10 @@ USE swm_timestep_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_initialConditions
       USE io_module, ONLY : fileHandle, readInitialCondition, initFH, isSetFH
-      USE vars_module, ONLY : file_eta_init, varname_eta_init,&
-                              file_u_init, varname_u_init,&
-                              file_v_init, varname_v_init,&
+      USE vars_module, ONLY : FH_eta, FH_u, FH_v,&
                               N0p1
       USE domain_module, ONLY : eta_grid, u_grid, v_grid
       IMPLICIT NONE
-      TYPE(fileHandle) :: FH
       INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
       INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
       INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
@@ -139,12 +136,9 @@ USE swm_timestep_module
       SWM_u = 0.
       SWM_v = 0.
       ! load initial conditions of dynamic fields if present
-      CALL initFH(file_eta_init,varname_eta_init,FH)
-      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_eta(:,:,N0p1))
-      CALL initFH(file_u_init,varname_u_init,FH)
-      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_u(:,:,N0p1))
-      CALL initFH(file_v_init,varname_v_init,FH)
-      IF (isSetFH(FH)) CALL readInitialCondition(FH,SWM_v(:,:,N0p1))
+      IF (isSetFH(FH_eta)) CALL readInitialCondition(FH_eta,SWM_eta(:,:,N0p1))
+      IF (isSetFH(FH_u)) CALL readInitialCondition(FH_u,SWM_u(:,:,N0p1))
+      IF (isSetFH(FH_v)) CALL readInitialCondition(FH_v,SWM_v(:,:,N0p1))
       SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
       SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
       SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)

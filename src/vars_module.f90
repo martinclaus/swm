@@ -8,12 +8,12 @@
 !! io.h
 !!
 !! @note Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
-!! @todo Replace file and variable names with filehandles
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
   USE generic_list
   USE domain_module
+  USE io_module, ONLY : fileHandle, initFH
   use str
   IMPLICIT NONE
 
@@ -27,12 +27,6 @@ MODULE vars_module
   REAL(8)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
   REAL(8)                :: AB_Chi=.1_8                      !< AdamsBashforth displacement coefficient
 
-  CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
-  CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
-  CHARACTER(CHARLEN)     :: file_u_init=""              !< File containing initial condition for zonal velocity. Last timestep of dataset used.
-  CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
-  CHARACTER(CHARLEN)     :: file_v_init=""              !< File containing initial condition for meridional velocity. Last timestep of dataset used.
-  CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
   CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
   INTEGER, PARAMETER     :: Ndims = 3                   !< Number of dimensions
@@ -50,9 +44,14 @@ MODULE vars_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
+  TYPE(fileHandle),SAVE       :: FH_eta
+  TYPE(fileHandle),SAVE       :: FH_u
+  TYPE(fileHandle),SAVE       :: FH_v
+
   REAL(8)                :: AB_C1                       !< AdamsBashforth weight factor for present time level (set in vars_module::initVars)
   REAL(8)                :: AB_C2                       !< AdamsBashforth weight factor for past time level (set in vars_module::initVars)
   REAL(8)                :: diag_start
+
 
   ! runtime variables
   INTEGER(8) :: itt                                     !< time step index
@@ -112,7 +111,13 @@ MODULE vars_module
     !! Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
     !------------------------------------------------------------------
     SUBROUTINE initVars
-      ! definition of the namelist
+      CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
+      CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
+      CHARACTER(CHARLEN)     :: file_u_init=""              !< File containing initial condition for zonal velocity. Last timestep of dataset used.
+      CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
+      CHARACTER(CHARLEN)     :: file_v_init=""              !< File containing initial condition for meridional velocity. Last timestep of dataset used.
+      CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
+    ! definition of the namelist
       namelist / model_nl / &
         G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding,AB_Chi, & !friction and forcing parameter
         run_length, &
@@ -153,6 +158,9 @@ MODULE vars_module
       CALL addToRegister(H_v,"H_v", v_grid)
       CALL addToRegister(H_eta,"H_eta", eta_grid)
 
+      CALL initFH(file_eta_init,varname_eta_init,FH_eta)
+      CALL initFH(file_u_init,varname_u_init,FH_u)
+      CALL initFH(file_v_init,varname_v_init,FH_v)
     END SUBROUTINE initVars
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

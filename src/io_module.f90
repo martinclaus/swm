@@ -459,7 +459,6 @@ MODULE io_module
     !!
     !! Read data with a single dimension (time assumed). For instance, used to read time axis.
     !!
-    !! @todo Test for overflow, i.e. var should have sufficient size
     !------------------------------------------------------------------
     SUBROUTINE getVar1Dhandle(FH,var,tstart)
       TYPE(fileHandle), INTENT(inout)              :: FH      !< File handle locating the variable to read

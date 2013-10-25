@@ -162,17 +162,12 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       LOGICAL       :: already_stepped
       already_stepped=.FALSE.
-#ifdef SWM_TSTEP_EULERFW
-      CALL alreadyStepped(already_stepped)
-      CALL SWM_timestep_EulerForward
-#endif
 #ifdef SWM_TSTEP_HEAPS
       CALL alreadyStepped(already_stepped)
       CALL SWM_timestep_Heaps
-#endif
-#ifdef SWM_TSTEP_ADAMSBASHFORTH
+#else
       CALL alreadyStepped(already_stepped)
-      CALL SWM_timestep_AdamsBashforth
+      CALL SWM_timestep
 #endif
     END SUBROUTINE SWM_timestep_step
 
@@ -192,131 +187,6 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       INTEGER :: i, j
       REAL(8) :: v_u, u_v
-      INTEGER(1), DIMENSION(SIZE(u_grid%land,1),SIZE(u_grid%land,2)) :: land_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%land,1),SIZE(v_grid%land,2)) :: land_v
-      INTEGER(1), DIMENSION(SIZE(eta_grid%land,1),SIZE(eta_grid%land,2)) :: land_eta
-
-      land_u = u_grid%land
-      land_v = v_grid%land
-      land_eta = eta_grid%land
-!$OMP PARALLEL &
-!$OMP PRIVATE(i,j,u_v,v_u)
-!$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      YSPACE1: DO j=1,Ny   ! loop over y dimension
-        XSPACE1: DO i=1,Nx ! loop over x dimension
-          IF (land_eta(i,j) == 1) cycle XSPACE1 !skip this grid point, because it is land
-          SWM_eta(i,j,N0p1) = ( SWM_Coef_eta(1,i,j)*SWM_eta(i,j,N0)                                     & ! eta^l
-                          + SWM_Coef_eta(2,i,j)*SWM_u(ip1(i),j,N0) + SWM_Coef_eta(3,i,j)*SWM_u(i,j,N0)  & ! -dt*(Hu^l)_x
-                          + SWM_Coef_eta(4,i,j)*SWM_v(i,jp1(j),N0) + SWM_Coef_eta(5,i,j)*SWM_v(i,j,N0)  & ! -dt(Hv^l)_y
-                          + dt*( F_eta(i,j) &
-#ifdef FETADEP
-                                FETADEP &
-#endif
-                            ) &
-                          )                                                                     &
-                          / impl_eta(i,j)                                                         ! / (1+dt*gamma_new)
-        ENDDO XSPACE1
-      ENDDO YSPACE1
-!$OMP END DO
-!$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      YSPACE2: DO j=1,Ny   ! loop over y dimension
-        XSPACE2: DO i=1,Nx ! loop over x dimension
-          IF (land_u(i,j) == 1) cycle XSPACE2 !skip this grid point, because it is land
-#ifdef QUADRATIC_BOTTOM_FRICTION
-          v_u           = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
-#endif
-          SWM_u(i,j,N0p1) = ( SWM_Coef_u(1,i,j)*SWM_u(i,j,N0)                                             &
-                          + SWM_Coef_u(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_u(11,i,j)*SWM_eta(im1(i),j,N0p1) &
-                          + SWM_Coef_u(6,i,j)*SWM_v(i,j,N0)                               &
-                          + SWM_Coef_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
-                          + SWM_Coef_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
-                          + SWM_Coef_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
-#ifdef QUADRATIC_BOTTOM_FRICTION
-                          - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0)& ! quadratic bottom friction
-#endif
-#ifdef LATERAL_MIXING
-                          + lat_mixing_u(1,i,j)*SWM_u(i,j,N0)                             &
-                          + lat_mixing_u(2,i,j)*SWM_u(ip1(i),j,N0)                        &
-                          + lat_mixing_u(3,i,j)*SWM_u(im1(i),j,N0)                        &
-                          + lat_mixing_u(4,i,j)*SWM_u(i,jp1(j),N0)                        &
-                          + lat_mixing_u(5,i,j)*SWM_u(i,jm1(j),N0)                        &
-                          + lat_mixing_u(6,i,j)*SWM_v(i,j,N0)                             &
-                          + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
-                          + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
-                          + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
-#endif
-                          + dt * (F_x(i,j)                                           &
-#ifdef FXDEP
-                             FXDEP &
-#endif
-                            )&
-#ifdef TDEP_FORCING
-                          + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
-#endif
-                          ) / impl_u(i,j)                                        ! implicit linear friction
-        ENDDO XSPACE2
-      ENDDO YSPACE2
-!$OMP END DO
-!$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      YSPACE3: DO j=1,Ny   ! loop over y dimension
-        XSPACE3: DO i=1,Nx ! loop over x dimension
-          IF (land_v(i,j) == 1) cycle XSPACE3 !skip this grid point, because it is land
-#ifdef QUADRATIC_BOTTOM_FRICTION
-          u_v             = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
-#endif
-          SWM_v(i,j,N0p1) = ( SWM_Coef_v(1,i,j)*SWM_v(i,j,N0)                 &
-                          + SWM_Coef_v(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_v(11,i,j)*SWM_eta(i,jm1(j),N0p1)        &
-                          + SWM_Coef_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0p1)             &
-                          + SWM_Coef_v(7,i,j)*SWM_u(i,jm1(j),N0p1)                  &
-                          + SWM_Coef_v(8,i,j)*SWM_u(i,j,N0p1)                       &
-                          + SWM_Coef_v(9,i,j)*SWM_u(ip1(i),j,N0p1)                  &
-#ifdef QUADRATIC_BOTTOM_FRICTION
-                          - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0)& ! quadratic bottom friction
-#endif
-#ifdef LATERAL_MIXING
-                          + lat_mixing_v(1,i,j)*SWM_v(i,j,N0)                  &
-                          + lat_mixing_v(2,i,j)*SWM_v(ip1(i),j,N0)                  &
-                          + lat_mixing_v(3,i,j)*SWM_v(im1(i),j,N0)                  & ! lateral mixing of momentum
-                          + lat_mixing_v(4,i,j)*SWM_v(i,jp1(j),N0)                  &
-                          + lat_mixing_v(5,i,j)*SWM_v(i,jm1(j),N0)                  &
-                          + lat_mixing_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0)           &
-                          + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                &
-                          + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
-                          + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
-#endif
-                          + dt * (F_y(i,j)                                           & ! forcing
-#ifdef FYDEP
-                            FYDEP &
-#endif
-                            )&
-#ifdef TDEP_FORCING
-                          + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
-#endif
-                          ) / impl_v(i,j)                                        ! implicit linear friction
-        ENDDO XSPACE3
-      ENDDO YSPACE3
-!$OMP END DO
-!$OMP END PARALLEL
-    END SUBROUTINE SWM_timestep_Heaps
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Time stepping routine of the AdamsBashforth scheme
-    !!
-    !! For the first time step, the explicit forward scheme is used to generate the
-    !! second initial conditon.
-    !! @par Uses:
-    !! vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
-    !! @todo Write some documentation about the physics
-    !------------------------------------------------------------------
-    SUBROUTINE SWM_timestep_AdamsBashforth
-      USE vars_module, ONLY : N0, N0p1, itt, dt
-      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
-      IMPLICIT NONE
-      INTEGER :: i,j
-      REAL(8) :: u_v,v_u
       INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
       INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
       INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
@@ -324,99 +194,126 @@ MODULE swm_timestep_module
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean
       ocean_eta = eta_grid%ocean
-      IF (itt.lt.2) THEN ! do a Euler forward to compute second initial condition
-        CALL SWM_timestep_EulerForward
-        RETURN
-      END IF
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      YSPACE: DO j=1,Ny   ! loop over y dimension
-        XSPACE: DO i=1,Nx ! loop over x dimension
-          ! eta equation
-          ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this grid point if it is land
-            ! compute explicit increment
-            G_eta(i,j,NG0) = (DOT_PRODUCT(&
-                             (/SWM_eta(i,j,N0),SWM_eta(ip1(i),j,N0),SWM_eta(im1(i),j,N0),SWM_eta(i,jp1(j),N0),SWM_eta(i,jm1(j),N0),&
-                                SWM_u(ip1(i),j,N0),SWM_u(i,j,N0),&
-                                SWM_v(i,jp1(j),N0),SWM_v(i,j,N0)/),&
-                              SWM_Coef_eta(:,i,j)) &
-                             + F_eta(i,j) &
+      YSPACE1: DO j=1,Ny   ! loop over y dimension
+        XSPACE1: DO i=1,Nx ! loop over x dimension
+          IF (ocean_eta(i,j) == 1) THEN !skip this grid point if it is land
+            SWM_eta(i,j,N0p1) = ( SWM_Coef_eta(1,i,j)*SWM_eta(i,j,N0)                                     & ! eta^l
+                            + SWM_Coef_eta(2,i,j)*SWM_u(ip1(i),j,N0) + SWM_Coef_eta(3,i,j)*SWM_u(i,j,N0)  & ! -dt*(Hu^l)_x
+                            + SWM_Coef_eta(4,i,j)*SWM_v(i,jp1(j),N0) + SWM_Coef_eta(5,i,j)*SWM_v(i,j,N0)  & ! -dt(Hv^l)_y
+                            + dt*( F_eta(i,j) &
 #ifdef FETADEP
-                               FETADEP &
+                                  FETADEP &
 #endif
-                             )
-            ! Integrate
-            SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*(AB_C1*G_eta(i,j,NG0) - AB_C2*G_eta(i,j,NG0m1)))/impl_eta(i,j)
-          END IF ETA
-          ! u equation
-          U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
+                              ) &
+                            )                                                                     &
+                            / impl_eta(i,j)                                                         ! / (1+dt*gamma_new)
+          ENDIF
+        ENDDO XSPACE1
+      ENDDO YSPACE1
+!$OMP END DO
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      YSPACE2: DO j=1,Ny   ! loop over y dimension
+        XSPACE2: DO i=1,Nx ! loop over x dimension
+          IF (ocean_u(i,j) == 1) THEN !skip this grid point if it is land
 #ifdef QUADRATIC_BOTTOM_FRICTION
-            v_u = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
+            v_u           = (SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4. ! averaging v on u grid
 #endif
-            ! compute explicit increment
-            G_u(i,j,NG0) = (DOT_PRODUCT((/SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),SWM_u(im1(i),j,N0),SWM_u(i,jp1(j),N0),SWM_u(i,jm1(j),N0),&
-                                 SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
-                                 SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/),&
-                               SWM_Coef_u(:,i,j)) &
+            SWM_u(i,j,N0p1) = ( SWM_Coef_u(1,i,j)*SWM_u(i,j,N0)                                             &
+                            + SWM_Coef_u(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_u(11,i,j)*SWM_eta(im1(i),j,N0p1) &
+                            + SWM_Coef_u(6,i,j)*SWM_v(i,j,N0)                               &
+                            + SWM_Coef_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
+                            + SWM_Coef_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
+                            + SWM_Coef_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
 #ifdef QUADRATIC_BOTTOM_FRICTION
-                           - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
+                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0)& ! quadratic bottom friction
 #endif
-                           + F_x(i,j) &                                                 ! forcing
+#ifdef LATERAL_MIXING
+                            + lat_mixing_u(1,i,j)*SWM_u(i,j,N0)                             &
+                            + lat_mixing_u(2,i,j)*SWM_u(ip1(i),j,N0)                        &
+                            + lat_mixing_u(3,i,j)*SWM_u(im1(i),j,N0)                        &
+                            + lat_mixing_u(4,i,j)*SWM_u(i,jp1(j),N0)                        &
+                            + lat_mixing_u(5,i,j)*SWM_u(i,jm1(j),N0)                        &
+                            + lat_mixing_u(6,i,j)*SWM_v(i,j,N0)                             &
+                            + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
+                            + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
+                            + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
+#endif
+                            + dt * (F_x(i,j)                                           &
 #ifdef FXDEP
-                            FXDEP &
+                               FXDEP &
 #endif
+                              )&
 #ifdef TDEP_FORCING
-                           + TDF_Fu0(i,j) &                                             ! time dep. forcing
+                            + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
 #endif
-                          )
-            ! Integrate
-            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*(AB_C1*G_u(i,j,NG0) - AB_C2*G_u(i,j,NG0m1)))/impl_u(i,j)
-          END IF U
-          ! v equation
-          V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
+                            ) / impl_u(i,j)                                        ! implicit linear friction
+          ENDIF
+        ENDDO XSPACE2
+      ENDDO YSPACE2
+!$OMP END DO
+!$OMP DO PRIVATE(i,j)&
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      YSPACE3: DO j=1,Ny   ! loop over y dimension
+        XSPACE3: DO i=1,Nx ! loop over x dimension
+          IF (ocean_v(i,j) == 1) THEN !skip this grid point, because it is land
 #ifdef QUADRATIC_BOTTOM_FRICTION
-            u_v = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
+            u_v             = (SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4. ! averaging u on v grid
 #endif
-            ! compute explicit increment
-            G_v(i,j,NG0) = (DOT_PRODUCT((/SWM_v(i,j,N0),SWM_v(ip1(i),j,N0),SWM_v(im1(i),j,N0),SWM_v(i,jp1(j),N0),SWM_v(i,jm1(j),N0),&
-                                  SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
-                                  SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
-                                SWM_Coef_v(:,i,j)) &
+            SWM_v(i,j,N0p1) = ( SWM_Coef_v(1,i,j)*SWM_v(i,j,N0)                 &
+                            + SWM_Coef_v(10,i,j)*SWM_eta(i,j,N0p1)+SWM_Coef_v(11,i,j)*SWM_eta(i,jm1(j),N0p1)        &
+                            + SWM_Coef_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0p1)             &
+                            + SWM_Coef_v(7,i,j)*SWM_u(i,jm1(j),N0p1)                  &
+                            + SWM_Coef_v(8,i,j)*SWM_u(i,j,N0p1)                       &
+                            + SWM_Coef_v(9,i,j)*SWM_u(ip1(i),j,N0p1)                  &
 #ifdef QUADRATIC_BOTTOM_FRICTION
-                           - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
+                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0)& ! quadratic bottom friction
 #endif
-                           + F_y(i,j) &                                                 ! forcing
+#ifdef LATERAL_MIXING
+                            + lat_mixing_v(1,i,j)*SWM_v(i,j,N0)                  &
+                            + lat_mixing_v(2,i,j)*SWM_v(ip1(i),j,N0)                  &
+                            + lat_mixing_v(3,i,j)*SWM_v(im1(i),j,N0)                  & ! lateral mixing of momentum
+                            + lat_mixing_v(4,i,j)*SWM_v(i,jp1(j),N0)                  &
+                            + lat_mixing_v(5,i,j)*SWM_v(i,jm1(j),N0)                  &
+                            + lat_mixing_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0)           &
+                            + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                &
+                            + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
+                            + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
+#endif
+                            + dt * (F_y(i,j)                                           & ! forcing
 #ifdef FYDEP
-                            FYDEP &
+                              FYDEP &
 #endif
+                              )&
 #ifdef TDEP_FORCING
-                           + TDF_Fv0(i,j) &                                             ! time dep. forcing
+                            + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
 #endif
-                           )
-           ! Integrate
-           SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*(AB_C1*G_v(i,j,NG0) - AB_C2*G_v(i,j,NG0m1)))/impl_v(i,j)
-          END IF V
-        ENDDO XSPACE
-      ENDDO YSPACE
+                            ) / impl_v(i,j)                                        ! implicit linear friction
+          ENDIF
+        ENDDO XSPACE3
+      ENDDO YSPACE3
 !$OMP END DO
 !$OMP END PARALLEL
-    END SUBROUTINE SWM_timestep_AdamsBashforth
+    END SUBROUTINE SWM_timestep_Heaps
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  time stepping routine of the explicit forward scheme
+    !> @brief  time stepping routine
     !!
     !! @par Uses:
-    !! vars_module, ONLY : N0, N0p1, Nx, Ny, ip1, im1, jp1, jm1, itt, dt, ocean_eta, ocean_u, ocean_v
-    !! @todo Add some documenation about the physics
+    !! vars_module, ONLY : N0, N0p1
+    !! domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1,u_grid, v_grid, eta_grid
+    !! @todo Add some documentation about the physics
     !------------------------------------------------------------------
-    SUBROUTINE SWM_timestep_EulerForward
-      USE vars_module, ONLY : N0, N0p1, itt, dt
+    SUBROUTINE SWM_timestep
+      USE vars_module, ONLY : N0, N0p1
       USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j
-      REAL(8) :: u_v,v_u
+      REAL(8) :: u_v, v_u
       INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
       INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
       INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
@@ -445,7 +342,7 @@ MODULE swm_timestep_module
 #endif
                              )
             ! Integrate
-            SWM_eta(i,j,N0p1) = (SWM_eta(i,j,N0) + dt*G_eta(i,j,NG0))/impl_eta(i,j)
+            SWM_eta(i,j,N0p1) = integrate(SWM_eta,G_eta,impl_eta,i,j)
           END IF ETA
           !u equation
           U: IF (ocean_u(i,j) .eq. 1) THEN !skip this grid point if it is land
@@ -469,7 +366,7 @@ MODULE swm_timestep_module
 #endif
                            )
             ! Integrate
-            SWM_u(i,j,N0p1) = (SWM_u(i,j,N0) + dt*G_u(i,j,NG0))/impl_u(i,j)
+            SWM_u(i,j,N0p1) = integrate(SWM_u,G_u,impl_u,i,j)
           END IF U
           V: IF (ocean_v(i,j) .eq. 1) THEN !skip this grid point if it is land
 #ifdef QUADRATIC_BOTTOM_FRICTION
@@ -492,13 +389,41 @@ MODULE swm_timestep_module
 #endif
                            )
             ! Integrate
-            SWM_v(i,j,N0p1) = (SWM_v(i,j,N0) + dt*G_v(i,j,NG0))/impl_v(i,j)
+             SWM_v(i,j,N0p1) = integrate(SWM_v,G_v,impl_v,i,j)
           END IF V
         ENDDO XSPACE
       ENDDO YSPACE
 !$OMP END DO
 !$OMP END PARALLEL
-    END SUBROUTINE SWM_timestep_EulerForward
+    END SUBROUTINE SWM_timestep
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Integrates the vector for the timestepping schemes
+    !!
+    !! Uses the integration method for the used timestepping scheme
+    !!
+    !! @par Uses:
+    !! vars_module, ONLY : N0,dt,itt
+    !------------------------------------------------------------------
+    REAL(8) FUNCTION integrate(SWM_vec,G,impl,i,j)
+      USE vars_module, ONLY : N0, dt, itt
+      IMPLICIT NONE
+      REAL(8), DIMENSION(:,:,:) :: SWM_vec, G
+      REAL(8), DIMENSION(:,:)   :: impl
+      INTEGER                   :: i,j,tstep
+
+#ifdef SWM_TSTEP_ADAMSBASHFORTH
+      tstep = 0
+#endif
+#ifdef SWM_TSTEP_EULERFW
+      tstep = 1
+#endif
+      IF (tstep .EQ. 0 .AND. itt .GE. 2) THEN ! use AdamsBashforth timestepping scheme
+          integrate = (SWM_vec(i,j,N0) + dt * (AB_C1*G(i,j,NG0) - AB_C2*G(i,j,NG0m1))) / impl(i,j)
+      ELSE                                    ! use explicit forward timestepping scheme
+          integrate = (SWM_vec(i,j,N0) + dt * G(i,j,NG0)) / impl(i,j)
+      END IF
+    END FUNCTION integrate
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise the coefficients for the heaps scheme
@@ -518,9 +443,6 @@ MODULE swm_timestep_module
       INTEGER   :: i,j,alloc_error
       REAL(8), DIMENSION(SIZE(u_grid%lat)) :: lat_u, cosTheta_u
       REAL(8), DIMENSION(SIZE(v_grid%lat)) :: lat_v, cosTheta_v
-      REAL(8), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
-      REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
-
 
       lat_u = u_grid%lat
       cosTheta_u = u_grid%cos_lat
@@ -604,9 +526,6 @@ MODULE swm_timestep_module
       REAL(8), DIMENSION(SIZE(H_grid%lat)) :: lat_H
       REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
       REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
-      REAL(8), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
-      REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
-
 
       ocean_H = H_grid%ocean
       lat_H = H_grid%lat
