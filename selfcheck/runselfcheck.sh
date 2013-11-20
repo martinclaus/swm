@@ -36,9 +36,14 @@ time $buildDir/./model
 # Compare results
 if [ $? -eq 0 ]
   then
-    set -x
     for dataset in $referenceDatasetList
     do
-      cdo diff $dataset $(echo $dataset | sed 's/reference/new/')
+      CDOOUTPUT=$(cdo diff $dataset $(echo $dataset | sed 's/reference/new/') 2>&1)
+      TOTAL_MATCH="0 of [0-9]* records differ"
+      if ! [[ $CDOOUTPUT =~  $TOTAL_MATCH ]]
+      then
+          echo "Differences in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')"
+          echo "$CDOOUTPUT"
+      fi
     done
 fi
