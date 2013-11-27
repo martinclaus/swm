@@ -42,8 +42,10 @@ if [ $? -eq 0 ]
       TOTAL_MATCH="0 of [0-9]* records differ"
       if ! [[ $CDOOUTPUT =~  $TOTAL_MATCH ]]
       then
-          echo "Differences in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')"
+          echo -e "\e[00;31mDifferences in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')\e[0m"
           echo "$CDOOUTPUT"
+      else
+	  echo -e "\e[00;32mNo Difference in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')\e[0m"
       fi
     done
 fi

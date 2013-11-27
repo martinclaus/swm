@@ -57,6 +57,6 @@
 &end
 
 &diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 &end
-&diag_nl filename="v_out.nc", varname="v", type="snapshot", period="1M", frequency=10 &end
+&diag_nl filename="v_out.nc", varname="v", type="snapshot", period=2.628e6, frequency=10 &end
 &diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 &end
 &diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
