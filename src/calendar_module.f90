@@ -7,391 +7,171 @@
 !! the use of real-world data
 !!
 !! @par Includes:
-!!      udunits.inc
-!!      calendar.h
+!!      fudunits2.h
+!!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
-    IMPLICIT NONE
-#include "calendar.h"
+    use iso_c_binding
+    implicit none
+#include "fudunits2.h"
 #include "io.h"
-#include "udunits.inc"
-    UD_POINTER, PARAMETER   :: DEF_PTR=-9999
-!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    integer(c_int), PARAMETER :: UT_ENCODING = UT_ASCII
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to store binary representation of a calendar
   !!
-  !! This type stores the binary representation of a calendar as it
-  !! is used in the udunits-library.
-  !! It is initialised by CALENDAR_MODULE::MakeCal.
+  !! This type stores the binary unit representation of a calendar as it
+  !! is used in the udunits2-library.
   !! The origin of a calendar indicates its start date.
   !!
-  !! @see UDUNITS1 package documentation (http://www.unidata.ucar.edu/software/udunits/udunits-1/)
+  !! @see UDUNITS2 package documentation (http://www.unidata.ucar.edu/software/udunits/udunits-1/)
   !! provides a description of the udunits operations and its structure
   !------------------------------------------------------------------
     TYPE, PUBLIC ::     calendar
-        UD_POINTER, PRIVATE  ::  ptr=DEF_PTR
+        TYPE(c_ptr), PRIVATE ::  ptr=c_null_ptr
         LOGICAL, PRIVATE     ::  isSet=.FALSE.
     END TYPE calendar
 
    CHARACTER(CHARLEN)     :: ref_cal            !< unit string of internal model calendar
+   TYPE(c_ptr)            :: utSystem           !< C pointer to the udunits2 units system object
 
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Sets a Calendar
-  !!
-  !! Sets the origin of a Calendar either by Date or by a whole string
-  !! Setting a calendar by date is less error-prone than setting it by string
-  !------------------------------------------------------------------
-    INTERFACE SetCal
-        MODULE PROCEDURE SetCalByDate
-        MODULE PROCEDURE SetCalByString
-    END INTERFACE SetCal
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Calculates the number of steps needed to reach a date
-  !!
-  !! Returns the number of steps the calendar needs to reach the given date.
-  !! This takes in account the origin of the calendar and its stepsize
-  !------------------------------------------------------------------
-    INTERFACE CalcSteps
-        MODULE PROCEDURE CalcStepsByCal
-        MODULE PROCEDURE CalcStepsByDate
-    END INTERFACE CalcSteps
+    interface convertTime
+        module procedure convertTimeArray
+        module procedure convertTimeScalar
+    end interface convertTime
 
     CONTAINS
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Initialises the UDUNITS package
         !!
-        !! Initialises the UDUNITS package, allowing the use of its functions
-        !! and Subroutines. Sets the reference-date for the start of the model.
+        !! Reads the default UDUNITS2 units database. Reads the module namelist and
+        !! sets the reference-date for the start of the model.
         !------------------------------------------------------------------
         SUBROUTINE OpenCal
             IMPLICIT NONE
-#include "udunits.inc"
-            INTEGER     status
+            type(c_funptr) :: err_handler
             CHARACTER(CHARLEN) :: model_start
             NAMELIST / calendar_nl / model_start
 
-            status = UTOPEN(UNITSPATH)
-            IF (status .NE. 0) THEN
-                PRINT *, "UTOPEN ERROR: ", status
-                STOP 1
-            ENDIF
+            !< ignore anoying warnings when parsing the xml units database
+            err_handler = ut_set_error_message_handler(c_funloc(ut_ignore))
+            !< get the c pointer to the default units system of the udunits2 library
+            utSystem = ut_read_xml(c_null_ptr)
+            call ut_check_status("ut_read_xml")
+            !< restore default message handler
+            err_handler = ut_set_error_message_handler(err_handler)
 
+            !< read namelist
             OPEN(UNIT_CALENDAR_NL, file = CALENDAR_NL)
             READ(UNIT_CALENDAR_NL, nml = calendar_nl)
             CLOSE(UNIT_CALENDAR_NL)
+            !< set model calendars time unit
             ref_cal = "seconds since " // TRIM(model_start)
         END SUBROUTINE OpenCal
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Initialises the Calendar
-        !------------------------------------------------------------------
-        SUBROUTINE MakeCal(cal)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(inout)       :: cal
-            cal%ptr = UTMAKE()
-        END SUBROUTINE MakeCal
-
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Sets a calendar with an origin
-        !!
-        !! @param orstr Indicates whether the calendar measures steps in seconds, minutes, days, etc.
-        !! Sets the origin of the calendar to the given date in the UTC-referenced
-        !! time format.
-        !! If the date is out of bounds (e.g. month=14), it is set to the highest
-        !! possible value.
-        !! If the day is set to a value not suitable for that month (e.g. month=2, day=31), day and
-        !! month will be adjusted (e.g. month=3, day=3)
-        !------------------------------------------------------------------
-        SUBROUTINE SetCalByDate(cal, orstr, year, month, day, hour, minute, second)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(inout)       :: cal
-            INTEGER                             :: status
-            INTEGER                             :: year, month, day, hour, minute
-            REAL                                :: second
-            CHARACTER*80                        :: yearstr, monthstr, daystr, hourstr, minutestr, secondstr, decstr
-            CHARACTER(*)                        :: orstr
-
-            WRITE(yearstr,'(i5)') year
-            IF (month .GT. 12) THEN
-                PRINT *, "MONTH OUT OF RANGE, SET TO 12"
-                monthstr = "12"
-            ELSE
-                WRITE(monthstr, '(i3)') month
-            ENDIF
-            IF (day .GT. 31) THEN
-                PRINT *, "DAY OUT OF RANGE, SET TO 30"
-                daystr = "31"
-            ELSE
-                WRITE(daystr, '(i3)') day
-            ENDIF
-            IF (hour .GT. 23) THEN
-                PRINT *, "HOUR OUT OF RANGE, SET TO 23"
-                hourstr = "23"
-            ELSE
-                WRITE(hourstr, '(i3)') hour
-            ENDIF
-            IF (minute .GT. 59) THEN
-                PRINT *, "MINUTE OUT OF RANGE, SET TO 59"
-                minutestr = "59"
-            ELSE
-                WRITE(minutestr, '(i3)') minute
-            ENDIF
-            IF (second .GT. 59.0_8) THEN
-                PRINT *, "SECOND OUT OF RANGE, SET TO 59"
-                secondstr = "59.0"
-            ELSE
-                WRITE(secondstr, '(f8.5)') second
-            ENDIF
-
-            decstr = TRIM(ADJUSTL(orstr)) // " since " // &
-            TRIM(ADJUSTL(yearstr)) // "-" // TRIM(ADJUSTL(monthstr)) // "-" // TRIM(ADJUSTL(daystr)) // &
-            " " // TRIM(ADJUSTL(hourstr)) // ":" // TRIM(ADJUSTL(minutestr)) // ":" // TRIM(ADJUSTL(secondstr))
-
-            CALL handleUTDEC(UTDEC(decstr, cal%ptr))
-            cal%isSet = .TRUE.
-        END SUBROUTINE SetCalByDate
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Checks if a calendar is initilalised using MakeCal
-        !!
-        !! Returns the status of the pointer, pointing to the calendar unit
-        !------------------------------------------------------------------
-        LOGICAL FUNCTION isInitialisedCal(cal) RESULT(isInitialised)
-          IMPLICIT NONE
-          TYPE(calendar), INTENT(in)    :: cal
-          isInitialised = (cal%ptr.NE.DEF_PTR)
-        END FUNCTION isInitialisedCal
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Checks if a calendar has a unit defined
         !!
-        !! Returns the isSet Flag of the calendar object
+        !! Returns the association status of the calendar unit pointer. True
+        !! if the calendar unit is defined and a time conversion to/from this
+        !! calendar is possible.
         !------------------------------------------------------------------
         LOGICAL FUNCTION isSetCal(cal) RESULT(isSet)
           IMPLICIT NONE
           TYPE(calendar), INTENT(in)    :: cal
-          isSet = cal%isSet
+          isSet = c_associated(cal%ptr)
         END FUNCTION isSetCal
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Sets a calendar with an origin
         !!
-        !! Sets the calendar to the given date, which has to be in the
-        !! UTC-referenced time format.
+        !! Sets the calendar unit to the given reference date and time unit string,
+        !! which has to be in the UTC-referenced time format.
         !------------------------------------------------------------------
-        SUBROUTINE SetCalByString(cal, str)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(inout)       :: cal
-            CHARACTER(*)                        :: str
-            INTEGER                             :: status
+        SUBROUTINE setCal(cal, str)
+          IMPLICIT NONE
+          TYPE(calendar), INTENT(inout)       :: cal
+          CHARACTER(*), intent(in)            :: str
+          character(len=1), dimension(len_trim(str)+1), target :: ca_string
 
-            CALL handleUTDEC(UTDEC(str, cal%ptr))
-            IF (UTORIGIN(cal%ptr) .NE. 1) THEN
-                PRINT *, "CALENDAR MUST HAVE AN ORIGIN"
-                STOP 1
-            ENDIF
-            cal%isSet = .TRUE.
-        END SUBROUTINE SetCalByString
+          if (isSetCal(cal)) return
+
+          ca_string = transfer(trim(str)//c_null_char, ca_string)
+          cal%ptr = ut_parse_string(utSystem, c_loc(ca_string),  UT_ENCODING)
+          call ut_check_status(trim(str))
+        END SUBROUTINE setCal
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Prints out information about the Calendar
-        !!
-        !! Prints the origin and the stepsize of the calendar to the default output unit
-        !! @note Always prints stepsize in seconds, no matter what the actual stepsize is
-        !------------------------------------------------------------------
-        CHARACTER*80 FUNCTION EncCal(cal) RESULT(encstr)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar)      :: cal
-            INTEGER             :: status
-            status = UTENC(cal%ptr, encstr)
-            IF (status .NE. 0) THEN
-                PRINT *, "UTENC ERROR: ", status
-            ENDIF
-        END FUNCTION EncCal
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Frees the space for the calendar
+        !> @brief Frees the space for the calendar pointer
         !------------------------------------------------------------------
         SUBROUTINE freeCal(cal)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(inout)       :: cal
-            CALL UTFREE(cal%ptr)
-            cal%ptr = DEF_PTR
+            TYPE(calendar), INTENT(inout) :: cal
+            CALL ut_free(cal%ptr)
+            call ut_check_status()
         END SUBROUTINE
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Ends the use of the UDUNITS package
+        !> @brief Frees the memory for the units database
         !------------------------------------------------------------------
         SUBROUTINE CloseCal
-            IMPLICIT NONE
-#include "udunits.inc"
-            CALL UTCLS()
+            CALL ut_free_system(utSystem)
+            call ut_check_status()
         END SUBROUTINE
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Converts one calendar to another
-        !!
-        !! @param fromcal The calendar to be converted
-        !! @param tocal The reference-calendar
-        !!
-        !! Sets the origin of fromcal to that of tocal and adjusts the stepsize of fromcal,
-        !! meaning the stepsize of fromcal will be in the scale of tocal but will be still
-        !! the same amount.
-        !! tocal does not change
+        !> @brief Converts an array of time values from one calendar to another
         !------------------------------------------------------------------
-        SUBROUTINE cvtCal(fromcal, tocal, stepsize)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), intent(inout)       :: fromcal
-            TYPE(calendar), intent(in)          :: tocal
-            INTEGER                             :: status
-            REAL(8), INTENT(out), OPTIONAL      :: stepsize
-            REAL(8)                             :: slope, intercept
-
-            !slope contains the conversion between the time steps
-            !intercept contains the conversion between the dates
-            status = UTCVT(fromcal%ptr, tocal%ptr, slope, intercept)
-            IF (status .NE. 0) THEN
-                PRINT *, "UTCVT ERROR: ", status
-                STOP 1
-            ENDIF
-            !testprints
-            !PRINT *, "SLOPE: ", slope
-            !PRINT *, "INTERCEPT: ", intercept
-
-            CALL UTCPY(tocal%ptr, fromcal%ptr)
-            CALL UTSCAL(fromcal%ptr, slope, fromcal%ptr)
-
-            IF (PRESENT(stepsize)) THEN
-                stepsize = slope
-            ENDIF
-        END SUBROUTINE cvtCal
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Calculates the number of steps needed to reach a date
-        !!
-        !! Returns the number of steps the calendar needs to reach the given date.
-        !! This takes in account the origin of the calendar and its stepsize
-        !------------------------------------------------------------------
-        REAL(8) FUNCTION CalcStepsByDate (cal, year, month, day, hour, minute, second) RESULT(steps)
-            IMPLICIT NONE
-#include "udunits.inc"
-            INTEGER                     :: status
-            INTEGER                     :: year, month, day, hour, minute
-            REAL                        :: second
-            TYPE(calendar)              :: cal
-
-            status = UTICALTIME(year, month, day, hour, minute, second, cal%ptr, steps)
-            IF (status .NE. 0) THEN
-                PRINT *, "UTICALTIME ERROR: ", status
-                STOP 1
-            ENDIF
-        END FUNCTION CalcStepsByDate
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Calculates the number of steps needed to reach a date
-        !!
-        !! @param cal1 The calendar which steps are to be calculated
-        !! @param cal2 The calendar which gives the date to be reached
-        !!
-        !! Returns the number of steps the calendar needs to reach the date given
-        !! by the origin of another calendar.
-        !! This takes in account the origin of the calendar and its stepsize
-        !------------------------------------------------------------------
-        REAL(8) FUNCTION CalcStepsByCal (cal1, cal2) RESULT(steps)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), intent(in)  :: cal1, cal2
-            TYPE(calendar)              :: temp_cal
-            INTEGER                     :: year, month, day, hour, minute
-            REAL                        :: second
-
-            CALL CalcDate(cal2, 0, year, month, day, hour, minute, second)
-
-            steps = CalcStepsByDate(cal1, year, month, day, hour, minute, second)
-        END FUNCTION CalcStepsByCal
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Calculates the date reached after a number of steps
-        !!
-        !! Calculates the date the calendar would reach after a given amount of steps.
-        !! This takes in account the origin of the calendar and its stepsize.
-        !------------------------------------------------------------------
-        SUBROUTINE CalcDate(cal, steps, year, month, day, hour, minute, second)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(in)  :: cal
-            INTEGER                     :: steps
-            INTEGER                     :: status
-            INTEGER, INTENT(out)        :: year, month, day, hour, minute
-            REAL, INTENT(out)           :: second
-
-            status = UTCALTIME(REAL(steps,8), cal%ptr, year, month, day, hour, minute, second)
-            IF (status .NE. 0) THEN
-                PRINT *, "UTCALTIME ERROR: ", status
-                STOP 1
-            ENDIF
-        END SUBROUTINE CalcDate
-
-        SUBROUTINE ScaleCal(cal, amount)
-            IMPLICIT NONE
-#include "udunits.inc"
-            TYPE(calendar), INTENT(inout)       :: cal
-            REAL(8), INTENT(in)                 :: amount
-
-            CALL UTSCAL(cal%ptr, amount, cal%ptr)
-        END SUBROUTINE ScaleCal
-
-        SUBROUTINE handleUTDEC(status)
-            INTEGER, INTENT(in)   :: status
-            SELECT CASE(status)
-                CASE(UT_ENOINIT)
-                    PRINT *, "UTDEC ERROR: package hasn't been initialized"
-                    STOP 1
-                CASE(UT_EUNKNOWN)
-                    PRINT *, "UTDEC ERROR: Specification  contains  an  unknown  unit"
-                    STOP 1
-                CASE(UT_ESYNTAX)
-                    PRINT *, "UTDEC ERROR: specification contains a syntax error"
-                    STOP 1
-                CASE(0)
-                    ! SUCCESS
-            END SELECT
-        END SUBROUTINE handleUTDEC
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !> @brief Converts a time from one calendar to another
-        !!
-        !!
-        !------------------------------------------------------------------
-        SUBROUTINE convertTime(fromCal,toCal,time)
+        SUBROUTINE convertTimeArray(fromCal,toCal,time)
           IMPLICIT NONE
-#include "udunits.inc"
-          TYPE(calendar), INTENT(in)          :: fromCal
-          TYPE(calendar), INTENT(in)          :: toCal
+          TYPE(calendar), INTENT(in)           :: fromCal
+          TYPE(calendar), INTENT(in)           :: toCal
           REAL(8), DIMENSION(:), INTENT(inout) :: time
-          REAL(8)                             :: slope
-          REAL(8)                             :: intersect
-          SELECT CASE(UTCVT(fromCal%ptr, toCal%ptr, slope, intersect))
-            CASE(0)
-              ! SUCCESS
-            CASE(UT_ENOINIT)
-              PRINT *,"ERROR: udunits package hasn't  been initialized."
-              STOP 2
-            CASE(UT_EINVALID)
-              PRINT *,"ERROR: One  of the unit variables is invalid."
-              STOP 2
-            CASE(UT_ECONVERT)
-              PRINT *,"ERROR: Units are not convertable."
-              STOP 2
-          END SELECT
-          time = slope*time + intersect
-        END SUBROUTINE convertTime
+          type(c_ptr)  :: converter, dummy
+          integer(c_size_t) :: count
+
+          count = size(time)
+          if (c_associated(fromCal%ptr) .and. c_associated(toCal%ptr)) then
+            converter = ut_get_converter(fromCal%ptr, toCal%ptr)
+            call ut_check_status("ut_get_converter")
+            dummy = cv_convert_doubles(converter, time, count, time)
+            call ut_check_status("ut_convert_doubles")
+            call cv_free(converter)
+            call ut_check_status("cv_free")
+          end if
+        END SUBROUTINE convertTimeArray
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Converts a time scalar from one calendar to another
+        !!
+        !------------------------------------------------------------------
+        subroutine convertTimeScalar(fromCal, toCal, time)
+          type(calendar), intent(in)  :: fromCal
+          type(calendar), intent(in)  :: toCal
+          real(8), intent(inout)      :: time
+          type(c_ptr)  :: converter
+          converter = ut_get_converter(fromCal%ptr, toCal%ptr)
+          call ut_check_status()
+          time = cv_convert_double(converter, time)
+          call ut_check_status()
+          call cv_free(converter)
+          call ut_check_status()
+        end subroutine convertTimeScalar
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Check return status of a ut_* function call and print some
+        !! information given in str
+        !------------------------------------------------------------------
+        subroutine ut_check_status(str)
+          character(len=*), optional, intent(in) :: str
+          character(len=128) :: lstr
+          integer(c_int) :: stat
+          stat = ut_get_status()
+          lstr = 'No further information given'
+          if (present(str)) lstr = str
+          if (stat .NE. UT_SUCCESS) THEN
+            print *, stat, lstr
+            stop 2
+          end if
+        end subroutine ut_check_status
 
 END MODULE calendar_module
