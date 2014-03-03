@@ -14,7 +14,8 @@
 MODULE io_module
 #include "io.h"
   USE netcdf
-  USE calendar_module
+  USE calendar_module, ONLY : ref_cal, calendar, openCal, setCal, &
+                              freeCal, closeCal, convertTime, isSetCal
   USE grid_module
   IMPLICIT NONE
 
@@ -33,8 +34,8 @@ MODULE io_module
   !! provides a description of the netcdf data structure
   !------------------------------------------------------------------
   TYPE, PUBLIC :: fileHandle
-    CHARACTER(len=CHARLEN), PRIVATE :: filename=""  !< Path of file. Absolute and relative path will work.
-    CHARACTER(len=CHARLEN), PRIVATE :: varname=""   !< Name of variable.
+    CHARACTER(len=CHARLEN), PRIVATE :: filename=''  !< Path of file. Absolute and relative path will work.
+    CHARACTER(len=CHARLEN), PRIVATE :: varname=''   !< Name of variable.
     INTEGER, PRIVATE      :: ncid=DEF_NCID          !< NetCDF file ID.
     INTEGER, PRIVATE      :: varid=DEF_VARID        !< NetCDF variable ID
     INTEGER, PRIVATE      :: timedid=DEF_TIMEDID    !< NetCDF dimension ID of time dimension
@@ -46,9 +47,9 @@ MODULE io_module
   END TYPE fileHandle
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  CHARACTER(CHARLEN)          :: oprefix = ""       !< prefix of output file names. Prepended to the file name by io_module::getFname
-  CHARACTER(CHARLEN)          :: osuffix=""         !< suffix of output filenames. Appended to the file name by io_module::getFname
-  CHARACTER(FULLREC_STRLEN)   :: fullrecstr=""      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
+  CHARACTER(CHARLEN)          :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
+  CHARACTER(CHARLEN)          :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
+  CHARACTER(FULLREC_STRLEN)   :: fullrecstr=''      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
   TYPE(calendar), save        :: modelCalendar !< Internal Calendar of the model
@@ -100,7 +101,6 @@ MODULE io_module
       close(UNIT_OUTPUT_NL)
       CALL OpenCal
       time_unit = ref_cal
-      CALL MakeCal(modelCalendar)
       CALL setCal(modelCalendar, time_unit)
     END SUBROUTINE initIO
 
@@ -248,7 +248,7 @@ MODULE io_module
        call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
        call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
        ! variable field
-      call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/id_dimid,FH%timedid/), FH%varid))
+       call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/id_dimid,FH%timedid/), FH%varid))
        call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
        ! end define mode
        call check(nf90_enddef(FH%ncid))
@@ -314,11 +314,12 @@ MODULE io_module
       IF ( .NOT. FH%isOpen ) RETURN
       CALL check(nf90_close(FH%ncid),&
                  __LINE__,TRIM(FH%filename))
+      !call freeCal(FH%calendar)
       FH%isOpen = .FALSE.
     END SUBROUTINE closeDS
-    
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Updates the number of records in a file 
+    !> @brief Updates the number of records in a file
     !!
     !! If no value is specified, nrec will be incremented by one.
     !! Otherwise it will be set to the specified update-value.
@@ -498,6 +499,7 @@ MODULE io_module
         CALL getVar1Dhandle(FH_time,time)
       END IF
       ! convert to model time unit
+      print *, "Convert time from", getFileNameFH(FH)
       CALL convertTime(FH%calendar,modelCalendar,time)
     END SUBROUTINE getTimeVar
 
@@ -551,7 +553,6 @@ MODULE io_module
       TYPE(fileHandle), intent(out)   :: FH             !< File handle to be returned
       IF (LEN_TRIM(fileName) .NE. 0 .AND. LEN_TRIM(varname) .NE. 0) THEN
         FH = fileHandle(fileName,varname)
-        CALL MakeCal(FH%calendar)
         CALL touch(FH)
       END IF
     END SUBROUTINE initFH
