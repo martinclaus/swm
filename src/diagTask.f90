@@ -221,10 +221,10 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE writeTaskToFile(self, time)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in) :: self !< Task to output
-      REAL(8), INTENT(in)                   :: time !< Timestamp in model time
-      REAL(8), DIMENSION(:,:), POINTER      :: outData2D => null()
-      real(8), dimension(:), pointer        :: outData1D => null()
+      TYPE(diagTask_t), POINTER, INTENT(inout) :: self !< Task to output
+      REAL(8), INTENT(in)                      :: time !< Timestamp in model time
+      REAL(8), DIMENSION(:,:), POINTER         :: outData2D => null()
+      real(8), dimension(:), pointer           :: outData1D => null()
 
       SELECT CASE (self%type(1:1))
         CASE ("A","a")
@@ -259,7 +259,7 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE processTask(task)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in) :: task !< Task to process
+      TYPE(diagTask_t), POINTER, INTENT(inout) :: task !< Task to process
       REAL(8)     :: deltaT                         !< residual length of time interval
 
       IF (mod(itt, task%nstep).NE.0) RETURN !< check if task have to be processed
@@ -306,7 +306,7 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE addDataToTaskBuffer(task,deltaT)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in)     :: task   !< Task to process
+      TYPE(diagTask_t), POINTER, INTENT(inout)  :: task   !< Task to process
       REAL(8), INTENT(in)                       :: deltaT !< length of time interval
       integer                                   :: power
 
@@ -338,13 +338,15 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE createTaskDS(task)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in) :: task
+      TYPE(diagTask_t), POINTER, INTENT(inout) :: task
+      character(CHARLEN) :: format_str
 
       !< close dataset if exists
       CALL closeDS(task%FH)
 
       !< update io_module::fullrecstr
-      WRITE (fullrecstr, '(i12.12)') task%fullrec
+      write(format_str, '("(I", I0, ".", I0, ")")') FULLREC_STRLEN, FULLREC_STRLEN
+      WRITE (fullrecstr, format_str) task%fullrec
 
       !< create dataset
       if (associated(task%grid)) then
@@ -465,7 +467,7 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE printTask(self)
       IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in)    :: self  !< Task to print information about
+      TYPE(diagTask_t), POINTER, INTENT(inout)    :: self  !< Task to print information about
       CHARACTER(CHARLEN) :: formatedString, formatedInteger
       IF (.NOT.associated(self)) THEN
         PRINT *,"ERROR: Try to print non-existent diagnostic task!"

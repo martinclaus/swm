@@ -552,7 +552,8 @@ MODULE io_module
       CHARACTER(*), intent(in)        :: varname        !< Name of variable inside the dataset to be associated with the file handle
       TYPE(fileHandle), intent(out)   :: FH             !< File handle to be returned
       IF (LEN_TRIM(fileName) .NE. 0 .AND. LEN_TRIM(varname) .NE. 0) THEN
-        FH = fileHandle(fileName,varname)
+        FH%filename = fileName
+        FH%varname = varname
         CALL touch(FH)
       END IF
     END SUBROUTINE initFH

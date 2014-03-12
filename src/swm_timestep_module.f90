@@ -309,7 +309,7 @@ MODULE swm_timestep_module
     !! @todo Add some documentation about the physics
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_AB_EFW
-      USE vars_module, ONLY : N0, N0p1
+      USE vars_module, ONLY : N0, N0p1, dt, itt
       USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j

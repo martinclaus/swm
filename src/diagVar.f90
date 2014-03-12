@@ -114,7 +114,7 @@ MODULE diagVar
       use vars_module, only : u, v, N0
       USE calc_lib, ONLY : computeStreamfunction, computeVelocityPotential, &
                            computeNonDivergentFlowField
-      TYPE(diagVar_t), POINTER, INTENT(in) :: var
+      TYPE(diagVar_t), POINTER, INTENT(inout) :: var
       if (getComputed(var)) return
       SELECT CASE (var%name)
         CASE (DVARNAME_PSI)
