@@ -27,9 +27,8 @@ MODULE calendar_module
   !! @see UDUNITS2 package documentation (http://www.unidata.ucar.edu/software/udunits/udunits-1/)
   !! provides a description of the udunits operations and its structure
   !------------------------------------------------------------------
-    TYPE, PUBLIC ::     calendar
+    TYPE, PUBLIC, bind(C) ::     calendar
         TYPE(c_ptr), PRIVATE ::  ptr=c_null_ptr
-        LOGICAL, PRIVATE     ::  isSet=.FALSE.
     END TYPE calendar
 
    CHARACTER(CHARLEN)     :: ref_cal            !< unit string of internal model calendar
