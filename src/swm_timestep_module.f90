@@ -32,7 +32,7 @@ MODULE swm_timestep_module
   PRIVATE
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            SWM_u, SWM_v, SWM_eta
+            SWM_u, SWM_v, SWM_eta, SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, G_u, G_v, G_eta
 
   ! constant coefficients (specific for time stepping scheme)
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory

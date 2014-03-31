@@ -32,6 +32,7 @@ include_modelHeader = $(includedir)
 
 UDDIR = @UDDIR@
 NETDIR = @NETDIR@
+CUDADIR = @CUDADIR@
 
 bin_PROGRAMS = model$(EXEEXT)
 model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90 domain_module.f90 grid_module.f90
@@ -48,7 +49,6 @@ libud = -L$(UDDIR)/lib -ludunits2
 DOXYGEN = @DOXYGEN@
 
 COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
-
 VPATH = include:src:build
 
 # conditional modules
@@ -62,7 +62,18 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module
+# don't use CUDA if directory is not specified
+ifneq ($(strip $(CUDADIR)),)
+  cl_cuda := cuda_memory cuda_c_module cuda_kernels cuda_module
+  cl_cuda_o := $(cl_cuda:%=%.o)
+  cl_nvcc := nvcc
+  cl_cuff := -arch='sm_21'
+  libcu := -L$(CUDADIR)/lib64 -lcudart
+  cl_defCudaEnabled = -D'CUDA_ENABLED'
+  CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
+endif
+
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module $(cl_cuda)
 objects = $(modules:%=$(builddir)%.o)
 
 
@@ -72,9 +83,9 @@ all     : $(bin_PROGRAMS)
 #clean
 
 model$(EXEEXT)   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud)
+	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) $(libcu)
 
-model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h
+model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h $(cl_cuda_o)
 	$(COMPILE)
 
 vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
@@ -129,6 +140,18 @@ domain_module.o : domain_module.f90 grid_module.o io_module.o io.h
 	$(COMPILE)
 
 grid_module.o : grid_module.f90 model.h
+	$(COMPILE)
+
+cuda_memory.o : cuda_memory.cu cuda_memory.h
+	$(CUCOMPILE)
+
+cuda_kernels.o : cuda_kernels.cu cuda_module.h cuda_memory.h cuda_kernels.h
+	$(CUCOMPILE)
+
+cuda_c_module.o : cuda_module.cu cuda_module.h cuda_memory.h cuda_kernels.h
+	$(CUCOMPILE)
+
+cuda_module.o : cuda_module.f90 cuda_c_module.o domain_module.o vars_module.o swm_timestep_module.o swm_damping_module.o swm_forcing_module.o
 	$(COMPILE)
 
 %.o : %.f90

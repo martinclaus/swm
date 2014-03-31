@@ -582,6 +582,7 @@ PACKAGE_STRING='SWM 0.2'
 PACKAGE_BUGREPORT=''
 PACKAGE_URL=''
 
+ac_unique_file="src/model.f90"
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 SET_MAKE
@@ -603,6 +604,7 @@ CFLAGS
 CC
 DOXYGEN
 SED
+CUDADIR
 NETDIR
 UDDIR
 target_alias
@@ -653,6 +655,7 @@ host_alias
 target_alias
 UDDIR
 NETDIR
+CUDADIR
 CC
 CFLAGS
 LDFLAGS
@@ -1276,6 +1279,7 @@ Some influential environment variables:
               directories are located
   NETDIR      The directory in which the NetCDF lib/ and include/ directories
               are located
+  CUDADIR     The directory in which the CUDA bin/ lib64/ are located
   CC          C compiler command
   CFLAGS      C compiler flags
   LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
@@ -1840,6 +1844,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+
 #Sets these Environment Variables as precious and directs them into the created Makefile if they are set
 
 
@@ -1916,7 +1921,6 @@ $as_echo "$ac_cv_path_SED" >&6; }
  SED="$ac_cv_path_SED"
   rm -f conftest.sed
 
-
 #Checks for Doxygen
 for ac_prog in doxygen
 do
@@ -1961,9 +1965,10 @@ fi
 done
 
 if test -z "$DOXYGEN";
-	then { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Doxygen not found - continuing without Doxygen" >&5
+   then { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Doxygen not found - continuing without Doxygen" >&5
 $as_echo "$as_me: WARNING: Doxygen not found - continuing without Doxygen" >&2;}
 fi
+
 #C-Checks
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
@@ -2754,9 +2759,8 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
-
 #Fortran-Checks
-#Checks for a Fortran Compiler, sets the variable FC to the compiler found
+#Checks for a Fortran-Compiler, sets the variable FC to the compiler found
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
@@ -2968,6 +2972,11 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
+ac_ext=${ac_fc_srcext-f}
+ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
+ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_fc_compiler_gnu
+
 #Checks if the Fortran Compiler accepts .f90 extensions and sets FCFLAGS_f90 to the needed flags, if any
 
 ac_ext=${ac_fc_srcext-f}
@@ -3038,13 +3047,6 @@ else
 
 
 fi
-ac_ext=c
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
-ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
-
-#Do compile tests and set the needed FCFLAGS
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
@@ -3415,7 +3417,6 @@ ac_empty=""
 
 
 
-
 #Sets the command needed to execute makefiles
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether ${MAKE-make} sets \$(MAKE)" >&5
 $as_echo_n "checking whether ${MAKE-make} sets \$(MAKE)... " >&6; }
@@ -3448,12 +3449,6 @@ $as_echo "no" >&6; }
   SET_MAKE="MAKE=${MAKE-make}"
 fi
 
-
-# Checks for libraries.
-# FIXME: Replace `main' with a function in `-lnetcdf':
-#AC_CHECK_LIB([netcdf], [nf_put_var1])
-# FIXME: Replace `main' with a function in `-ludunits':
-#AC_CHECK_LIB([udunits], [utmake])
 
 # Checks for header files.
 

@@ -13,7 +13,7 @@ Header file for shallow water model. Meant to set different physics.
 #define BAROTROPIC
 /* Switches for timestepping (only use one at a time) */
 #define SWM_TSTEP_ADAMSBASHFORTH
-!#define SWM_TSTEP_HEAPS
+/*#define SWM_TSTEP_HEAPS*/
 /* Switches for forcing */
 #define TAU_SCALE 1e-2
 /* Switches for damping */
@@ -25,7 +25,7 @@ Header file for shallow water model. Meant to set different physics.
 #define VELOCITY_SPONGE "NSEW"
 
 /* Switch to load dynamical variables from file (mean flow) */
-!#define DYNFROMFILE
+/*#define DYNFROMFILE*/
 
 #define DIAG_START 0.
 #define H_OVERWRITE
@@ -37,7 +37,7 @@ Header file for shallow water model. Meant to set different physics.
 #define SPHERICALGEOMETRY 3
 
 /* Switch choosing the calculation of Coriolis-Parameter */
-!#define CORIOLIS FPLANE
+/*!#define CORIOLIS FPLANE*/
 
 /* Standard calculation of Coriolis-Parameter */
 #ifndef CORIOLIS

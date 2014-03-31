@@ -19,6 +19,9 @@ MODULE diagVar
   USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid
   USE grid_module, only : grid_t
   USE generic_list
+#ifdef CUDA_ENABLED
+  USE cuda_module
+#endif
   IMPLICIT NONE
 
   PRIVATE
@@ -118,12 +121,28 @@ MODULE diagVar
       if (getComputed(var)) return
       SELECT CASE (var%name)
         CASE (DVARNAME_PSI)
+#ifdef CUDA_ENABLED
+          call CUDA_getPsi(var%data)
+#else
           call computeStreamfunction(u(:,:,N0), v(:,:,N0), var%data)
+#endif
         case (DVARNAME_CHI)
+#ifdef CUDA_ENABLED
+          call CUDA_getU(u)
+          call CUDA_getV(v)
+#endif
           call computeVelocityPotential(u(:,:,N0), v(:,:,N0), var%data)
         case (DVARNAME_U_ND)
+#ifdef CUDA_ENABLED
+          call CUDA_getU(u)
+          call CUDA_getV(v)
+#endif
           call computeNonDivergentFlowField(u(:,:,N0), v(:,:,N0), u_nd_out=var%data)
         case (DVARNAME_V_ND)
+#ifdef CUDA_ENABLED
+          call CUDA_getU(u)
+          call CUDA_getV(v)
+#endif          
           call computeNonDivergentFlowField(u(:,:,N0), v(:,:,N0), v_nd_out=var%data)
         CASE DEFAULT
           PRINT *,"ERROR: Usupported diagnostic variable "//TRIM(var%name)

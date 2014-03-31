@@ -35,6 +35,9 @@ PROGRAM model
 #ifdef TRACER
   USE tracer_module
 #endif
+#ifdef CUDA_ENABLED
+  USE cuda_module
+#endif
   IMPLICIT NONE
 
 
@@ -125,6 +128,14 @@ PROGRAM model
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! Initialise CUDA Framework and set initial dataset
+        !------------------------------------------------------------------
+#ifdef CUDA_ENABLED
+	call CUDA_initCuda
+	print *, 'initCuda done'
+#endif
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! write initial fields to file
         !------------------------------------------------------------------
         call Diag
@@ -154,8 +165,12 @@ PROGRAM model
           call DFF_timestep
 #endif
 
-#ifdef SWM
+#if defined(SWM) && !defined(CUDA_ENABLED)
           call SWM_timestep
+#endif
+
+#ifdef CUDA_ENABLED
+          call CUDA_timestep
 #endif
 
 #ifdef TRACER
@@ -213,6 +228,10 @@ PROGRAM model
         call DFF_finishDynFromFile
 #endif
 
+#ifdef CUDA_ENABLED
+        call CUDA_finish
+#endif
+
         call finishIO
     END SUBROUTINE finishModel
 
@@ -236,7 +255,10 @@ PROGRAM model
 #ifdef DYNFROMFILE
       CALL DFF_advance
 #endif
-#ifdef SWM
+#ifdef CUDA_ENABLED
+      CALL CUDA_advance
+#endif
+#if defined(SWM) && !defined(CUDA_ENABLED)
       CALL SWM_advance
 #endif
 #ifdef TRACER
