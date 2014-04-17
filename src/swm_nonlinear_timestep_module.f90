@@ -32,7 +32,7 @@ MODULE swm_timestep_module
   PRIVATE
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            SWM_u, SWM_v, SWM_eta, SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, G_u, G_v, G_eta
+            SWM_u, SWM_v, SWM_eta
 
   ! constant coefficients (specific for time stepping scheme)
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
@@ -248,9 +248,6 @@ MODULE swm_timestep_module
                                FXDEP &
 #endif
                               )&
-#ifdef TDEP_FORCING
-                            + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
-#endif
                             ) / impl_u(i,j)                                        ! implicit linear friction
           ENDIF
         ENDDO XSPACE2
@@ -289,9 +286,6 @@ MODULE swm_timestep_module
                               FYDEP &
 #endif
                               )&
-#ifdef TDEP_FORCING
-                            + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
-#endif
                             ) / impl_v(i,j)                                        ! implicit linear friction
           ENDIF
         ENDDO XSPACE3
@@ -309,7 +303,7 @@ MODULE swm_timestep_module
     !! @todo Add some documentation about the physics
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_AB_EFW
-      USE vars_module, ONLY : N0, N0p1, dt, itt
+      USE vars_module, ONLY : N0, N0p1
       USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j
@@ -419,6 +413,173 @@ MODULE swm_timestep_module
       END IF
     END FUNCTION integrate
 
+    SUBROUTINE SWM_timestep_nonlinear
+      USE calc_lib, ONLY : interpolate, evaluateStreamfunction
+      USE memchunk_module, ONLY : getChunkData
+      USE vars_module, ONLY : dt, G, N0, N0p1
+      USE domain_module, ONLY : Nx, Ny, ip1, jp1, im1, jm1, dLambda, dTheta, &
+                                H_u, H_v, H_eta, A, u_grid, v_grid, eta_grid,&
+                                H_grid
+
+      IMPLICIT NONE
+      INTEGER :: i,j
+      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D, EDens, ocean_eta
+      REAL(8), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2))     :: Pot, zeta
+      REAL(8), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2))     :: MV, ocean_v
+      REAL(8), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2))     :: MU, ocean_u
+      REAL(8), DIMENSION(:,:,:), ALLOCATABLE                            :: psi_bs, u_bs, v_bs, zeta_bs
+!TODO psi_bs, u und v, Zeta als modulvariablen
+
+      ocean_eta = eta_grid%ocean
+      ocean_u   = u_grid%ocean
+      ocean_v   = v_grid%ocean
+
+      ALLOCATE(psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), zeta_bs(1:Nx,1:Ny,1),  stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
+        STOP 1
+      END IF
+
+       ! initialise coefficients
+      psi_bs = 0._8
+      u_bs   = 0._8
+      v_bs   = 0._8
+
+#ifdef LINEARISED_MEAN_STATE
+      ! get basic state
+      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
+      CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
+      zeta_bs(:,:,1) = vorticity(psi_bs(:,:,1), H_grid)
+#endif
+
+      !D = eta + H_eta
+      D = getD()
+      !vorticity = d/dx * v - d/dy * u
+      zeta = vorticity(SWM_u, SWM_v, u_grid, v_grid)
+      DO j=1,Ny
+        DO i=1,Nx
+          Pot(i,j) = getPotentialVorticity(i,j,D,zeta)
+          EDens(i,j) = getEDens(i,j)
+          !Mass-Flux MV = interpolate(D,{x}) * v
+          MV(i,j) = interpolate(D, eta_grid, "y", i, j) * SWM_v(i,j,N0)
+          !Mass-Flux MU = interpolate(D,{y}) * u
+          MU(i,j) = interpolate(D, eta_grid, "x", i, j) * SWM_u(i,j,N0)
+        END DO
+      END DO
+
+      
+      YSPACE1: DO j=1,Ny
+        XSPACE1: DO i=1,Nx
+          ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this point if it is land
+              !eta = \nabla * (MU, MV)
+              !TODO Mass-Flux Diversions in eigene Funktion, i + 1 zu ip1 usw.
+              G_eta(i,j,NG0) = - ((MU(ip1(i),j) - MU(i,j)) / dLambda &
+                                     + (MV(i,j+1) * v_grid%cos_lat(j+1) &
+                                        - MV(i,j) * v_grid%cos_lat(j)) / dTheta) &
+                                  / (A * eta_grid%cos_lat(j)) &
+#ifndef FULLY_NONLINEAR
+                                  - ((interpolate(SWM_eta, eta_grid, "x", i+1,j) * u_bs(i+1,j,1) &
+                                        - interpolate(SWM_eta, eta_grid, "x", i,j) * u_bs(i,j,1)) &
+                                      / dLambda &
+                                    + (v_grid%cos_lat(j+1) * interpolate(SWM_eta, eta_grid, "y", i, j+1) * v_bs(i, j+1,1) &
+                                        - v_grid%cos_lat(j) * interpolate(SWM_eta, eta_grid, "y", i,j) * v_bs(i,j,1))) &
+                                  / (A * eta_grid%cos_lat(j))
+#endif
+          END IF ETA
+        END DO XSPACE1
+    END DO YSPACE1
+    YSPACE2: DO j=1,Ny
+        XSPACE2: DO i=1,Nx
+          !u equation
+          U: IF (ocean_u(i,j) .eq. 1) THEN !skip this point if it is land
+              !u = interpolate(Pot,{y}) * interpolate(MV,{x,y}) - d/dx (g*eta + E)
+              G_u(i,j,NG0) = interpolate(Pot, H_grid, "y", i, j) &
+                                 * interpolate(MV, v_grid, i, j) &
+#ifndef FULLY_NONLINEAR
+                                 + interpolate(zeta, H_grid, "y", i, j) &
+                                 * interpolate(v_bs, v_grid, i, j) &
+#endif
+                                 - ((EDens(i,j) - EDens(i-1,j))  &
+                                    / (A * u_grid%cos_lat(j) * dLambda))
+          END IF U
+        END DO XSPACE2
+    END DO YSPACE2
+    YSPACE3: DO j=1,Ny
+        XSPACE3: DO i=1,Nx
+          V: IF (ocean_v(i,j) .eq. 1) THEN !skip this point if it is land
+              !v = - interpolate(Pot,{x}) * interpolate(MU,{x,y}) - d/dy (g*eta + E)
+              G_v(i,j,NG0) = - interpolate(Pot, H_grid, "x", i, j) &
+                                * interpolate(MU, u_grid, i, j) &
+#ifndef FULLY_NONLINEAR
+                                - interpolate(zeta, H_grid, "x", i, j) &
+                                * interpolate(u_bs, u_grid, i, j) &
+#endif
+                                - ((EDens(i,j) - EDens(i,j-1)) &
+                                   / (A * dTheta))
+          END IF V
+        END DO XSPACE3
+      END DO YSPACE3
+#ifndef FULLY_NONLINEAR
+      DEALLOCATE(psi_bs, u_bs, v_bs, stat=alloc_error)
+      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+#endif
+    END SUBROUTINE SWM_timestep_nonlinear
+
+
+    FUNCTION getD RESULT(D)
+      USE vars_module, ONLY : N0
+      USE domain_module, ONLY : eta_grid, H_eta
+      IMPLICIT NONE
+      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D
+      !TODO Landpunkte abfangen
+#ifdef FULLY_NONLINEAR 
+      D = SWM_eta(:,:,N0) + H_eta
+#else ifdef LINEARISED_MEAN_STATE
+      D = H_eta
+#else ifdef LINEARISED_STATE_OF_REST
+      D = H_eta
+#endif
+    END FUNCTION getD
+
+    FUNCTION getPotentialVorticity(i,j,D,zeta) Result(Pot)
+      USE calc_lib, ONLY: interpolate
+      USE domain_module, ONLY: H_grid, eta_grid
+      IMPLICIT NONE
+      INTEGER                                                           :: i,j
+      REAL(8), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2))     :: Pot, zeta
+      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D
+#ifdef FULLY_NONLINEAR
+      !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
+      Pot(i,j) = (H_grid%f(j) + zeta) / interpolate(D, eta_grid, i, j)
+#else ifdef LINEARISED_MEAN_STATE
+      !potential vorticity Pot = (f + Z)/D
+      Pot(i,j) = (H_grid%f(j) + zeta_bs(i,j,1)) / D(i,j)
+#else ifdef LINEARISED_STATE_OF_REST
+      !potential vorticity Pot = f/D
+      Pot(i,j) = H_grid%f(j) / D(i,j)
+#endif
+    END FUNCTION getPotentialVorticity
+
+    FUNCTION getEDens(i,j, u_bs, v_bs) RESULT(EDens)
+      USE vars_module, ONLY : G, N0
+      IMPLICIT NONE
+      INTEGER                                                           :: i, j
+      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D, EDens, ocean_eta
+      REAL(8), DIMENSION(1:Nx,1:Ny,1)                                   :: u_bs, v_bs
+#ifdef FULLY_NONLINEAR
+      !Energy-Density EDens = g * eta + 1/2 * (u^2 + v^2)
+      !TODO wie interpolate, nur werte quadrieren und dann mittelwert berechnen
+      EDens(i,j) = (interpolate(SWM_u**2, u_grid, "x", i, j) + interpolate(SWM_v**2, v_grid, "y", i, j)) / 2. + G * SWM_eta(i,j,N0)
+#else ifdef LINEARISED_MEAN_STATE
+      !Energy-Density EDens = g * eta + uU + vV
+      !TODO Produkt swm_u und u_bs bzw v interpolieren
+      EDens(i,j) = G * SWM_eta(i,j,N0) + SWM_u(i,j,N0) * u_bs(i,j) + SWM_v(i,j,N0) * v_bs(i,j) 
+#else ifdef LINEARISED_STATE_OF_REST
+      EDens(i,j) = G * SWM_eta(i,j,N0)
+#endif
+    END FUNCTION getEDens
+
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise the coefficients for the heaps scheme
     !!
@@ -429,6 +590,7 @@ MODULE swm_timestep_module
     !! @par Uses:
     !! vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,cosTheta_u,cosTheta_v,dTheta, H_u, H_v
     !------------------------------------------------------------------
+
     SUBROUTINE SWM_timestep_initHeapsScheme
       USE vars_module, ONLY : dt, G
       USE domain_module, ONLY : Nx, Ny, ip1, jp1, dLambda, dTheta, H_u, H_v, &

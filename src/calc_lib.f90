@@ -47,6 +47,11 @@ MODULE calc_lib
     module procedure vorticityFromVelocities
   end interface vorticity
 
+  interface interpolate
+    module procedure interpolate_2point
+    module procedure interpolate_4point
+  end interface interpolate
+
   interface laplacian
     module procedure laplacian2D
   end interface laplacian
@@ -195,6 +200,40 @@ MODULE calc_lib
       var_interp = weight%area * sum(var*weight%factors)
      end function interp2d
 
+     function interpolate_2point(var, grid, direction, i, j) result(inter)
+      use grid_module
+      real(8), dimension(:,:), intent(in) :: var
+      type(grid_t), intent(in)            :: grid
+      type(grid_t), pointer               :: grid_inter
+      character(*), intent(in)            :: direction
+      integer, pointer, dimension(:)      :: ind0, indm1
+      integer, intent(in)                 :: i,j
+      real(8)                             :: inter
+      call getOutGrid(grid, direction, grid_inter, ind0, indm1)
+      select case(direction)
+        case("X", "x", "zonal", "lambda")
+          inter = (var(ind0(i), j) + var(indm1(i), j)) / 2.
+        case("Y", "y", "theta", "meridional")
+          inter = (var(i, ind0(j)) + var(i, indm1(j))) / 2.
+        case default
+          print *, "ERROR: Wrong direction for interpolation specified. Check your Code!"
+          stop 1
+      end select
+      end function interpolate_2point
+
+
+      function interpolate_4point(var, grid, i, j) result(inter)
+       use grid_module
+       real(8), dimension(:,:), intent(in) :: var
+       type(grid_t), intent(in)            :: grid
+       type(grid_t), pointer               :: grid_interm 
+       integer, pointer, dimension(:)      :: ip, im, jp, jm
+       integer, intent(in)                 :: i,j
+       real(8)                             :: inter
+       call getOutGrid(grid, "x", grid_interm, ip, im)
+       call getOutGrid(grid_interm, "y", grid_interp, jp, jm)
+       inter = (var(ip(i), jp(j)) + var(ip(i), jm(j)) + var(im(i), jp(j)) + var(im(i), jm(j))) / 4.
+      end function interpolate_4point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Computes velocity potential
