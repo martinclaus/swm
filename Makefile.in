@@ -41,7 +41,7 @@ model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_mod
 
 O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
-FFLAGS =  $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
+FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(NETDIR)/lib -lnetcdff
 includenc = $(FC_MODINC)$(NETDIR)/include
 libud = -L$(UDDIR)/lib -ludunits2
@@ -75,7 +75,7 @@ ifneq ($(strip $(CUDADIR)),)
   CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module $(cl_cuda)
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module $(cl_cuda)
 objects = $(modules:%=$(builddir)%.o)
 
 
@@ -96,7 +96,7 @@ vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
 calendar_module.o : calendar_module.f90 fudunits2.h io.h
 	$(COMPILE)
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
+swm_module.o : swm_module.f90 vars_module.o io_module.o swm_vars.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
 	$(COMPILE)
 
 diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
@@ -126,13 +126,16 @@ dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_
 memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
+swm_vars.o : swm_vars.f90 vars_module.o domain_module.o
+	$(COMPILE)
+
 swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o generic_list.o
 	$(COMPILE)
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o
 	$(COMPILE)
 
-swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h vars_module.o domain_module.o memchunk_module.o str.o
+swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h swm_vars.o vars_module.o domain_module.o memchunk_module.o str.o
 	$(COMPILE)
 
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o domain_module.o
@@ -153,7 +156,7 @@ cuda_kernels.o : cuda_kernels.cu cuda_module.h cuda_memory.h cuda_kernels.h
 cuda_c_module.o : cuda_module.cu cuda_module.h cuda_memory.h cuda_kernels.h
 	$(CUCOMPILE)
 
-cuda_module.o : cuda_module.f90 cuda_c_module.o domain_module.o vars_module.o swm_timestep_module.o swm_damping_module.o swm_forcing_module.o
+cuda_module.o : cuda_module.f90 cuda_c_module.o swm_vars.o domain_module.o vars_module.o swm_timestep_module.o swm_damping_module.o swm_forcing_module.o
 	$(COMPILE)
 
 %.o : %.f90

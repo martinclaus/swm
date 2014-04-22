@@ -6,14 +6,16 @@
 !! This module controlls the integration of the shallow water equations.
 !!
 !! @par Uses:
+!! swm_vars\n
 !! swm_damping_module\n
 !! swm_forcing_module\n
 !! swm_timestep_module\n
 !------------------------------------------------------------------
 MODULE swm_module
-USE swm_damping_module
-USE swm_forcing_module
-USE swm_timestep_module
+  use swm_vars
+  USE swm_damping_module
+  USE swm_forcing_module
+  USE swm_timestep_module
   IMPLICIT NONE
   SAVE
 
@@ -30,19 +32,9 @@ USE swm_timestep_module
     !! vars_module , ONLY : Nx, Ny, Ns, N0, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
-      USE vars_module, ONLY : Ns, N0, addToRegister
-      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: alloc_error ! return status
-      ! allocate what's necessary
-      ALLOCATE(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
-      CALL addToRegister(SWM_u,"SWM_U", u_grid)
-      CALL addToRegister(SWM_v,"SWM_V", v_grid)
-      CALL addToRegister(SWM_eta,"SWM_ETA", eta_grid)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_init:",alloc_error
-        STOP 1
-      END IF
+      call swm_vars_init
       CALL SWM_damping_init
       CALL SWM_forcing_init
       CALL SWM_timestep_init
@@ -57,12 +49,10 @@ USE swm_timestep_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_finishSWM
       IMPLICIT NONE
-      INTEGER   :: alloc_error
       CALL SWM_timestep_finish
       CALL SWM_forcing_finish
       CALL SWM_damping_finish
-      DEALLOCATE(SWM_u, SWM_v, SWM_eta, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      call SWM_vars_finish
     END SUBROUTINE SWM_finishSWM
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

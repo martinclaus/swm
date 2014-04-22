@@ -23,6 +23,7 @@ MODULE swm_timestep_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
+  use swm_vars, only : SWM_u, SWM_v, SWM_eta
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
   USE swm_lateralmixing_module
@@ -38,15 +39,12 @@ MODULE swm_timestep_module
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
   INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
   INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
+  real(8), dimension(:,:,:), allocatable, target :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
+  real(8), dimension(:,:,:), allocatable, target :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
+  real(8), dimension(:,:,:), allocatable, target :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
   TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
 
@@ -80,6 +78,10 @@ MODULE swm_timestep_module
       CALL addToRegister(G_u(:,:,NG0),"G_U",u_grid)
       CALL addToRegister(G_v(:,:,NG0),"G_V",v_grid)
       CALL addToRegister(G_eta(:,:,NG0),"G_ETA",eta_grid)
+
+#ifdef LATERAL_MIXING
+      call SWM_LateralMixing_init
+#endif
 
 #ifdef SWM_TSTEP_HEAPS
       IF (timestepInitialised) THEN
@@ -126,6 +128,9 @@ MODULE swm_timestep_module
       USE memchunk_module, ONLY : finishMemChunk
       IMPLICIT NONE
       INTEGER   :: alloc_error
+#ifdef LATERAL_MIXING
+      CALL SWM_LateralMixing_finish
+#endif
 #if defined SWM_TSTEP_ADAMSBASHFORTH || defined SWM_TSTEP_HEAPS
       CALL SWM_timestep_finish_Heaps_LiMeanState
 #endif
@@ -233,7 +238,7 @@ MODULE swm_timestep_module
                             - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                            + lat_mixing_u(1,i,j)*SWM_u(i,j,N0)                             &
+                            + dt * (lat_mixing_u(1,i,j)*SWM_u(i,j,N0)                             &
                             + lat_mixing_u(2,i,j)*SWM_u(ip1(i),j,N0)                        &
                             + lat_mixing_u(3,i,j)*SWM_u(im1(i),j,N0)                        &
                             + lat_mixing_u(4,i,j)*SWM_u(i,jp1(j),N0)                        &
@@ -241,7 +246,7 @@ MODULE swm_timestep_module
                             + lat_mixing_u(6,i,j)*SWM_v(i,j,N0)                             &
                             + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
                             + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
-                            + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0)                        &
+                            + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0))                        &
 #endif
                             + dt * (F_x(i,j)                                           &
 #ifdef FXDEP
@@ -274,7 +279,7 @@ MODULE swm_timestep_module
                             - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                            + lat_mixing_v(1,i,j)*SWM_v(i,j,N0)                  &
+                            + dt * (lat_mixing_v(1,i,j)*SWM_v(i,j,N0)                  &
                             + lat_mixing_v(2,i,j)*SWM_v(ip1(i),j,N0)                  &
                             + lat_mixing_v(3,i,j)*SWM_v(im1(i),j,N0)                  & ! lateral mixing of momentum
                             + lat_mixing_v(4,i,j)*SWM_v(i,jp1(j),N0)                  &
@@ -282,7 +287,7 @@ MODULE swm_timestep_module
                             + lat_mixing_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0)           &
                             + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                &
                             + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
-                            + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0)                &
+                            + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0))                &
 #endif
                             + dt * (F_y(i,j)                                           & ! forcing
 #ifdef FYDEP
@@ -357,6 +362,9 @@ MODULE swm_timestep_module
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
+#ifdef LATERAL_MIXING
+                           + SWM_LateralMixing(i, j, N0, u_grid) &
+#endif
                            + F_x(i,j) &                                                 ! forcing
 #ifdef FXDEP
                             FXDEP &
@@ -376,6 +384,9 @@ MODULE swm_timestep_module
                                 SWM_Coef_v(:,i,j)) &
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
+#endif
+#ifdef LATERAL_MIXING
+                           + SWM_LateralMixing(i, j, N0, v_grid) &
 #endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef FYDEP
@@ -469,16 +480,10 @@ MODULE swm_timestep_module
       FORALL (j=1:Ny) SWM_Coef_v(6:9,:,j) = -dt*v_grid%f(j)/4.
       SWM_Coef_v(10,:,:) = -(dt*G)/(dTheta*A)
       SWM_Coef_v(11,:,:) = - SWM_Coef_v(10,:,:)
-      ! add lateral mixing
-#ifdef LATERAL_MIXING
-      CALL SWM_LateralMixing_init
-      lat_mixing_u = dt * lat_mixing_u
-      lat_mixing_v = dt * lat_mixing_v
-#endif
     END SUBROUTINE SWM_timestep_initHeapsScheme
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Deallocate the coefficient matrix 
+    !> @brief  Deallocate the coefficient matrix
     !!
     !! If defined, the lateral mixing coefficients will be deallocated as well.
     !------------------------------------------------------------------
@@ -487,9 +492,6 @@ MODULE swm_timestep_module
       INTEGER   :: alloc_error
       DEALLOCATE(SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-#ifdef LATERAL_MIXING
-      CALL SWM_LateralMixing_finish
-#endif
     END SUBROUTINE SWM_timestep_finish_Heaps_LiMeanState
 
    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -612,11 +614,6 @@ MODULE swm_timestep_module
       END FORALL
       DEALLOCATE(U_v, V_u, f, f_u, f_v, psi_bs, u_bs, v_bs, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-#ifdef LATERAL_MIXING
-      CALL SWM_LateralMixing_init
-      SWM_Coef_u(1:9,:,:) = SWM_Coef_u(1:9,:,:) + lat_mixing_u
-      SWM_Coef_v(1:9,:,:) = SWM_Coef_v(1:9,:,:) + lat_mixing_v
-#endif
     END SUBROUTINE SWM_timestep_initLiMeanState
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

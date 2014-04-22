@@ -26,7 +26,7 @@ MODULE swm_lateralmixing_module
   SAVE
   PRIVATE
 
-  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, lat_mixing_u, lat_mixing_v
+  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing, lat_mixing_u, lat_mixing_v
 
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 9,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 9,Nx,Ny
@@ -38,12 +38,12 @@ MODULE swm_lateralmixing_module
     !! Allocate and initialise lateral mixing coefficients. If the model is
     !! not defined as BAROTROPIC, the factors of H are droped. Boundary condition is free-slip.
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny,ip1,im1,jp1,jm1,dt,Ah,dLambda,A,cosTheta_u,cosTheta_v,ocean_H,
-    !! ocean_u,ocean_v,tanTheta_u,tanTheta_v,dTheta,H_u,H_v, addToRegister
+    !! vars_module, ONLY : Ah, addToRegister\n
+    !! domain_module, ONLY: Nx, Ny, ip1, im1, jp1, jm1, dLambda, dTheta, A, H_u, H_v, u_grid, v_grid, H_grid
     !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_init
-      USE vars_module, ONLY : dt, Ah,  addToRegister
-      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, dLambda, dTheta, H_u, H_v, & 
+      USE vars_module, ONLY : Ah,  addToRegister
+      USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, dLambda, dTheta, H_u, H_v, &
                                 A, u_grid, v_grid, H_grid
       IMPLICIT NONE
       INTEGER   :: i,j,alloc_error
@@ -126,4 +126,35 @@ MODULE swm_lateralmixing_module
       DEALLOCATE(lat_mixing_u, lat_mixing_v, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_LateralMixing_finish
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Computes tendency term due to lateral mixing of momentum
+    !------------------------------------------------------------------
+    real(8) function SWM_LateralMixing(i, j, N, grid) result(mixing)
+      use grid_module, only : grid_t
+      use domain_module, only : u_grid, v_grid, im1, ip1, jm1, jp1
+      use swm_vars, only : swm_u, swm_v, swm_eta
+      implicit none
+      integer, intent(in)                  :: i
+      integer, intent(in)                  :: j
+      integer(1), intent(in)               :: N
+      type(grid_t), pointer, intent(in)    :: grid
+
+      if (associated(grid, u_grid)) then
+        mixing = dot_product(lat_mixing_u(:, i, j), &
+                              (/swm_u(i, j, N), swm_u(ip1(i), j, N), swm_u(im1(i), j, N), &
+                                swm_u(i, jp1(j), N), swm_u(i, jm1(j), N), swm_v(i, j, N), &
+                                swm_v(im1(i), j, N), swm_v(im1(i), jp1(j), N), swm_v(i, jp1(j), N)/))
+      else if (associated(grid, v_grid)) then
+        mixing = dot_product(lat_mixing_v(:, i, j), &
+                              (/swm_v(i, j, N), swm_v(ip1(i), j, N), swm_v(im1(i), j, N), &
+                                swm_v(i, jp1(j), N), swm_v(i, jm1(j), N), swm_u(ip1(i), jm1(j), N), &
+                                swm_u(i, jm1(j), N), swm_u(i, j, N), swm_u(ip1(i), j, N)/))
+      else
+        print *, "ERROR: Target grid for lateral mixing computation is neither grid_u nor grid_v!"
+        stop 2
+      end if
+    end function SWM_LateralMixing
+
+
 END MODULE swm_lateralmixing_module
