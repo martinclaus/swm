@@ -148,16 +148,16 @@ MODULE calc_lib
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     !> @brief Get a weighting object for spatial bilinear interolation
-     !!
-     !! Returns a weighting object for spatial bilinear interpolation. Also returned
-     !! are the indices of the four nearest points, which will be used for interpolation.
-     !!
-     !! @par Uses:
-     !! grid_module, only : grid_t \n
-     !! domain_module, only : ip1, jp1
-     !------------------------------------------------------------------
-     subroutine getWeight(weight, ind, x_in,y_in,grid)
+    !> @brief Get a weighting object for spatial bilinear interolation
+    !!
+    !! Returns a weighting object for spatial bilinear interpolation. Also returned
+    !! are the indices of the four nearest points, which will be used for interpolation.
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t \n
+    !! domain_module, only : ip1, jp1
+    !------------------------------------------------------------------
+    subroutine getWeight(weight, ind, x_in,y_in,grid)
       use grid_module, only : grid_t
       use domain_module, only : ip1, jp1
       type(t_linInterp2D_weight), intent(out) :: weight
@@ -185,22 +185,21 @@ MODULE calc_lib
                              (x_in - x_grid(1)) * (y_in - y_grid(1))  & !! ur
                            /), (/2,2/))
 
-     end subroutine getWeight
+    end subroutine getWeight
 
-
-     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     !> @brief Spatial bilinear interpolation
-     !!
-     !! Interpolates the four values of var using the weighting object.
-     !------------------------------------------------------------------
-     function interp2d(var,weight) result(var_interp)
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Spatial bilinear interpolation
+    !!
+    !! Interpolates the four values of var using the weighting object.
+    !------------------------------------------------------------------
+    function interp2d(var,weight) result(var_interp)
       real(8), dimension(2,2), intent(in)  :: var
       type(t_linInterp2D_weight), intent(in) :: weight
       real(8)                              :: var_interp
       var_interp = weight%area * sum(var*weight%factors)
-     end function interp2d
+    end function interp2d
 
-     function interpolate_2point(var, grid, direction, i, j) result(inter)
+    real(8) function interpolate_2point(var, grid, direction, i, j) result(inter)
       use grid_module
       real(8), dimension(:,:), intent(in) :: var
       type(grid_t), intent(in)            :: grid
@@ -208,7 +207,7 @@ MODULE calc_lib
       character(*), intent(in)            :: direction
       integer, pointer, dimension(:)      :: ind0, indm1
       integer, intent(in)                 :: i,j
-      real(8)                             :: inter
+
       call getOutGrid(grid, direction, grid_inter, ind0, indm1)
       select case(direction)
         case("X", "x", "zonal", "lambda")
@@ -219,21 +218,21 @@ MODULE calc_lib
           print *, "ERROR: Wrong direction for interpolation specified. Check your Code!"
           stop 1
       end select
-      end function interpolate_2point
+    end function interpolate_2point
 
+    real(8) function interpolate_4point(var, grid, i, j) result(inter)
+      use grid_module
+      real(8), dimension(:,:), intent(in) :: var
+      type(grid_t), intent(in)            :: grid
+      type(grid_t), pointer               :: grid_interm
+      type(grid_t), pointer               :: grid_interp
+      integer, pointer, dimension(:)      :: ip, im, jp, jm
+      integer, intent(in)                 :: i,j
 
-      function interpolate_4point(var, grid, i, j) result(inter)
-       use grid_module
-       real(8), dimension(:,:), intent(in) :: var
-       type(grid_t), intent(in)            :: grid
-       type(grid_t), pointer               :: grid_interm 
-       integer, pointer, dimension(:)      :: ip, im, jp, jm
-       integer, intent(in)                 :: i,j
-       real(8)                             :: inter
-       call getOutGrid(grid, "x", grid_interm, ip, im)
-       call getOutGrid(grid_interm, "y", grid_interp, jp, jm)
-       inter = (var(ip(i), jp(j)) + var(ip(i), jm(j)) + var(im(i), jp(j)) + var(im(i), jm(j))) / 4.
-      end function interpolate_4point
+      call getOutGrid(grid, "x", grid_interm, ip, im)
+      call getOutGrid(grid_interm, "y", grid_interp, jp, jm)
+      inter = (var(ip(i), jp(j)) + var(ip(i), jm(j)) + var(im(i), jp(j)) + var(im(i), jm(j))) / 4.
+    end function interpolate_4point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Computes velocity potential
