@@ -38,14 +38,15 @@ if [ $? -eq 0 ]
   then
     for dataset in $referenceDatasetList
     do
-      CDOOUTPUT=$(cdo diff $dataset $(echo $dataset | sed 's/reference/new/') 2>&1)
-      TOTAL_MATCH="0 of [0-9]* records differ"
-      if ! [[ $CDOOUTPUT =~  $TOTAL_MATCH ]]
+      CDOOUTPUT=$(cdo diff $dataset ${dataset/reference/new} 2>&1)
+      N_MATCH=$(echo $CDOOUTPUT | awk '/differ/ {print $(NF-4)}')
+      [[ $N_MATCH = "" ]] && N_MATCH=0
+      if [[ $N_MATCH != 0 ]]
       then
-          echo -e "\e[00;31mDifferences in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')\e[0m"
+          echo -e "\e[00;31mDifferences in ${dataset##$referenceOutputPrefix}\e[0m"
           echo "$CDOOUTPUT"
       else
-	  echo -e "\e[00;32mNo Difference in $(echo $dataset | sed 's,'$referenceOutputPrefix',,')\e[0m"
+	        echo -e "\e[00;32mNo Difference in ${dataset##$referenceOutputPrefix}\e[0m"
       fi
     done
 fi
