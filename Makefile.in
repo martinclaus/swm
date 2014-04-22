@@ -20,6 +20,8 @@ SET_MAKE = @SET_MAKE@
 
 EXEEXT = @EXEEXT@
 
+SHELL:=/bin/bash
+
 prefix = $(CURDIR)/
 bindir = $(prefix)bin/
 builddir = $(prefix)build/
