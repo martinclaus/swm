@@ -26,7 +26,7 @@ MODULE swm_lateralmixing_module
   SAVE
   PRIVATE
 
-  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing, lat_mixing_u, lat_mixing_v
+  PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing
 
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 9,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 9,Nx,Ny

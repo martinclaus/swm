@@ -238,24 +238,13 @@ MODULE swm_timestep_module
                             - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                            + dt * (lat_mixing_u(1,i,j)*SWM_u(i,j,N0)                             &
-                            + lat_mixing_u(2,i,j)*SWM_u(ip1(i),j,N0)                        &
-                            + lat_mixing_u(3,i,j)*SWM_u(im1(i),j,N0)                        &
-                            + lat_mixing_u(4,i,j)*SWM_u(i,jp1(j),N0)                        &
-                            + lat_mixing_u(5,i,j)*SWM_u(i,jm1(j),N0)                        &
-                            + lat_mixing_u(6,i,j)*SWM_v(i,j,N0)                             &
-                            + lat_mixing_u(7,i,j)*SWM_v(im1(i),j,N0)                        &
-                            + lat_mixing_u(8,i,j)*SWM_v(im1(i),jp1(j),N0)                   &
-                            + lat_mixing_u(9,i,j)*SWM_v(i,jp1(j),N0))                        &
+                            + dt * SWM_LateralMixing(i, j, N0, u_grid)                 &
 #endif
                             + dt * (F_x(i,j)                                           &
 #ifdef FXDEP
                                FXDEP &
 #endif
                               )&
-#ifdef TDEP_FORCING
-                            + dt * TDF_Fu0(i,j)                                       & ! time dep. forcing
-#endif
                             ) / impl_u(i,j)                                        ! implicit linear friction
           ENDIF
         ENDDO XSPACE2
@@ -279,24 +268,13 @@ MODULE swm_timestep_module
                             - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0)& ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                            + dt * (lat_mixing_v(1,i,j)*SWM_v(i,j,N0)                  &
-                            + lat_mixing_v(2,i,j)*SWM_v(ip1(i),j,N0)                  &
-                            + lat_mixing_v(3,i,j)*SWM_v(im1(i),j,N0)                  & ! lateral mixing of momentum
-                            + lat_mixing_v(4,i,j)*SWM_v(i,jp1(j),N0)                  &
-                            + lat_mixing_v(5,i,j)*SWM_v(i,jm1(j),N0)                  &
-                            + lat_mixing_v(6,i,j)*SWM_u(ip1(i),jm1(j),N0)           &
-                            + lat_mixing_v(7,i,j)*SWM_u(i,jm1(j),N0)                &
-                            + lat_mixing_v(8,i,j)*SWM_u(i,j,N0)                     &
-                            + lat_mixing_v(9,i,j)*SWM_u(ip1(i),j,N0))                &
+                            + dt * SWM_LateralMixing(i, j, N0, v_grid)                &
 #endif
                             + dt * (F_y(i,j)                                           & ! forcing
 #ifdef FYDEP
                               FYDEP &
 #endif
                               )&
-#ifdef TDEP_FORCING
-                            + dt * TDF_Fv0(i,j)                                       & ! time dep. forcing
-#endif
                             ) / impl_v(i,j)                                        ! implicit linear friction
           ENDIF
         ENDDO XSPACE3
