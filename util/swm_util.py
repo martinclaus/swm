@@ -12,12 +12,14 @@ import shutil
 import subprocess
 import tempfile
 from string import Template
-## This requires Python 2.7 or higher
-from collections import OrderedDict
-
 import sys
 if sys.version_info[:2] < (2, 7):
-    raise RuntimeError("Python v.2.7 or later required")
+    DictClass = dict
+else:
+    # If Python 2.7 or higher use OrderedDict to preserve
+    # the order of the Namelist
+    from collections import OrderedDict as DictClass
+
 
 MODULE_NAME = "swm_util"
 MODEL_NL = "model_nl"
@@ -28,30 +30,58 @@ SWM_FORCING_NL = "swm_forcing_nl"
 DIAG_NL = "diag_nl"
 OUTPUT_NL = "output_nl"
 
+NML_LINE_LENGTH = 70
 
-class Namelist(OrderedDict):
-    
+class Namelist(DictClass):
+    """ Class to handle Fortran Namelists
+    Namelist(string) -> new namelist with fortran nml identifier string
+    Namelist(string, init_val) -> new initialized namelist with nml identifier
+        string and init_val beeing a valid initialisation object for the parent
+        class (either OrderedDict for Python >= 2.7 or else dict).
+    A fortran readable string representation of the namelist can be generated
+    via str() build-in function. A string representation of the Python object
+    that can be used with eval or string.Template substitution can be obtained
+    by repr() build-in function. 
+    """
     @property
     def name(self):
+        """ Read only property name, representing the fortran namelist
+        identifier.
+        """
         return self._name
     
     def __init__(self, name, init_val=()):
+        """x.__init__(...) initializes x; see help(type(x)) for signature"""
         self._name = name
         super(self.__class__, self).__init__(init_val)
 
     def __str__(self):
+        """x.__str__(self) -> Fortran readable string representation of the
+        namelist. If a value v is a sequence, an 1D fortran array representation
+        is created using iter(v).
+        """
         retstr = "&%s\n" % str(self.name)
         for k, v in self.items():
             if hasattr(v, '__iter__'):
-                retstr += "%s = (/ &\n" % k
-                retstr += ",&\n".join([repr(vv) for vv in v])
-                retstr += "/)\n"
+                retstr += "%s = (/ " % k
+                tmpstr = ""
+                for vv in v:
+                    tmpstr += "%s," % repr(vv)
+                    if len(tmpstr) > NML_LINE_LENGTH:
+                        if vv == v[-1]:
+                            tmpstr = tmpstr[:-1]
+                        retstr += tmpstr + " &\n"
+                        tmpstr = ""
+                retstr = retstr + tmpstr[:-1] + "/)\n"
             else:
                 retstr += "%s = %s\n" % (str(k), repr(v))
         retstr += "&end\n"
         return retstr
 
     def __repr__(self):
+        """x.__repr__(self) -> string that can be used by eval to create a copy
+        of x.
+        """
         retstr = "%s.%s(%s, (" % (MODULE_NAME, self.__class__.__name__,
                                  repr(self.name))
         for k, v in self.items():
@@ -60,10 +90,14 @@ class Namelist(OrderedDict):
         return retstr
     
     def has_name(self, name):
+        """x.hasname(self, name) <==> name==x.name"""
         return name == self.name
         
 
 class ModelController(object):
+    """ Class to manage experiments on HPC Cluster
+    ModelController() -> new ModelControler object
+    """
 
     _default_namelists = [    
         Namelist(MODEL_NL, ( 
@@ -157,15 +191,21 @@ class ModelController(object):
 """
 
     def __init__(self):
+        """x.__init__(self) initialize the object.
+            Reads environmental variables set by the batch system.
+        """
         self._tempdirs = []
         self._dirs = {}
         self._vars = {}
         self._set_vars()
 
     def __del__(self):
+        """ Calls x.cleanup(self) to delete temporary data on the cluster node."""
         self.cleanup()
+        super(self.__class__, self).__del__()
 
     def cleanup(self):
+        """x.cleanup(self) -> None. Deletes temporary data on the cluster node."""
         for i in reversed(range(len(self._tempdirs))):
             d = self._tempdirs[i]
             shutil.rmtree(d)
@@ -173,6 +213,10 @@ class ModelController(object):
         
 
     def deploy_experiment(self):
+        """x.deploy_expreriment(self) -> None
+            Creates temporary directories (hopefully on the local file system)
+            and copies the model source and input data there.
+        """
         # create directories in $TMPDIR
         self._dirs['lwrkdir'] = self._create_tempdir(prefix="swm")
         self._dirs['loutdir'] = self._create_localdir("output")
@@ -183,7 +227,11 @@ class ModelController(object):
         shutil.copytree(self._dirs['modeldir'], self._dirs['lmodeldir'])
         shutil.copytree(self._dirs['indir'], self._dirs['lindir'])
 
-    def write_header(self, header_dic):
+    def write_header(self, header_dic=None):
+        """x.write_header(self, header_dic) -> string
+            Writes header constructed from self._default_header and
+            header_dic to the local include directory and returns the string.
+        """
         # create header file content
         header_string = self._formatted_header(header_dic)
         # write header to local model dir
@@ -191,26 +239,34 @@ class ModelController(object):
                                'include', 'model.h'), 'w') as h_file:
             h_file.write(header_string)
         h_file.close()
-        print header_string
+        return header_string
 
     def compile_model(self):
+        """x.compile_model(self) -> None. Compiles the deployed model."""
         pwd = os.getcwd()
         # compiling model
         os.chdir(self._dirs['lmodeldir'])
         subprocess.call('make model >/dev/null', shell=True)
         os.chdir(pwd)
 
-    def write_namelist(self, nml):
+    def write_namelist(self, nml=None):
+        """x.write_namelist(self, nml) -> string
+            Writes a fortran readable namelist file to the local work directory
+            and returns its string representation.
+        """
         # Setting parameters
+        if not nml:
+            nml = []
         nml_string = self._formatted_namelist(nml)
         # write namelist to local work dir
         with open(os.path.join(self._dirs['lwrkdir'],
                                'model.namelist'), 'w') as nl_file:
             nl_file.write(nml_string)
         nl_file.close()
-        print nml_string
+        return nml_string
 
     def run_model(self):
+        """x.run_model(self) -> None. Start the model run."""
         pwd = os.getcwd()
         os.chdir(self._dirs['lwrkdir'])
         subprocess.call('time ' + os.path.join(self._dirs['lmodeldir'],
@@ -219,6 +275,9 @@ class ModelController(object):
         os.chdir(pwd)
 
     def post_process(self):
+        """x.post_process(self) -> None.
+            Moves the model output to the global file system.
+        """
         # post process
         dir_list = os.listdir(self._dirs['loutdir'])
         for file in dir_list:
@@ -283,9 +342,10 @@ class ModelController(object):
         return out_list
 
     def _formatted_header(self, dic):
-        dict_lower = dict((k.lower(), v) for k, v in dic.iteritems())
         settings = self._default_header.copy()
-        settings.update(dict_lower)
+        if dic:
+            dict_lower = dict((k.lower(), v) for k, v in dic.iteritems())
+            settings.update(dict_lower)
         header_template = Template(self._header_template_string)
         self._vars['formatted_header'] = header_template.substitute(settings)
         return self._vars['formatted_header']

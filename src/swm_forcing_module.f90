@@ -149,7 +149,7 @@ MODULE swm_forcing_module
       streamlist => SWM_forcing_iStream
 
       IF (.NOT. ASSOCIATED(streamlist)) THEN
-          WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list"
+          WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line",  __LINE__
           STOP 2
       END IF
       DO WHILE (ASSOCIATED(streamlist))
@@ -266,15 +266,15 @@ MODULE swm_forcing_module
           STOP 2
       END SELECT
       ! Do the calculation
-      WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + &
+      WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + (&
 #ifdef TAU_SCALE
-        TAU_SCALE*&
+        TAU_SCALE * &
 #endif
         getChunkData(iStream%memChunk,itt*dt)/(RHO0 &
 #ifdef BAROTROPIC
        *H &
 #endif
-        )
+        ))
     END SUBROUTINE SWM_forcing_processWindstress
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -452,7 +452,7 @@ MODULE swm_forcing_module
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
 
       IF (.NOT. ASSOCIATED(streamlist)) THEN
-            WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list"
+            WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
             STOP 2
       END IF
 
