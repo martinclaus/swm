@@ -154,7 +154,9 @@ class ModelController(object):
 
     _default_header = {"freq_wind": 4.354613902181461e-08,
                        "tau_scale": 1.,
-                       "fxdep": "* SIN(FREQ_WIND * dt * itt)"}
+                       "fxdep": "* SIN(FREQ_WIND * dt * itt)",
+                       "velocity_sponge": "",
+                       "newtonian_sponge": ""}
 
     _header_template_string = """
 #ifndef FILE_MODEL_SEEN
@@ -173,6 +175,10 @@ class ModelController(object):
 #define FXDEP ${fxdep}
 /* Switches for damping */
 #define LATERAL_MIXING
+#define NEWTONIAN_COOLING
+#define LINEAR_BOTTOM_FRICTION
+#define VELOCITY_SPONGE "${velocity_sponge}"
+#define NEWTONIAN_SPONGE "${newtonian_sponge}"
 
 #define H_OVERWRITE
 
@@ -190,10 +196,11 @@ class ModelController(object):
 #endif
 """
 
-    def __init__(self):
+    def __init__(self, model="swm"):
         """x.__init__(self) initialize the object.
             Reads environmental variables set by the batch system.
         """
+        self.model = model
         self._tempdirs = []
         self._dirs = {}
         self._vars = {}
@@ -202,7 +209,6 @@ class ModelController(object):
     def __del__(self):
         """ Calls x.cleanup(self) to delete temporary data on the cluster node."""
         self.cleanup()
-        super(self.__class__, self).__del__()
 
     def cleanup(self):
         """x.cleanup(self) -> None. Deletes temporary data on the cluster node."""
@@ -218,10 +224,11 @@ class ModelController(object):
             and copies the model source and input data there.
         """
         # create directories in $TMPDIR
-        self._dirs['lwrkdir'] = self._create_tempdir(prefix="swm")
+        self._dirs['lwrkdir'] = self._create_tempdir(prefix=self.model)
         self._dirs['loutdir'] = self._create_localdir("output")
         self._dirs['lindir'] = self._create_localdir("input", path_only=True)
-        self._dirs['lmodeldir'] = self._create_localdir("swm", path_only=True)
+        self._dirs['lmodeldir'] = self._create_localdir(self.model,
+                                                        path_only=True)
 
         # copy model an input files
         shutil.copytree(self._dirs['modeldir'], self._dirs['lmodeldir'])
@@ -270,7 +277,7 @@ class ModelController(object):
         pwd = os.getcwd()
         os.chdir(self._dirs['lwrkdir'])
         subprocess.call('time ' + os.path.join(self._dirs['lmodeldir'],
-                                               'build', 'model'),
+                                               'bin', 'model'),
                         shell=True)
         os.chdir(pwd)
 
@@ -292,7 +299,7 @@ class ModelController(object):
         self._vars['jobid'] = str(os.getenv('PBS_JOBID')).split('.')[0].split(':')[-1]
         self._vars['pbs_jobname'] = str(os.getenv('PBS_JOBNAME'))
         self._dirs['workdir'] = str(os.getenv('PBS_O_WORKDIR'))
-        self._dirs['modeldir'] = os.path.join(self._dirs['workdir'], "swm")
+        self._dirs['modeldir'] = os.path.join(self._dirs['workdir'], self.model)
         self._dirs['outdir'] = os.path.join(self._dirs['workdir'], 'output')
         self._dirs['indir'] = os.path.join(self._dirs['workdir'], 'input')
         self._dirs.update({'lwrkdir': '', 'loutdir':'', 'lindir':'',

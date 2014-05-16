@@ -44,14 +44,14 @@ DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
 libnc = -L$(NETDIR)/lib -lnetcdff
 includenc = $(FC_MODINC)$(NETDIR)/include
-libud = -L$(UDDIR)/lib -ludunits2
+libud = -L$(UDDIR)/lib -ludunits2 -lexpat
 #include_dir = -Iinclude
 #include_h = -Iinclude -Ibuild
 #build_dir = build/
 DOXYGEN = @DOXYGEN@
 
 COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
-VPATH = include:src:build
+VPATH = include:src:build:bin
 
 # conditional modules
 #cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
@@ -85,7 +85,7 @@ all     : $(bin_PROGRAMS)
 #clean
 
 model$(EXEEXT)   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(builddir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) $(libcu)
+	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) $(libcu)
 
 model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h $(cl_cuda_o)
 	$(COMPILE)
