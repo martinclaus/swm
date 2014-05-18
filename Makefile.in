@@ -189,6 +189,7 @@ clean-conf:
 
 clean :
 	@rm -fv $(builddir)* include/udunits.inc
+	@rm -fv $(bindir)*
 
 clean-doc :
 	@rm -rvf $(docdir)latex $(docdir)html $(docdir)doxygen_objdb_*

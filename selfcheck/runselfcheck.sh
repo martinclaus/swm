@@ -19,7 +19,7 @@ fi
 modelDir="$PWD"
 selfcheckDir="$modelDir/selfcheck"
 testDir="$selfcheckDir/$1"
-buildDir="$modelDir/build"
+buildDir="$modelDir/bin"
 
 # List of output files to compare:
 testOutputPrefix="$testDir/output/new_000000000001_"
