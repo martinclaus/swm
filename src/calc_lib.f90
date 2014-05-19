@@ -945,85 +945,88 @@ do i=1,Nx-1
       type(grid_t), pointer, intent(out)                    :: grid_out=>null()
       integer, pointer, dimension(:), intent(out), optional :: ind0
       integer, pointer, dimension(:), intent(out), optional :: indm1
-      ind0 => null()
-      indm1 => null()
+      integer, pointer, dimension(:)                        :: local_ind0, local_indm1
+      local_ind0 => null()
+      local_indm1 => null()
       select case(direction)
         case ("X","x","lambda","zonal")    !< zonal derivative
           if (grid .eq. u_grid) then
             grid_out => eta_grid
-            ind0  => ip1
-            indm1 => ip0
+            local_ind0  => ip1
+            local_indm1 => ip0
           else if (grid .eq. H_grid) then
             grid_out => v_grid
-            ind0  => ip1
-            indm1 => ip0
+            local_ind0  => ip1
+            local_indm1 => ip0
           else if (grid .eq. v_grid) then
             grid_out => H_grid
-            ind0  => ip0
-            indm1 => im1
+            local_ind0  => ip0
+            local_indm1 => im1
           else if (grid .eq. eta_grid) then
             grid_out => u_grid
-            ind0  => ip0
-            indm1 => im1
+            local_ind0  => ip0
+            local_indm1 => im1
           end if
         case ("X2","x2","lambda2","zonal2") !< second zonal derivative
           if (grid .eq. u_grid) then
             grid_out => eta_grid
-            ind0  => ip0
-            indm1 => im1
+            local_ind0  => ip0
+            local_indm1 => im1
           else if (grid .eq. H_grid) then
             grid_out => v_grid
-            ind0  => ip0
-            indm1 => im1
+            local_ind0  => ip0
+            local_indm1 => im1
           else if (grid .eq. v_grid) then
             grid_out => H_grid
-            ind0  => ip1
-            indm1 => ip0
+            local_ind0  => ip1
+            local_indm1 => ip0
           else if (grid .eq. eta_grid) then
             grid_out => u_grid
-            ind0  => ip1
-            indm1 => ip0
+            local_ind0  => ip1
+            local_indm1 => ip0
           end if
         case ("Y","y","theta","meridional") !< meridional derivative
           if (grid .eq. u_grid) then
             grid_out => H_grid
-            ind0  => jp0
-            indm1 => jm1
+            local_ind0  => jp0
+            local_indm1 => jm1
           else if (grid .eq. H_grid) then
             grid_out => u_grid
-            ind0  => jp1
-            indm1 => jp0
+            local_ind0  => jp1
+            local_indm1 => jp0
           else if (grid .eq. v_grid) then
             grid_out => eta_grid
-            ind0  => jp1
-            indm1 => jp0
+            local_ind0  => jp1
+            local_indm1 => jp0
           else if (grid .eq. eta_grid) then
             grid_out => v_grid
-            ind0  => jp0
-            indm1 => jm1
+            local_ind0  => jp0
+            local_indm1 => jm1
           end if
         case ("Y2","y2","theta2","meridional2") !< second meridional derivative
           if (grid .eq. u_grid) then
             grid_out => H_grid
-            ind0  => jp1
-            indm1 => jp0
+            local_ind0  => jp1
+            local_indm1 => jp0
           else if (grid .eq. H_grid) then
             grid_out => u_grid
-            ind0  => jp0
-            indm1 => jm1
+            local_ind0  => jp0
+            local_indm1 => jm1
           else if (grid .eq. v_grid) then
             grid_out => eta_grid
-            ind0  => jp0
-            indm1 => jm1
+            local_ind0  => jp0
+            local_indm1 => jm1
           else if (grid .eq. eta_grid) then
             grid_out => v_grid
-            ind0  => jp1
-            indm1 => jp0
+            local_ind0  => jp1
+            local_indm1 => jp0
           end if
         case default
           print *,"ERROR: Wrong direction for getOutGrid specified. Check your code!"
           stop 1
       end select
+      if (present(ind0)) ind0 => local_ind0
+      if (present(indm1)) indm1 => local_indm1
     end subroutine getOutGrid
 
 END MODULE calc_lib

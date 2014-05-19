@@ -132,7 +132,7 @@ swm_vars.o : swm_vars.f90 vars_module.o domain_module.o
 swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o generic_list.o
 	$(COMPILE)
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o vars_module.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o memchunk_module.o calc_lib.o domain_module.o
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o vars_module.o memchunk_module.o calc_lib.o domain_module.o grid_module.o
 	$(COMPILE)
 
 swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h swm_vars.o vars_module.o domain_module.o memchunk_module.o str.o

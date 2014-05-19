@@ -11,6 +11,7 @@ Header file for shallow water model. Meant to set different physics.
 /* Switch for Shallow Water Model */
 #define SWM
 #define BAROTROPIC
+#define LINEARISED_MEAN_STATE
 /* Switches for timestepping (only use one at a time) */
 #define SWM_TSTEP_ADAMSBASHFORTH
 /*#define SWM_TSTEP_HEAPS*/
@@ -41,7 +42,7 @@ Header file for shallow water model. Meant to set different physics.
 
 /* Standard calculation of Coriolis-Parameter */
 #ifndef CORIOLIS
-#define CORIOLIS SPHERICALGEOMETRY 
+#define CORIOLIS SPHERICALGEOMETRY
 #endif
 
 #endif
