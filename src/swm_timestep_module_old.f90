@@ -13,7 +13,6 @@
 !! @par Includes:
 !! model.h, swm_module.h
 !! @par Uses:
-!! swm_vars, only : swm_u, swm_v, swm_eta\n
 !! swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u\n
 !! swm_forcing_module, ONLY : F_x, F_y, F_eta\n
 !! swm_lateralmixing_module \n
@@ -27,29 +26,25 @@ MODULE swm_timestep_module
   use swm_vars, only : SWM_u, SWM_v, SWM_eta
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
-  USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish
+  USE swm_lateralmixing_module
   USE vars_module, ONLY : AB_Chi, AB_C1, AB_C2
   USE memchunk_module, ONLY : memoryChunk
   IMPLICIT NONE
   PRIVATE
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            SWM_u, SWM_v, SWM_eta
+            SWM_u, SWM_v, SWM_eta, SWM_Coef_u, SWM_Coef_v, SWM_Coef_eta, G_u, G_v, G_eta
 
   ! constant coefficients (specific for time stepping scheme)
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
   INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
   INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
+  real(8), dimension(:,:,:), allocatable, target :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
+  real(8), dimension(:,:,:), allocatable, target :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
+  real(8), dimension(:,:,:), allocatable, target :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: psi_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: u_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: v_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: zeta_bs
   TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
 
@@ -70,7 +65,7 @@ MODULE swm_timestep_module
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       USE memchunk_module, ONLY : initMemChunk
       CHARACTER(CHARLEN)  :: filename="", varname=""
-      INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat, alloc_error
+      INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat
       LOGICAL             :: timestepInitialised=.FALSE.
       namelist / swm_bs_nl / filename, varname, chunksize
 
@@ -115,21 +110,6 @@ MODULE swm_timestep_module
       timestepInitialised = .TRUE.
 #endif
 
-#ifndef FULLY_NONLINEAR
-      ALLOCATE(psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), zeta_bs(1:Nx,1:Ny,1),  stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
-        STOP 1
-      END IF
-
-#ifdef LINEARISED_MEAN_STATE
-      ! get basic state
-      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
-      CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
-      zeta_bs(:,:,1) = vorticity(psi_bs(:,:,1), H_grid)
-#endif
-#endif
-
       CALL addToRegister(SWM_Coef_u,"SWM_COEF_U")
       CALL addToRegister(SWM_Coef_v,"SWM_COEF_V")
       CALL addToRegister(SWM_Coef_eta,"SWM_COEF_ETA")
@@ -149,7 +129,7 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       INTEGER   :: alloc_error
 #ifdef LATERAL_MIXING
-      call SWM_LateralMixing_finish
+      CALL SWM_LateralMixing_finish
 #endif
 #if defined SWM_TSTEP_ADAMSBASHFORTH || defined SWM_TSTEP_HEAPS
       CALL SWM_timestep_finish_Heaps_LiMeanState
@@ -159,11 +139,6 @@ MODULE swm_timestep_module
 #endif
       DEALLOCATE(G_u, G_v, G_eta, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-#ifndef FULLY_NONLINEAR
-      DEALLOCATE(psi_bs, u_bs, v_bs, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
-#endif
-
     END SUBROUTINE SWM_timestep_finish
 
 
@@ -192,15 +167,13 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       LOGICAL       :: already_stepped
       already_stepped=.FALSE.
+#ifdef SWM_TSTEP_HEAPS
       CALL alreadyStepped(already_stepped)
-      CALL SWM_timestep_nonlinear
-!#ifdef SWM_TSTEP_HEAPS
-!      CALL alreadyStepped(already_stepped)
-!      CALL SWM_timestep_Heaps
-!#else
-!      CALL alreadyStepped(already_stepped)
-!      CALL SWM_timestep_AB_EFW
-!#endif
+      CALL SWM_timestep_Heaps
+#else
+      CALL alreadyStepped(already_stepped)
+      CALL SWM_timestep_AB_EFW
+#endif
     END SUBROUTINE SWM_timestep_step
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -319,7 +292,7 @@ MODULE swm_timestep_module
     !! @todo Add some documentation about the physics
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_AB_EFW
-      USE vars_module, ONLY : N0, N0p1, dt
+      USE vars_module, ONLY : N0, N0p1, dt, itt
       USE domain_module, ONLY : Nx, Ny, ip1, im1, jp1, jm1, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER :: i,j
@@ -364,11 +337,11 @@ MODULE swm_timestep_module
                                  SWM_v(i,j,N0),SWM_v(im1(i),j,N0),SWM_v(im1(i),jp1(j),N0),SWM_v(i,jp1(j),N0),&
                                  SWM_eta(i,j,N0),SWM_eta(im1(i),j,N0)/),&
                                SWM_Coef_u(:,i,j)) &
-#ifdef LATERAL_MIXING
-                           + dt * SWM_LateralMixing(i, j, N0, u_grid)                &
-#endif
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT(SWM_u(i,j,N0)**2+v_u**2)*SWM_u(i,j,N0) & ! quadratic bottom friction
+#endif
+#ifdef LATERAL_MIXING
+                           + SWM_LateralMixing(i, j, N0, u_grid) &
 #endif
                            + F_x(i,j) &                                                 ! forcing
 #ifdef FXDEP
@@ -387,11 +360,11 @@ MODULE swm_timestep_module
                                   SWM_u(ip1(i),jm1(j),N0),SWM_u(i,jm1(j),N0),SWM_u(i,j,N0),SWM_u(ip1(i),j,N0),&
                                   SWM_eta(i,j,N0),SWM_eta(i,jm1(j),N0)/),&
                                 SWM_Coef_v(:,i,j)) &
-#ifdef LATERAL_MIXING
-                           + dt * SWM_LateralMixing(i, j, N0, v_grid)                &
-#endif
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT(SWM_v(i,j,N0)**2+u_v**2)*SWM_v(i,j,N0) & ! quadratic bottom friction
+#endif
+#ifdef LATERAL_MIXING
+                           + SWM_LateralMixing(i, j, N0, v_grid) &
 #endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef FYDEP
@@ -435,233 +408,6 @@ MODULE swm_timestep_module
       END IF
     END FUNCTION integrate
 
-    SUBROUTINE SWM_timestep_nonlinear
-      USE calc_lib, ONLY : vorticity, interpolate, evaluateStreamfunction
-      USE vars_module, ONLY : dt, G, N0, N0p1
-      USE domain_module, ONLY : Nx, Ny, ip1, jp1, im1, jm1, dLambda, dTheta, &
-                                H_u, H_v, H_eta, A, u_grid, v_grid, eta_grid,&
-                                H_grid
-      IMPLICIT NONE
-      INTEGER :: i,j
-      REAL(8), DIMENSION(Nx, Ny)              :: D, EDens, ocean_eta
-      REAL(8), DIMENSION(Nx, Ny)              :: Pot, zeta
-      REAL(8), DIMENSION(Nx, Ny)              :: MV, ocean_v
-      REAL(8), DIMENSION(Nx, Ny)              :: MU, ocean_u
-      CHARACTER(1)                            :: charx, chary
-
-      charx = "x"
-      chary = "y"
-
-      ocean_eta = eta_grid%ocean
-      ocean_u   = u_grid%ocean
-      ocean_v   = v_grid%ocean
-
-
-      !D = eta + H_eta
-      D = getD()
-      !vorticity = d/dx * v - d/dy * u
-      zeta = vorticity(SWM_u(:,:,N0), SWM_v(:,:,N0), u_grid, v_grid)
-!$OMP PARALLEL
-!$OMP DO &
-!$OMP PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      DO j=1,Ny
-        DO i=1,Nx
-          Pot(i,j) = getPotentialVorticity(i,j,D,zeta)
-          EDens(i,j) = getEDens(i,j)
-          !Mass-Flux MV = interpolate(D,{x}) * v
-          MV(i,j) = interpolate(D, eta_grid, chary, i, j) * SWM_v(i,j,N0)
-          !Mass-Flux MU = interpolate(D,{y}) * u
-          MU(i,j) = interpolate(D, eta_grid, charx, i, j) * SWM_u(i,j,N0)
-        END DO
-      END DO
-
-!$OMP END DO
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      YSPACE1: DO j=1,Ny
-        XSPACE1: DO i=1,Nx
-          ETA: IF (ocean_eta(i,j) .eq. 1) THEN !skip this point if it is land
-              !eta = \nabla * (MU, MV)
-              G_eta(i,j,NG0) = (- ((MU(ip1(i),j) - MU(i,j)) / dLambda &
-                                     + (MV(i,jp1(j)) * v_grid%cos_lat(jp1(j)) &
-                                        - MV(i,j) * v_grid%cos_lat(j)) / dTheta) &
-                                  / (A * eta_grid%cos_lat(j)) &
-#ifndef FULLY_NONLINEAR
-                                  - ((interpolate(SWM_eta(:,:,N0), eta_grid, "x", ip1(j),j) * u_bs(ip1(i),j,1) &
-                                        - interpolate(SWM_eta(:,:,N0), eta_grid, "x", i,j) * u_bs(i,j,1)) &
-                                      / dLambda &
-                                    + (v_grid%cos_lat(jp1(j)) * interpolate(SWM_eta(:,:,N0), eta_grid, "y", i, jp1(j)) * v_bs(i, jp1(j),1) &
-                                        - v_grid%cos_lat(j) * interpolate(SWM_eta(:,:,N0), eta_grid, "y", i,j) * v_bs(i,j,1))) &
-                                  / (A * eta_grid%cos_lat(j)) &
-#endif
-                               + F_eta(i,j) &
-#ifdef FETADEP
-                                FETADEP
-#endif
-                               )
-            ! Integrate
-            SWM_eta(i,j,N0p1) = integrate(SWM_eta,G_eta,impl_eta,i,j)
-          END IF ETA
-        END DO XSPACE1
-    END DO YSPACE1
-!$OMP END DO
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-    YSPACE2: DO j=1,Ny
-        XSPACE2: DO i=1,Nx
-          !u equation
-          U: IF (ocean_u(i,j) .eq. 1) THEN !skip this point if it is land
-              !u = interpolate(Pot,{y}) * interpolate(MV,{x,y}) - d/dx (g*eta + E)
-              G_u(i,j,NG0) = (interpolate(Pot, H_grid, chary, i, j) &
-                                 * interpolate(MV, v_grid, i, j) &
-#ifndef FULLY_NONLINEAR
-                             + interpolate(zeta, H_grid, chary, i, j) &
-                                 * interpolate(v_bs(:,:,N0), v_grid, i, j) &
-#endif
-                                 - ((EDens(i,j) - EDens(im1(i),j))  &
-                                    / (A * u_grid%cos_lat(j) * dLambda)) &
-#ifdef QUADRATIC_BOTTOM_FRICTION
-                           - gamma_sq_u(i,j)*SQRT( &
-                               SWM_u(i,j,N0)**2 &
-                               + ((SWM_v(im1(i),jp1(j),N0)+SWM_v(im1(i),j,N0)+SWM_v(i,j,N0)+SWM_v(i,jp1(j),N0))/4.)**2) & ! averaging v on u grid
-                             *SWM_u(i,j,N0) & ! quadratic bottom friction
-#endif
-
-#ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, u_grid) &
-#endif
-                           + F_x(i,j) &                                                 ! forcing
-#ifdef FXDEP
-                            FXDEP &
-#endif
-                            )
-            ! Integrate
-            SWM_u(i,j,N0p1) = integrate(SWM_u,G_u,impl_u,i,j)
-          END IF U
-        END DO XSPACE2
-    END DO YSPACE2
-!$OMP END DO
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-    YSPACE3: DO j=1,Ny
-        XSPACE3: DO i=1,Nx
-          V: IF (ocean_v(i,j) .eq. 1) THEN !skip this point if it is land
-              !v = - interpolate(Pot,{x}) * interpolate(MU,{x,y}) - d/dy (g*eta + E)
-              G_v(i,j,NG0) = (- interpolate(Pot, H_grid, charx, i, j) &
-                                * interpolate(MU, u_grid, i, j) &
-#ifndef FULLY_NONLINEAR
-                             - interpolate(zeta, H_grid, charx, i, j) &
-                                * interpolate(u_bs(:,:,N0), u_grid, i, j) &
-#endif
-                                - ((EDens(i,j) - EDens(i,jm1(j))) &
-                                   / (A * dTheta)) &
-#ifdef QUADRATIC_BOTTOM_FRICTION
-                           - gamma_sq_v(i,j)*SQRT( &
-                                SWM_v(i,j,N0)**2 &
-                                + ((SWM_u(i,jm1(j),N0p1)+SWM_u(i,j,N0p1)+SWM_u(ip1(i),jm1(j),N0p1)+SWM_u(ip1(i),j,N0p1))/4.)**2) & ! averaging u on v grid
-                             *SWM_v(i,j,N0) & ! quadratic bottom friction
-#endif
-#ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, v_grid) &
-#endif
-                           + F_y(i,j) &                                                 ! forcing
-#ifdef FYDEP
-                             FYDEP &
-#endif
-                             )
-            ! Integrate
-             SWM_v(i,j,N0p1) = integrate(SWM_v,G_v,impl_v,i,j)
-          END IF V
-        END DO XSPACE3
-      END DO YSPACE3
-!$OMP END DO
-!$OMP END PARALLEL
-    END SUBROUTINE SWM_timestep_nonlinear
-
-
-    FUNCTION getD() RESULT(D)
-      USE vars_module, ONLY : N0
-      USE domain_module, ONLY : Nx, Ny, eta_grid, H_eta
-      IMPLICIT NONE
-      INTEGER                                                           :: i,j
-      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D
-      DO j=1,Ny
-        DO i=1,Nx
-            IF (eta_grid%ocean(i,j) .EQ. 1) THEN !skip this point if it is land
-#ifdef FULLY_NONLINEAR
-              D(i,j) = SWM_eta(i,j,N0) + H_eta(i,j)
-#endif
-#ifdef LINEARISED_MEAN_STATE
-              D(i,j) = H_eta(i,j)
-#endif
-#ifdef LINEARISED_STATE_OF_REST
-              D(i,j) = H_eta(i,j)
-#endif
-            END IF
-        END DO
-      END DO
-    END FUNCTION getD
-
-    FUNCTION getPotentialVorticity(i,j,D,zeta) Result(Pot)
-      USE calc_lib, ONLY: interpolate
-      USE domain_module, ONLY: H_grid, eta_grid
-      IMPLICIT NONE
-      INTEGER                                                           :: i,j
-      REAL(8)                                                           :: Pot
-      REAL(8), DIMENSION(SIZE(H_grid%ocean,1),SIZE(H_grid%ocean,2))     :: zeta
-      REAL(8), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: D
-      IF (H_grid%ocean(i,j) .EQ. 1) THEN !skip this point if it is land
-#ifdef FULLY_NONLINEAR
-          !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
-          Pot = (H_grid%f(j) + zeta(i,j)) / interpolate(D, eta_grid, i, j)
-#endif
-#ifdef LINEARISED_MEAN_STATE
-          !potential vorticity Pot = (f + Z)/D
-          Pot = (H_grid%f(j) + zeta_bs(i,j,1)) / D(i,j)
-#endif
-#ifdef LINEARISED_STATE_OF_REST
-          !potential vorticity Pot = f/D
-          Pot = H_grid%f(j) / D(i,j)
-#endif
-      END IF
-    END FUNCTION getPotentialVorticity
-
-    FUNCTION getEDens(i,j) RESULT(EDens)
-      USE vars_module, ONLY : G, N0
-      USE domain_module, ONLY: u_grid, v_grid, eta_grid
-      USE grid_module
-      USE calc_lib, ONLY: getOutGrid
-      IMPLICIT NONE
-      INTEGER                                                           :: i, j
-      REAL(8)                                                           :: EDens
-      TYPE(grid_t), POINTER                                             :: out_grid
-      INTEGER, POINTER, DIMENSION(:)                                    :: ind00, ind01, indm10, indm11
-      IF (eta_grid%ocean(i,j) .EQ. 1) THEN !skip this point if it is land
-          CALL getOutGrid(u_grid, "x", out_grid, ind00, indm10)
-          CALL getOutGrid(v_grid, "y", out_grid, ind01, indm11)
-#ifdef FULLY_NONLINEAR
-          !Energy-Density EDens = g * eta + 1/2 * (u^2 + v^2)
-          EDens = ((SWM_u(ind00(i), j, N0)**2 + SWM_u(indm10(i), j, N0)**2) / 2. &
-              + (SWM_v(i, ind01(j), N0)**2 + SWM_v(i, indm11(j), N0)**2) / 2.) / 2. &
-              + G * SWM_eta(i,j,N0)
-#endif
-#ifdef LINEARISED_MEAN_STATE
-          !Energy-Density EDens = g * eta + uU + vV
-          EDens = G * SWM_eta(i,j,N0) &
-              + (SWM_u(ind00(i), j, N0) * u_bs(ind00(i), j) + SWM_u(indm10(i), j, N0) * u_bs(indm10(i), j)) / 2. &
-              + (SWM_v(i, ind01(j), N0) * v_bs(i, ind01(j)) + SWM_v(i, indm11(j), N0) * v_bs(i, indm11(j))) / 2.
-#endif
-#ifdef LINEARISED_STATE_OF_REST
-          EDens = G * SWM_eta(i,j,N0)
-#endif
-      END IF
-    END FUNCTION getEDens
-
-
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise the coefficients for the heaps scheme
     !!
@@ -672,7 +418,6 @@ MODULE swm_timestep_module
     !! @par Uses:
     !! vars_module, ONLY : Nx,Ny,ip1,jp1,dt,G,OMEGA,D2R,dlambda,A,lat_u,lat_v,cosTheta_u,cosTheta_v,dTheta, H_u, H_v
     !------------------------------------------------------------------
-
     SUBROUTINE SWM_timestep_initHeapsScheme
       USE vars_module, ONLY : dt, G
       USE domain_module, ONLY : Nx, Ny, ip1, jp1, dLambda, dTheta, H_u, H_v, &
