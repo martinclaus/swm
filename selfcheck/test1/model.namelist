@@ -10,7 +10,6 @@
   meant_out=2.628e6    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init="input/eta_init_gauss.nc"
   diag_start=0.
-  AB_Chi = .1
 &end
 
 &calendar_nl
@@ -32,8 +31,12 @@
   H_overwrite=3.
 &end
 
-!basic state
-&swm_bs_nl filename="input/bs_sc.nc" varname="PSI" chunksize=1 &end
+&swm_timestep_nl 
+  filename="input/bs_sc.nc"
+  varname="PSI"
+  chunksize=1
+  AB_Chi = .1
+&end
 
 !Forcing Files
 &swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end

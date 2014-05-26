@@ -31,7 +31,12 @@
   theta0 = 20.
 &end
 
-!&swm_bs_nl filename="input/bs_sc.nc" varname="PSI" chunksize=1 &end
+!&swm_timestep_nl 
+  filename="input/bs_sc.nc" 
+  varname="PSI" 
+  chunksize=1 
+  AB_Chi = .1
+&end
 
 !&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
 

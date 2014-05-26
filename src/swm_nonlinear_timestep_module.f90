@@ -28,13 +28,12 @@ MODULE swm_timestep_module
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
   USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish
-  USE vars_module, ONLY : AB_Chi, AB_C1, AB_C2
   USE memchunk_module, ONLY : memoryChunk
   IMPLICIT NONE
   PRIVATE
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            SWM_u, SWM_v, SWM_eta
+            SWM_u, SWM_v, SWM_eta, AB_Chi, AB_C1, AB_C2
 
   ! constant coefficients (specific for time stepping scheme)
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
@@ -50,6 +49,9 @@ MODULE swm_timestep_module
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: u_bs
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: v_bs
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: zeta_bs
+  REAL(8)                                        :: AB_Chi = .1_8 !< AdamsBashforth displacement coefficient
+  REAL(8)                                        :: AB_C1         !< AdamsBashforth weight factor for present time level (set in swm_timestep_init)
+  REAL(8)                                        :: AB_C2         !< AdamsBashforth weight factor for past time level (set in swm_timestep_init)
   TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
 
@@ -72,7 +74,7 @@ MODULE swm_timestep_module
       CHARACTER(CHARLEN)  :: filename="", varname=""
       INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat, alloc_error
       LOGICAL             :: timestepInitialised=.FALSE.
-      namelist / swm_bs_nl / filename, varname, chunksize
+      namelist / swm_timestep_nl / filename, varname, chunksize, AB_Chi
 
       ALLOCATE(G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=stat)
       IF (stat .ne. 0) THEN
@@ -104,12 +106,14 @@ MODULE swm_timestep_module
         STOP 1000
       END IF
       open(UNIT_MODEL_NL, file = MODEL_NL)
-      read(UNIT_MODEL_NL, nml = swm_bs_nl, iostat=stat)
+      read(UNIT_MODEL_NL, nml = swm_timestep_nl, iostat=stat)
       close(UNIT_MODEL_NL)
       IF (stat .NE. 0) THEN
-        PRINT *,"ERROR loading basic state namelist SWM_BS_nl"
+        PRINT *,"ERROR loading timestep namelist SWM_timestep_nl"
         STOP 1
       END IF
+      AB_C1 = 1.5_8 + AB_Chi
+      AB_C2 =  .5_8 + AB_Chi
       CALL initMemChunk(filename,varname,chunksize,SWM_MC_bs_psi)
       CALL SWM_timestep_initLiMeanState
       timestepInitialised = .TRUE.

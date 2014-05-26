@@ -42,7 +42,7 @@
 MODULE tracer_module
 #include "tracer_module.h"
   USE io_module, ONLY : initFH,fileHandle
-  USE vars_module, ONLY : AB_Chi, AB_C1, AB_C2
+  USE swm_timestep_module, ONLY : AB_Chi, AB_C1, AB_C2
   IMPLICIT NONE
   SAVE
   PRIVATE
