@@ -19,7 +19,8 @@ fi
 modelDir="$PWD"
 selfcheckDir="$modelDir/selfcheck"
 testDir="$selfcheckDir/$1"
-buildDir="$modelDir/bin"
+buildDir="$modelDir/build"
+binDir="$modelDir/bin"
 
 # List of output files to compare:
 testOutputPrefix="$testDir/output/new_000000000001_"
@@ -31,7 +32,7 @@ rm -f $testOutputPrefix*
 
 # Execute model binary from test dir
 cd $testDir
-time $buildDir/./model
+time $binDir/model
 
 # Compare results
 if [ $? -eq 0 ]

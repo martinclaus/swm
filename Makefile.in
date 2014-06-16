@@ -188,7 +188,7 @@ clean-conf:
 	@rm -fv Makefile
 
 clean :
-	@rm -fv $(builddir)* include/udunits.inc
+	@rm -fv $(builddir)*
 	@rm -fv $(bindir)*
 
 clean-doc :

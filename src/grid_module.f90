@@ -236,7 +236,7 @@ MODULE grid_module
     !------------------------------------------------------------------
     logical function compareGridsEuler(g1, g2) result(res)
       type(grid_t), intent(in)    :: g1, g2
-      res = all((g1%lon.eq.g2%lon).and.(g1%lat.eq.g2%lat))
+      res = all(g1%lon.eq.g2%lon).and.all(g1%lat.eq.g2%lat)
     end function compareGridsEuler
 
 END MODULE grid_module
