@@ -585,6 +585,9 @@ PACKAGE_URL=''
 ac_unique_file="src/model.f90"
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+NETINCL
+NETFLIBS
+NETFFLAGS
 SET_MAKE
 FC_MODOUT
 ac_empty
@@ -602,6 +605,8 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
+UDUNITS
+NF_CONFIG
 DOXYGEN
 SED
 CUDADIR
@@ -1968,6 +1973,100 @@ if test -z "$DOXYGEN";
    then { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Doxygen not found - continuing without Doxygen" >&5
 $as_echo "$as_me: WARNING: Doxygen not found - continuing without Doxygen" >&2;}
 fi
+#Checks for netcdf by looking for the program nf-config
+if test "$NETDIR" == ""
+    then NETDIR=/usr/local
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for netcdf installation in \"$NETDIR\"" >&5
+$as_echo_n "checking for netcdf installation in \"$NETDIR\"... " >&6; }
+# Extract the first word of "nf-config", so it can be a program name with args.
+set dummy nf-config; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_NF_CONFIG+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$NF_CONFIG"; then
+  ac_cv_prog_NF_CONFIG="$NF_CONFIG" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $NETDIR/bin
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_NF_CONFIG="yes"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_prog_NF_CONFIG" && ac_cv_prog_NF_CONFIG="no"
+fi
+fi
+NF_CONFIG=$ac_cv_prog_NF_CONFIG
+if test -n "$NF_CONFIG"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $NF_CONFIG" >&5
+$as_echo "$NF_CONFIG" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+if test "$NF_CONFIG" == no
+    then as_fn_error 1 "netcdf not found - aborting" "$LINENO" 5
+fi
+#Checks for udunits2 by looking for the program udunits2
+if test "$UDDIR" == ""
+    then UDDIR=/usr/local
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for udunits installation in \"$UDDIR\"" >&5
+$as_echo_n "checking for udunits installation in \"$UDDIR\"... " >&6; }
+# Extract the first word of "udunits2", so it can be a program name with args.
+set dummy udunits2; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_UDUNITS+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$UDUNITS"; then
+  ac_cv_prog_UDUNITS="$UDUNITS" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $UDDIR/bin
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_UDUNITS="yes"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_prog_UDUNITS" && ac_cv_prog_UDUNITS="no"
+fi
+fi
+UDUNITS=$ac_cv_prog_UDUNITS
+if test -n "$UDUNITS"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $UDUNITS" >&5
+$as_echo "$UDUNITS" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+if test "$UDUNITS" == no
+    then as_fn_error 1 "udunits2 not found - aborting" "$LINENO" 5
+fi
 
 #C-Checks
 ac_ext=c
@@ -2761,6 +2860,19 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 #Fortran-Checks
 #Checks for a Fortran-Compiler, sets the variable FC to the compiler found
+#AC_PROG_FC
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for fortran compiler used to compile netcdf libraries" >&5
+$as_echo_n "checking for fortran compiler used to compile netcdf libraries... " >&6; }
+FC=`$NETDIR/bin/nf-config --fc`
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $FC" >&5
+$as_echo "$FC" >&6; }
+ac_ext=${ac_fc_srcext-f}
+ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
+ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_fc_compiler_gnu
+
+#Checks if the Fortran Compiler accepts .f90 extensions and sets FCFLAGS_f90 to the needed flags, if any
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
@@ -2966,18 +3078,11 @@ if test $ac_compiler_gnu = yes; then
 else
   GFC=
 fi
-ac_ext=c
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
-ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
-
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_fc_compiler_gnu
 
-#Checks if the Fortran Compiler accepts .f90 extensions and sets FCFLAGS_f90 to the needed flags, if any
 
 ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
@@ -3455,6 +3560,27 @@ fi
 # Checks for typedefs, structures, and compiler characteristics.
 
 # Checks for library functions.
+
+# Reads in the necessary flags for executing netcdf
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for necessary fortran flags to execute netcdf programs" >&5
+$as_echo_n "checking for necessary fortran flags to execute netcdf programs... " >&6; }
+NETFFLAGS=`$NETDIR/bin/nf-config --fflags`
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $NETFFLAGS" >&5
+$as_echo "$NETFFLAGS" >&6; }
+NETFFLAGS="$NETFFLAGS $ac_cv_fc_line_length"
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for netcdf libraries" >&5
+$as_echo_n "checking for netcdf libraries... " >&6; }
+NETFLIBS=`$NETDIR/bin/nf-config --flibs`
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $NETFLIBS" >&5
+$as_echo "$NETFLIBS" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for include-directory of the netcdf installation" >&5
+$as_echo_n "checking for include-directory of the netcdf installation... " >&6; }
+NETINCL=`$NETDIR/bin/nf-config --includedir`
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $NETINCL" >&5
+$as_echo "$NETINCL" >&6; }
 
 ac_config_files="$ac_config_files Makefile"
 

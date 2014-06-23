@@ -1,7 +1,8 @@
 @SET_MAKE@
 
 FC = @FC@
-FCFLAGS = @FCFLAGS@
+#FCFLAGS = @FCFLAGS@ @NETFFLAGS@
+FCFLAGS = @NETFFLAGS@
 FCFLAGS_f90 = @FCFLAGS_f90@
 FC_MODEXT = @FC_MODEXT@
 FC_MODINC = @FC_MODINC@
@@ -42,8 +43,10 @@ model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_mod
 O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
-libnc = -L$(NETDIR)/lib -lnetcdff
-includenc = $(FC_MODINC)$(NETDIR)/include
+#libnc = -L$(NETDIR)/lib -lnetcdff
+libnc = @NETFLIBS@
+#includenc = $(FC_MODINC)$(NETDIR)/include
+includenc = $(FC_MODINC)@NETINCL@
 libud = -L$(UDDIR)/lib -ludunits2 -lexpat
 #include_dir = -Iinclude
 #include_h = -Iinclude -Ibuild
