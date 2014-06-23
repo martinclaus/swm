@@ -44,7 +44,8 @@ MODULE calc_lib
 
   interface vorticity
     module procedure laplacian2D
-    module procedure vorticityFromVelocities
+    module procedure vorticityFromVelocities2D
+    module procedure vorticityFromVelocities3D
   end interface vorticity
 
   interface interpolate
@@ -52,15 +53,24 @@ MODULE calc_lib
     module procedure interpolate_4point
   end interface interpolate
 
+!  interface interpMask
+!    module procedure interpMask2Point
+!    module procedure interpMask4Point
+!  end interface interpMask
+!
+!  interface interpIv
+!    module procedure interpIv2Point
+!    module procedure interpIv4Point
+!  end interface
+!
+!  interface interpJv
+!    module procedure interpJv2Point
+!    module procedure interpJv4Point
+!  end interface
+
   interface laplacian
     module procedure laplacian2D
   end interface laplacian
-
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
-  LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
-  LOGICAL                                :: u_nd_computed=.FALSE. !< .TRUE. if the nondivergent velocity field is computed at present time step
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Weighting factors for bilinear interpolation
@@ -69,6 +79,37 @@ MODULE calc_lib
     real(8)                 :: area=4    !< size of the grid box
     real(8), dimension(2,2) :: factors=1 !< weighting factors
   end type
+
+  type :: t_interpolater2point
+    integer, dimension(:), pointer      :: im => null()
+    integer, dimension(:), pointer      :: ip => null()
+    integer, dimension(:), pointer      :: jm => null()
+    integer, dimension(:), pointer      :: jp => null()
+    integer(1), dimension(:,:), pointer :: weight => null()
+    integer(1), dimension(:,:), pointer :: mask => null()
+    integer(1), dimension(:,:), pointer :: to_mask => null()
+  end type
+
+  type :: t_interpolater4point
+    integer, dimension(:), pointer      :: im => null()
+    integer, dimension(:), pointer      :: ip => null()
+    integer, dimension(:), pointer      :: jm => null()
+    integer, dimension(:), pointer      :: jp => null()
+    integer(1), dimension(:,:), pointer :: weight => null()
+    integer(1), dimension(:,:), pointer :: mask => null()
+    integer(1), dimension(:,:), pointer :: to_mask => null()
+  end type
+
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
+  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
+  LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
+  LOGICAL                                :: u_nd_computed=.FALSE. !< .TRUE. if the nondivergent velocity field is computed at present time step
+  type(t_interpolater4point), save       :: eta2H, u2v, v2u, H2eta
+  type(t_interpolater2point), save       :: eta2u, eta2v, &
+                                            u2eta, u2H, &
+                                            v2eta, v2H, &
+                                            H2u, H2v
 
   CONTAINS
 
@@ -83,17 +124,29 @@ MODULE calc_lib
     !! domain_module, ONLY : Nx,Ny, eta_grid
     !------------------------------------------------------------------
     SUBROUTINE initCalcLib
-      USE domain_module, ONLY : Nx,Ny, eta_grid, u_grid, v_grid
+      USE domain_module, ONLY : Nx,Ny, eta_grid, u_grid, v_grid, H_grid
       INTEGER :: alloc_error
       ALLOCATE(chi(1:Nx,1:Ny), u_nd(1:Nx, 1:Ny), v_nd(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in initTracer"
+        WRITE(*,*) "Allocation error in initCalcLib"
         STOP 1
       END IF
       chi = 0._8
       chi_computed=.FALSE.
       u_nd = 0._8
       v_nd = 0._8
+      call set4PointInterpolater(eta2H, eta_grid)
+      call set4PointInterpolater(u2v, u_grid)
+      call set4PointInterpolater(v2u, v_grid)
+      call set4PointInterpolater(H2eta, H_grid)
+      call set2PointInterpolater(eta2u, eta_grid, "x")
+      call set2PointInterpolater(eta2v, eta_grid, "y")
+      call set2PointInterpolater(u2eta, u_grid, "x")
+      call set2PointInterpolater(u2H, u_grid, "y")
+      call set2PointInterpolater(v2eta, v_grid, "y")
+      call set2PointInterpolater(v2H, v_grid, "x")
+      call set2PointInterpolater(H2u, H_grid, "y")
+      call set2PointInterpolater(H2v, H_grid, "x")
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_INIT
       ! initialise elliptic solver
       call CALC_LIB_ELLIPTIC_SOLVER_INIT
@@ -124,6 +177,123 @@ MODULE calc_lib
       chi_computed=.FALSE.
       u_nd_computed=.FALSE.
     END SUBROUTINE advanceCalcLib
+
+
+    subroutine set2PointInterpolater(int_obj, from_grid, direction)
+      use grid_module, only : grid_t
+      use domain_module, only : jp0, ip0
+      type(t_interpolater2point), intent(inout) :: int_obj
+      type(grid_t), intent(in) :: from_grid
+      character(*), intent(in) :: direction
+      type(grid_t), pointer :: out_grid
+      integer :: i, j, stat, Nx, Ny
+      select case(direction)
+        case("X", "x", "zonal", "lambda")
+          call getOutGrid(from_grid, direction, out_grid, int_obj%ip, int_obj%im)
+          int_obj%jp => jp0
+          int_obj%jm => jp0
+        case("Y", "y", "theta", "meridional")
+          call getOutGrid(from_grid, direction, out_grid, int_obj%jp, int_obj%jm)
+          int_obj%ip => ip0
+          int_obj%im => ip0
+        case default
+          print *, "ERROR: Wrong direction for interpolation specified. Check your Code!"
+          stop 1
+      end select
+      int_obj%mask => from_grid%ocean
+      int_obj%to_mask => out_grid%ocean
+      Nx = size(int_obj%mask, 1)
+      Ny = size(int_obj%mask, 2)
+      allocate(int_obj%weight(1:Nx, 1:Ny), stat=stat)
+      if (stat .ne. 0) then
+        print *, "ERROR: Allocation failed in ", __FILE__, __LINE__
+        stop 1
+      end if
+      int_obj%weight = 1
+      do j = 1,Ny
+        do i = 1,Nx
+          if (out_grid%land(i, j) .eq. 1_1) cycle
+          int_obj%weight(i,j) = int_obj%mask(int_obj%ip(i), int_obj%jp(j)) &
+                              + int_obj%mask(int_obj%im(i), int_obj%jm(j))
+        end do
+      end do
+    end subroutine set2PointInterpolater
+
+    subroutine set4PointInterpolater(int_obj, from_grid)
+      use grid_module, only : grid_t
+      use domain_module, only : jp0, ip0
+      type(t_interpolater4point), intent(inout) :: int_obj
+      type(grid_t), intent(in) :: from_grid
+      type(grid_t), pointer :: out_intermediat, out_grid
+      integer :: i, j, stat, Nx, Ny
+      call getOutGrid(from_grid, "x", out_intermediat, int_obj%ip, int_obj%im)
+      call getOutGrid(out_intermediat, "y", out_grid, int_obj%jp, int_obj%jm)
+      int_obj%mask => from_grid%ocean
+      int_obj%to_mask => out_grid%ocean
+      Nx = size(int_obj%mask, 1)
+      Ny = size(int_obj%mask, 2)
+      allocate(int_obj%weight(1:Nx, 1:Ny), stat=stat)
+      if (stat .ne. 0) then
+        print *, "ERROR: Allocation failed in ", __FILE__, __LINE__
+        stop 1
+      end if
+      int_obj%weight = 1
+      do j = 1,Ny
+        do i = 1,Nx
+          if (out_grid%land(i, j) .eq. 1_1) cycle
+          int_obj%weight(i,j) = int_obj%mask(int_obj%ip(i), int_obj%jp(j)) &
+                              + int_obj%mask(int_obj%im(i), int_obj%jm(j)) &
+                              + int_obj%mask(int_obj%im(i), int_obj%jp(j)) &
+                              + int_obj%mask(int_obj%ip(i), int_obj%jm(j))
+        end do
+      end do
+    end subroutine set4PointInterpolater
+
+
+!    function interpMask2Point(int_obj, i, j) result(mask)
+!      type(t_interpolater2point), intent(in) :: int_obj
+!      integer, intent(in)                    :: i, j
+!      integer, dimension(2)               :: mask
+!      mask = pack(int_obj%mask((/int_obj%ip(i), int_obj%im(i)/), (/int_obj%jp(j), int_obj%jm(j)/)), .true.)
+!    end function interpMask2Point
+!
+!    function interpMask4Point(int_obj, i, j) result(mask)
+!      type(t_interpolater4point), intent(in) :: int_obj
+!      integer, intent(in)                    :: i, j
+!      integer, dimension(4)               :: mask
+!      mask = (/int_obj%mask(int_obj%ip(i), int_obj%jp(j)), &
+!               int_obj%mask(int_obj%im(i), int_obj%jm(j)), &
+!               int_obj%mask(int_obj%ip(i), int_obj%jm(j)), &
+!               int_obj%mask(int_obj%im(i), int_obj%jp(j))/)
+!    end function interpMask4Point
+!
+!    function interpIv4Point(int_obj, i) result(indices)
+!      type(t_interpolater4point), intent(in) :: int_obj
+!      integer, intent(in)                    :: i
+!      integer, dimension(2)                  :: indices
+!      indices = (/int_obj%ip(i), int_obj%im(i)/)
+!    end function interpIv4Point
+!
+!    function interpJv4Point(int_obj, j) result(indices)
+!      type(t_interpolater4point), intent(in) :: int_obj
+!      integer, intent(in)                    :: j
+!      integer, dimension(2)                  :: indices
+!      indices = (/int_obj%jp(j), int_obj%jm(j)/)
+!    end function interpJv4Point
+!
+!    function interpIv2Point(int_obj, i) result(indices)
+!      type(t_interpolater2point), intent(in) :: int_obj
+!      integer, intent(in)                    :: i
+!      integer, dimension(2)                  :: indices
+!      indices = (/int_obj%ip(i), int_obj%im(i)/)
+!    end function interpIv2Point
+!
+!    function interpJv2Point(int_obj, j) result(indices)
+!      type(t_interpolater2point), intent(in) :: int_obj
+!      integer, intent(in)                    :: j
+!      integer, dimension(2)                  :: indices
+!      indices = (/int_obj%jp(j), int_obj%jm(j)/)
+!    end function interpJv2Point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief 1D linear interpolation, usually in time.
@@ -199,39 +369,42 @@ MODULE calc_lib
       var_interp = weight%area * sum(var*weight%factors)
     end function interp2d
 
-    real(8) function interpolate_2point(var, grid, direction, i, j) result(inter)
-      use grid_module
-      real(8), dimension(:,:), intent(in) :: var
-      type(grid_t), intent(in)            :: grid
-      type(grid_t), pointer               :: grid_inter
-      character(*), intent(in)            :: direction
-      integer, pointer, dimension(:)      :: ind0, indm1
-      integer, intent(in)                 :: i,j
-
-      call getOutGrid(grid, direction, grid_inter, ind0, indm1)
-      select case(direction)
-        case("X", "x", "zonal", "lambda")
-          inter = (var(ind0(i), j) + var(indm1(i), j)) / 2.
-        case("Y", "y", "theta", "meridional")
-          inter = (var(i, ind0(j)) + var(i, indm1(j))) / 2.
-        case default
-          print *, "ERROR: Wrong direction for interpolation specified. Check your Code!"
-          stop 1
-      end select
+    real(8) function interpolate_2point(var, interpolator, i, j) result(inter)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)    :: var
+      type(t_interpolater2point), intent(in) :: interpolator
+      integer, intent(in)                    :: i, j
+      integer, pointer :: ip, im, jp, jm
+      if (interpolator%to_mask(i, j) .eq. 0_1) then
+        inter = 0.
+      else
+        ip => interpolator%ip(i)
+        im => interpolator%im(i)
+        jp => interpolator%jp(j)
+        jm => interpolator%jm(j)
+        inter = (interpolator%mask(ip, jp) * var(ip, jp) + interpolator%mask(im, jm) * var(im, jm)) / interpolator%weight(i, j)
+      end if
     end function interpolate_2point
 
-    real(8) function interpolate_4point(var, grid, i, j) result(inter)
-      use grid_module
-      real(8), dimension(:,:), intent(in) :: var
-      type(grid_t), intent(in)            :: grid
-      type(grid_t), pointer               :: grid_interm
-      type(grid_t), pointer               :: grid_interp
-      integer, pointer, dimension(:)      :: ip, im, jp, jm
-      integer, intent(in)                 :: i,j
-
-      call getOutGrid(grid, "x", grid_interm, ip, im)
-      call getOutGrid(grid_interm, "y", grid_interp, jp, jm)
-      inter = (var(ip(i), jp(j)) + var(ip(i), jm(j)) + var(im(i), jp(j)) + var(im(i), jm(j))) / 4.
+    real(8) function interpolate_4point(var, interpolator, i, j) result(inter)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:), intent(in)    :: var
+      type(t_interpolater4point), intent(in) :: interpolator
+      integer, intent(in)                    :: i, j
+      integer, pointer :: ip, im, jp, jm
+      if (interpolator%to_mask(i, j) .eq. 0_1) then
+        inter = 0._8
+      else
+        ip => interpolator%ip(i)
+        im => interpolator%im(i)
+        jp => interpolator%jp(j)
+        jm => interpolator%jm(j)
+        inter = (  interpolator%mask(ip, jp) * var(ip, jp) &
+                 + interpolator%mask(im, jm) * var(im, jm) &
+                 + interpolator%mask(im, jp) * var(im, jp) &
+                 + interpolator%mask(ip, jm) * var(ip, jm) &
+                ) / interpolator%weight(i, j)
+      end if
     end function interpolate_4point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -359,7 +532,6 @@ MODULE calc_lib
     !! grid_module, only : grid_t
     !------------------------------------------------------------------
     SUBROUTINE computeDivergence(CD_u,CD_v,div_u,grid_u,grid_v)
-      USE domain_module, ONLY : dLambda, dTheta, A
       USE grid_module, ONLY : grid_t
       REAL(8), DIMENSION(:,:), INTENT(in)                        :: CD_u      !< Zonal component of input
       REAL(8), DIMENSION(size(CD_u,1), size(CD_u,2)), INTENT(in) :: CD_v      !< Meridional component of input
@@ -391,7 +563,6 @@ MODULE calc_lib
     !! grid_module, only : grid_t
     !------------------------------------------------------------------
     SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, grid_chi)
-      USE domain_module, ONLY : A, dLambda, dTheta
       USE grid_module, ONLY : grid_t
       REAL(8), DIMENSION(:,:), INTENT(in)                                 :: GRAD_chi  !< Scalar field
       REAL(8), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_u    !< Zonal component of gradient
@@ -416,19 +587,58 @@ MODULE calc_lib
     !! @par Uses:
     !! grid_module, only : grid_t
     !------------------------------------------------------------------
-    function vorticityFromVelocities(u_in,v_in,u_grid_in,v_grid_in) result(vort)
+    function vorticityFromVelocities2D(u_in,v_in,u_grid_in,v_grid_in) result(vort)
       use grid_module, only : grid_t
       real(8), dimension(:,:), intent(in)                       :: u_in
       real(8), dimension(size(u_in,1),size(u_in,2)), intent(in) :: v_in
       type(grid_t), intent(in)                                  :: u_grid_in
       type(grid_t), intent(in)                                  :: v_grid_in
       real(8), dimension(size(u_in,1),size(u_in,2))             :: vort
-      type(grid_t), pointer                                     :: out_grid => null()
+      type(grid_t), pointer                                     :: out_grid => null(), out_grid2=>null()
 
       call getOutGrid(u_grid_in,"theta",out_grid)
-      vort = pder_zonal(v_in,v_grid_in) &
+      call getOutGrid(v_grid_in, "lambda", out_grid2)
+      if (.not.associated(out_grid, out_grid2)) then
+        print *, "ERROR in vorticityFromVelocities3D: Input grids are not suitable for vorticity calculation."
+        stop 3
+      end if
+       vort = pder_zonal(v_in,v_grid_in) &
             - pder_meridional(spread(u_grid_in%cos_lat,1,size(u_in,1))*u_in,u_grid_in)/spread(out_grid%cos_lat,1,size(u_in,1))
-    end function vorticityFromVelocities
+    end function vorticityFromVelocities2D
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Computes the vorticity of a staggered vector field on a sphere
+    !!
+    !! Computes the vorticity of a vector field which components are staggered like the velocities on a c-grid
+    !! @result
+    !! \f[
+    !! \zeta = \frac{1}{a\cos\theta}\left(\frac{\partial v}{\partial\lambda} - \frac{\partial\cos\theta u}{\partial\theta}\right)
+    !! \f]
+    !!
+    !! @par Uses:
+    !! grid_module, only : grid_t
+    !------------------------------------------------------------------
+    function vorticityFromVelocities3D(u_in,v_in,u_grid_in,v_grid_in) result(vort)
+      use grid_module, only : grid_t
+      real(8), dimension(:,:,:), intent(in)                                  :: u_in
+      real(8), dimension(size(u_in,1),size(u_in,2),size(u_in,3)), intent(in) :: v_in
+      type(grid_t), intent(in)                                               :: u_grid_in
+      type(grid_t), intent(in)                                               :: v_grid_in
+      real(8), dimension(size(u_in,1),size(u_in,2),size(u_in,3))                          :: vort
+      type(grid_t), pointer                                                  :: out_grid => null(), out_grid2=>null()
+
+      call getOutGrid(u_grid_in, "theta", out_grid)
+      call getOutGrid(v_grid_in, "lambda", out_grid2)
+      if (.not.associated(out_grid, out_grid2)) then
+        print *, "ERROR in vorticityFromVelocities3D: Input grids are not suitable for vorticity calculation."
+        stop 3
+      end if
+      vort = pder_zonal(v_in,v_grid_in) &
+            - pder_meridional(spread(spread(u_grid_in%cos_lat, 1, size(u_in,1)), 3, size(u_in, 3)) * u_in,u_grid_in) &
+              / spread(spread(out_grid%cos_lat,1,size(u_in,1)), 3, size(u_in, 3))
+    end function vorticityFromVelocities3D
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Computes the streamfunction from a velocity field
