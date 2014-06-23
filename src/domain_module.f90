@@ -164,10 +164,10 @@ MODULE domain_module
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! set the grid-type for all grids
             !------------------------------------------------------------------
-            CALL setGrid(H_grid,lon_H,lat_H,land_H,ocean_H)
-            CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u)
-            CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v)
-            CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta)
+            CALL setGrid(H_grid,lon_H,lat_H,land_H,ocean_H, H)
+            CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u, H_u)
+            CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v, H_v)
+            CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta)
 
             CALL setf(H_grid, theta0, OMEGA)
             CALL setf(u_grid, theta0, OMEGA)

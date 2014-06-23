@@ -5,6 +5,7 @@ MODULE grid_module
   REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
 
   TYPE :: grid_t
+    real(8), dimension(:,:), pointer      :: H => null()
     REAL(8), DIMENSION(:), POINTER        :: lon => null()
     REAL(8), DIMENSION(:), POINTER        :: lat => null()
     REAL(8), DIMENSION(:), POINTER        :: sin_lat => null()
@@ -33,6 +34,13 @@ MODULE grid_module
   end interface setGrid
 
   CONTAINS
+
+    subroutine setTopo(gr, H)
+      type(grid_t), intent(inout)                 :: gr
+      real(8), dimension(:,:), target, intent(in) :: H
+
+      gr%H => H
+    end subroutine setTopo
 
     SUBROUTINE setLon(gr, lon)
       TYPE(grid_t), INTENT(inout)                 :: gr
@@ -152,17 +160,26 @@ MODULE grid_module
       grid%valid = 1_1
      end subroutine setGridLagrange
 
-    SUBROUTINE setGridEuler(gr, lon, lat, land, ocean)
+    SUBROUTINE setGridEuler(gr, lon, lat, land, ocean, H)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                     :: gr
         REAL(8), DIMENSION(:), POINTER, INTENT(in)      :: lon, lat
+        REAL(8), DIMENSION(:,:), POINTER, INTENT(in)    :: H
         INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
 
         CALL setLon(gr, lon)
         CALL setLat(gr, lat)
         CALL setLand(gr, land)
         CALL setOcean(gr, ocean)
+        call setTopo(gr, H)
     END SUBROUTINE setGridEuler
+
+    function getTopo(gr) result(H)
+      real(8), dimension(:,:), pointer :: H
+      type(grid_t), intent(in)         :: gr
+
+      H => gr%H
+    end function getTopo
 
     FUNCTION getLon(gr)
       IMPLICIT NONE
@@ -235,8 +252,9 @@ MODULE grid_module
     !! If these vectors are equal, the grids are considered to be equal too.
     !------------------------------------------------------------------
     logical function compareGridsEuler(g1, g2) result(res)
-      type(grid_t), intent(in)    :: g1, g2
-      res = all(g1%lon.eq.g2%lon).and.all(g1%lat.eq.g2%lat)
+      type(grid_t), intent(in)    :: g1
+      type(grid_t), intent(in)    :: g2
+      res = associated(g1%lon, g2%lon) .and. associated(g1%lat, g2%lat)
     end function compareGridsEuler
 
 END MODULE grid_module

@@ -12,7 +12,7 @@
 MODULE vars_module
 #include "io.h"
   USE generic_list
-  USE domain_module
+  use grid_module, only : t_grid_lagrange, grid_t
   USE io_module, ONLY : fileHandle, initFH
   use str
   IMPLICIT NONE
@@ -108,6 +108,7 @@ MODULE vars_module
     !! Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
     !------------------------------------------------------------------
     SUBROUTINE initVars
+      use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
       CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
       CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
       CHARACTER(CHARLEN)     :: file_u_init=""              !< File containing initial condition for zonal velocity. Last timestep of dataset used.
@@ -147,10 +148,10 @@ MODULE vars_module
       CALL addToRegister(u(:,:,N0),"U", u_grid)
       CALL addToRegister(v(:,:,N0),"V", v_grid)
       CALL addToRegister(eta(:,:,N0),"ETA", eta_grid)
-      CALL addToRegister(H,"H", H_grid)
-      CALL addToRegister(H_u,"H_u", u_grid)
-      CALL addToRegister(H_v,"H_v", v_grid)
-      CALL addToRegister(H_eta,"H_eta", eta_grid)
+      CALL addToRegister(H_grid%H, "H", H_grid)
+      CALL addToRegister(u_grid%H, "H_u", u_grid)
+      CALL addToRegister(v_grid%H,"H_v", v_grid)
+      CALL addToRegister(eta_grid%H,"H_eta", eta_grid)
 
       CALL initFH(file_eta_init,varname_eta_init,FH_eta)
       CALL initFH(file_u_init,varname_u_init,FH_u)
