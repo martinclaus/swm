@@ -125,6 +125,7 @@ MODULE calendar_module
           TYPE(calendar), INTENT(in)           :: fromCal
           TYPE(calendar), INTENT(in)           :: toCal
           REAL(8), DIMENSION(:), INTENT(inout) :: time
+          real(8), dimension(size(time,1 ))    :: local_time
           type(c_ptr)  :: converter, dummy
           integer(c_size_t) :: count
 
@@ -132,7 +133,8 @@ MODULE calendar_module
           if (c_associated(fromCal%ptr) .and. c_associated(toCal%ptr)) then
             converter = ut_get_converter(fromCal%ptr, toCal%ptr)
             call ut_check_status("ut_get_converter")
-            dummy = cv_convert_doubles(converter, time, count, time)
+            dummy = cv_convert_doubles(converter, time, count, local_time)
+            time = local_time
             call ut_check_status("ut_convert_doubles")
             call cv_free(converter)
             call ut_check_status("cv_free")

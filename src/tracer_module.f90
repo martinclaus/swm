@@ -489,7 +489,7 @@ MODULE tracer_module
     !! vars_module, ONLY : Nx,Ny,ocean_eta,ocean_u,ocean_v,dt,dLambda,dTheta,A,cosTheta_u,cosTheta_v,ip1,jp1, addToRegister
     !------------------------------------------------------------------
     SUBROUTINE TRC_initABScheme
-      USE vars_module, ONLY: Nx,Ny,dLambda,dTheta,ip1,jp1, addToRegister
+      USE vars_module, ONLY: addToRegister
       USE domain_module, ONLY : Nx, Ny, dLambda, dTheta, ip1, jp1, &
                                 eta_grid, u_grid, v_grid, A
       INTEGER       :: alloc_error

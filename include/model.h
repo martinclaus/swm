@@ -38,7 +38,7 @@ Header file for shallow water model. Meant to set different physics.
 #define SPHERICALGEOMETRY 3
 
 /* Switch choosing the calculation of Coriolis-Parameter */
-/*!#define CORIOLIS FPLANE*/
+/* #define CORIOLIS FPLANE*/
 
 /* Standard calculation of Coriolis-Parameter */
 #ifndef CORIOLIS
