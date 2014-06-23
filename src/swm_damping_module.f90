@@ -229,9 +229,9 @@ MODULE swm_damping_module
     !! @return Field of damping coefficients related to the sponge layers
     !------------------------------------------------------------------
     FUNCTION getSpongeLayer(gString,posString) RESULT(gamma)
-      USE vars_module, ONLY : G, H, &
+      USE vars_module, ONLY : G, &
                               gamma_new_sponge, new_sponge_efolding
-      USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid, A, OMEGA
+      USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
       IMPLICIT NONE
       !> String specifying the grid to work with. First character of this string must be one of
       !! - "U" (zonal velocity grid)
@@ -274,7 +274,7 @@ MODULE swm_damping_module
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
                                        (D2R*A)
 #elif SPONGE_SCALE_UNIT == SCU_RADIUS_OF_DEFORMATION
-                                       (SQRT(G*maxval(H))/2/OMEGA/ABS(SIN(pos*D2R)))
+                                       (SQRT(G*maxval(H_grid%H))/2/OMEGA/ABS(SIN(pos*D2R)))  !TODO: pos is not defined, won't work like this
 #elif SPONGE_SCALE_UNIT == SCU_METER
                                        1.
 #endif
