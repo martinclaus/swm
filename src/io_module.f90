@@ -46,6 +46,8 @@ MODULE io_module
     TYPE(calendar), PRIVATE :: calendar             !< Calendar the fileHandle uses
   END TYPE fileHandle
 
+  real(8), parameter :: infinity=huge(1._8), neg_infinity=-huge(1._8)
+
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
   CHARACTER(CHARLEN)          :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
   CHARACTER(CHARLEN)          :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
@@ -354,6 +356,7 @@ MODULE io_module
       IF (PRESENT(grid)) THEN
         WHERE (grid%ocean .ne. 1_1) var_dummy = FH%missval
       END IF
+      where (var_dummy > infinity .or. var_dummy < neg_infinity .or. var_dummy .ne. var_dummy) var_dummy = FH%missval
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
       call openDS(FH)
