@@ -86,7 +86,6 @@ MODULE swm_timestep_module
       END IF
       AB_C1 = 1.5_8 + AB_Chi
       AB_C2 =  .5_8 + AB_Chi
-!      CALL SWM_timestep_initLiMeanState
       timestepInitialised = .TRUE.
 #endif
 
@@ -176,6 +175,7 @@ MODULE swm_timestep_module
         end do
       end do
 !$OMP END PARALLEL DO
+      if (any(D .le. 0._8)) print *, "WARNING: Outcropping detected!!"
 #endif
 #if defined LINEARISED_MEAN_STATE || defined LINEARISED_STATE_OF_REST
       if (.not.associated(D)) D => eta_grid%H
@@ -280,9 +280,9 @@ MODULE swm_timestep_module
       do j=1, Ny
         do i=1, Nx
           !Mass-Flux MU = interpolate(D,{x}) * u
-          if (u_grid%land(i, j) /= 1_1) MU(i, j) = interpolate(D, eta2u, i, j) * SWM_u(i, j, N0)
+          if (u_grid%ocean(i, j) .eq. 1_1) MU(i, j) = interpolate(D, eta2u, i, j) * SWM_u(i, j, N0)
           !Mass-Flux MV = interpolate(D,{y}) * v
-          if (v_grid%land(i, j) /= 1_1) MV(i, j) = interpolate(D, eta2v, i, j) * SWM_v(i, j, N0)
+          if (v_grid%ocean(i, j) .eq. 1_1) MV(i, j) = interpolate(D, eta2v, i, j) * SWM_v(i, j, N0)
         end do
       end do
 !$OMP end parallel do
@@ -462,7 +462,7 @@ MODULE swm_timestep_module
     end function getD
 
     FUNCTION getPotentialVorticity(i,j,D,zeta) Result(Pot)
-      USE calc_lib, ONLY: interpolate
+      USE calc_lib, ONLY: interpolate, eta2H
       USE domain_module, ONLY: H_grid, eta_grid
       IMPLICIT NONE
       INTEGER                                                           :: i,j
@@ -472,15 +472,15 @@ MODULE swm_timestep_module
       IF (H_grid%ocean(i,j) .EQ. 1) THEN !skip this point if it is land
 #ifdef FULLY_NONLINEAR
           !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
-          Pot = (H_grid%f(j) + zeta(i,j)) / interpolate(D, eta_grid, i, j)
+          Pot = (H_grid%f(j) + zeta(i,j)) / interpolate(D, eta2H, i, j)
 #endif
 #ifdef LINEARISED_MEAN_STATE
           !potential vorticity Pot = (f + Z)/D
-          Pot = (H_grid%f(j) + zeta_bs(i,j,1)) / D(i,j)
+          Pot = (H_grid%f(j) + zeta_bs(i,j,1)) / interpolate(D, eta2H, i, j)
 #endif
 #ifdef LINEARISED_STATE_OF_REST
           !potential vorticity Pot = f/D
-          Pot = H_grid%f(j) / D(i,j)
+          Pot = H_grid%f(j) / interpolate(D, eta2H, i, j)
 #endif
       END IF
     END FUNCTION getPotentialVorticity
