@@ -1,0 +1,64 @@
+&model_nl
+  G = 4e-2
+  r = 2.8935185185185184e-06,  ! linear bottom friction parameter 
+  gamma_new = 2.3148148148148148e-08,  ! Newtonian cooling parameter (1/s)
+  new_sponge_efolding=8e-2, ! efolding scale of sponge layers
+  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
+  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
+  run_length = 51.84e6, ! length of run in seconds
+  dt = 2e3 ! 3.5e3  time step (s)
+&end
+
+&calendar_nl
+  model_start="2000-01-01 00:00"
+&end
+
+&domain_nl
+  A = 6371000,          ! radius of the earth (m)
+  OMEGA = 7.272205e-05, ! 1/day (1/s)
+  RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
+  Nx = 201,             ! number of grid points in x-dir.
+  Ny = 101,             ! number of grif points in y-dir.
+  lon_s = 0.,           ! min. lon. of the domain (H-grid)
+  lon_e = 100.          ! max. lon. of the domain (H-grid),
+  lat_s = -25.     ! min. lat. of the domain (H-grid),
+  lat_e = 25.         ! max. lat. of the domain (H-grid)
+  H_overwrite=125.
+&end
+
+&swm_timestep_nl 
+  AB_Chi = .1
+&end
+
+&swm_forcing_nl filename="input/taux.nc", varname="TAUX", forcingtype="W", component="Z" &end
+
+&output_nl
+  oprefix = "output/new_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+&end
+
+&diag_nl filename="u_out.nc", varname="u", type="snapshot", frequency=100 &end
+&diag_nl filename="v_out.nc", varname="v", type="snapshot", frequency=100 &end
+&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=100 &end
+!&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
+!&diag_nl filename="u_mean_out.nc", varname="u", type="A", period=2.628e6 &end
+!&diag_nl filename="v_mean_out.nc", varname="v", type="average", period=2.628e6 &end
+!&diag_nl filename="eta_mean_out.nc", varname="eta", type="A", period=2.628e6 &end
+!&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period=2.628e6 &end
+!&diag_nl filename="u2_mean_out.nc", varname="u", type="A", process="S", period=2.628e6 &end
+!&diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period=2.628e6 &end
+!&diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period=2.628e6 &end
+!&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period=2.628e6 &end
+!&diag_nl filename="H_out.nc", varname="H", type="I" &end
+!&diag_nl filename="impl_u.nc", varname="impl_u", type="I" &end
+!&diag_nl filename="impl_v.nc", varname="impl_v", type="I" &end
+!&diag_nl filename="impl_n.nc", varname="impl_eta", type="I" &end
+!&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" &end
+!&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" &end
+!&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" &end
+$diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=10 &end
+$diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=10 &end
+$diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=10 &end
+$diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=10 &end
+$diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=10 &end
+$diag_nl filename="d.nc", varname="swm_d", type="S" frequency=10 &end
