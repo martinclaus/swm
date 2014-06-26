@@ -97,7 +97,7 @@ module swm_vars
         WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
         STOP 1
       END IF
-      D = 0.
+      D = 1.
 #else
       D => eta_grid%H
 #endif
