@@ -1,0 +1,32 @@
+\CANCEL MODE VERIFY
+DEFINE REGION/DEFAULT save
+SET DATA/SAVE
+SET GRID/SAVE
+set grid $1
+let H_new = IF $1 ne 0 THEN $1
+let g = $2
+let pi=2*acos(0)
+let/title="Radius of the Earth"/unit="meter" a = 6.371e+6
+let/title="Zonal Box size"/unit="meter" dx = cos(pi/180*y[g=$1])*a*pi/180*xbox[g=$1]
+let/title="Earths Rotation Period"/unit="1/second" omega = 7.292115e-5
+let/title="Coriolis parameter"/unit="1/second" f = 2*Omega*sin(pi/180*y[g=$1])+0*x[g=$1]
+let/title="Beta"/unit="1/(second*meter)" beta = f[y=@DDC]
+let/title="SW Phase speed"/unit="meter/second" c = (H_new*g)^.5
+let/title="maximum gridsize by C-grid criteria"/unit="deg" c_grid=c/abs(f)*180/pi/a/cos(pi/180*y[g=$1])
+let/title="maximum timestep by cfl criterion"/unit="second" cfl=(dx+0*x[g=$1])/c
+let/title="maximum timestep by coriolis parameter"/unit="second" max_t_coriolis=abs(1/f)
+let/title="minimal friction coefficient"/unit="meter/second" r = dx*H_new*beta
+let/title="Lower bound viscosity" Alow = beta*dx^3.
+let/title="Upper bound viscosity, assuming dt=cfl/2" Aup = 2*dx^2./cfl
+
+say Maximum Gravity Wave Speed: c = `c[x=@max,y=@max]` m/s
+say C-grid criteria: dlambda < `c_grid[x=@min,y=@min]` deg
+say CFL criteria: dt < `cfl[x=@min,y=@min]` s
+say Maximal timestep from coriolis parameter: dt < `max_t_coriolis[x=@min,y=@min]`
+say Linear Friction parameter: r > `r[x=@max,y=@max]` m/s
+say Lateral Mixing Coefficient: `Alow[x=@max,y=@max]` m^2/s < Ah < `Aup[x=@min,y=@min]` m^2/s
+SET GRID/RESTORE
+SET DATA/RESTORE
+SET REGION save
+cancel region save
+SET MODE/LAST VERIFY

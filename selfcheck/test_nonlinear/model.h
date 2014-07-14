@@ -16,7 +16,7 @@ Header file for shallow water model. Meant to set different physics.
 #define SWM_TSTEP_ADAMSBASHFORTH
 /*#define SWM_TSTEP_HEAPS */
 /* Switches for forcing */
-#define TAU_SCALE 1.e0
+#define TAU_SCALE 5.e-2
 /* Switches for damping */
 #define LINEAR_BOTTOM_FRICTION
 #define LATERAL_MIXING

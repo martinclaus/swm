@@ -28,7 +28,7 @@ MODULE swm_timestep_module
                        psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
-  USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish
+  USE swm_lateralmixing_module, only : SWM_LateralMixing_new, SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step
   IMPLICIT NONE
   PRIVATE
 
@@ -150,6 +150,9 @@ MODULE swm_timestep_module
       call computePotVort
       call computeEDens
       call computeMassFluxes
+#ifdef LATERAL_MIXING
+      call SWM_LateralMixing_step
+#endif
       CALL SWM_timestep_nonlinear
 !#ifdef SWM_TSTEP_HEAPS
 !      CALL alreadyStepped(already_stepped)
@@ -386,7 +389,7 @@ MODULE swm_timestep_module
 #endif
 
 #ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, u_grid) &  !
+                             + SWM_LateralMixing_new(i, j, N0, u_grid) &  !
 #endif
                            + F_x(i,j) &                                                 ! forcing
 #ifdef FXDEP
@@ -423,7 +426,7 @@ MODULE swm_timestep_module
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, v_grid) &   !
+                             + SWM_LateralMixing_new(i, j, N0, v_grid) &   !
 #endif
                            + F_y(i,j) &                                                 ! forcing
 #ifdef FYDEP

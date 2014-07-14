@@ -1,12 +1,12 @@
 &model_nl
   G = 4e-2
-  r = 2.8935185185185184e-06,  ! linear bottom friction parameter 
-  gamma_new = 2.3148148148148148e-08,  ! Newtonian cooling parameter (1/s)
+  r = 0., !2.8935185185185184e-06,  ! linear bottom friction parameter 
+  gamma_new = 0., !2.3148148148148148e-08,  ! Newtonian cooling parameter (1/s)
   new_sponge_efolding=8e-2, ! efolding scale of sponge layers
   gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
-  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
-  run_length = 51.84e6, ! length of run in seconds
-  dt = 2e3 ! 3.5e3  time step (s)
+  Ah = 1e3,               ! horizontal eddy viscosity (m^2/s)
+  run_length = 5.184e7, ! length of run in seconds
+  dt = 3.5e3  ! time step (s)
 &end
 
 &calendar_nl
