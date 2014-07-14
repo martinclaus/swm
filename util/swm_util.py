@@ -9,7 +9,7 @@ __author__ = "Martin Claus <mclaus@geomar.de>"
 
 import os
 import shutil
-import subprocess
+import subprocess32 as subprocess
 import tempfile
 from string import Template
 import sys
@@ -123,11 +123,12 @@ class ModelController(object):
                     ("lon_e", 10.),
                     ("lat_s", -10.),
                     ("lat_e", 10.),
+                    ("in_file_H", ""),
                     ("h_overwrite", 1.))),
         Namelist(SWM_BS_NL, (
-                    ("bs_filename", ""),
-                    ("bs_varname", "PSI"),
-                    ("bs_chunksize", 0))),
+                    ("filename", ""),
+                    ("varname", "PSI"),
+                    ("chunksize", 1))),
         Namelist(SWM_FORCING_NL, (
                     ("filename", "tau_x.nc"),
                     ("varname", "TAUX"),
@@ -152,7 +153,8 @@ class ModelController(object):
                     ("oprefix", "default"),
                     ("osuffix", "")))]
 
-    _default_header = {"freq_wind": 4.354613902181461e-08,
+    _default_header = {"swm_tstep": "SWM_TSTEP_HEAPS",
+                       "freq_wind": 4.354613902181461e-08,
                        "tau_scale": 1.,
                        "fxdep": "* SIN(FREQ_WIND * dt * itt)",
                        "velocity_sponge": "",
@@ -168,15 +170,15 @@ class ModelController(object):
 
 /* Switch for Shallow Water Model */
 #define SWM
-#define SWM_TSTEP_HEAPS
+#define ${swm_tstep}
 /* Switches for forcing */
 #define FREQ_WIND ${freq_wind}
 #define TAU_SCALE ${tau_scale}
 #define FXDEP ${fxdep}
 /* Switches for damping */
 #define LATERAL_MIXING
-#define NEWTONIAN_COOLING
-#define LINEAR_BOTTOM_FRICTION
+!#define NEWTONIAN_COOLING
+!#define LINEAR_BOTTOM_FRICTION
 #define VELOCITY_SPONGE "${velocity_sponge}"
 #define NEWTONIAN_SPONGE "${newtonian_sponge}"
 
@@ -196,13 +198,18 @@ class ModelController(object):
 #endif
 """
 
-    def __init__(self, model="swm"):
-        """x.__init__(self) initialize the object.
+    def __init__(self, workdir=None, model="swm", debug=False):
+        """x.__init__(self, model="swm", debug=False) initialize the object.
             Reads environmental variables set by the batch system.
+            model : directory containing the model
+            debug : if true, verbose debugging information are printed to stdout
         """
         self.model = model
+        self.debug = debug
         self._tempdirs = []
         self._dirs = {}
+        if workdir:
+            self._dirs["workdir"] = workdir
         self._vars = {}
         self._set_vars()
 
@@ -214,6 +221,7 @@ class ModelController(object):
         """x.cleanup(self) -> None. Deletes temporary data on the cluster node."""
         for i in reversed(range(len(self._tempdirs))):
             d = self._tempdirs[i]
+            if self.debug: print "Remove %s" % self._tempdirs[i]
             shutil.rmtree(d)
             del self._tempdirs[i]
         
@@ -225,14 +233,17 @@ class ModelController(object):
         """
         # create directories in $TMPDIR
         self._dirs['lwrkdir'] = self._create_tempdir(prefix=self.model)
+        if self.debug: print "Created directory %s" % self._dirs['lwrkdir']
         self._dirs['loutdir'] = self._create_localdir("output")
+        if self.debug: print "Created directory %s" % self._dirs['loutdir']
         self._dirs['lindir'] = self._create_localdir("input", path_only=True)
         self._dirs['lmodeldir'] = self._create_localdir(self.model,
                                                         path_only=True)
-
         # copy model an input files
         shutil.copytree(self._dirs['modeldir'], self._dirs['lmodeldir'])
+        if self.debug: print "Move %s -> %s" % (self._dirs['modeldir'], self._dirs['lmodeldir'])
         shutil.copytree(self._dirs['indir'], self._dirs['lindir'])
+        if self.debug: print "Move %s -> %s" % (self._dirs['indir'], self._dirs['lindir'])
 
     def write_header(self, header_dic=None):
         """x.write_header(self, header_dic) -> string
@@ -242,18 +253,26 @@ class ModelController(object):
         # create header file content
         header_string = self._formatted_header(header_dic)
         # write header to local model dir
-        with open(os.path.join(self._dirs['lmodeldir'],
-                               'include', 'model.h'), 'w') as h_file:
+        h_path = os.path.join(self._dirs['lmodeldir'], 'include', 'model.h')
+        with open(h_path, 'w') as h_file:
             h_file.write(header_string)
         h_file.close()
+        if self.debug: print "%s \n%s" % (h_path, header_string)
         return header_string
 
-    def compile_model(self):
-        """x.compile_model(self) -> None. Compiles the deployed model."""
+    def compile_model(self, target="model"):
+        """x.compile_model(self, target="model") -> None. Compiles the deployed model with target as make target."""
         pwd = os.getcwd()
         # compiling model
         os.chdir(self._dirs['lmodeldir'])
-        subprocess.call('make model >/dev/null', shell=True)
+        make_process = subprocess.Popen('make %s 2>&1' % target, shell=True,
+                                        stdout=subprocess.PIPE,
+                                        executable='/bin/bash')
+        output = make_process.communicate()[0]
+        if self.debug:
+            print "Compile model:\n%s" % output
+        if make_process.returncode != 0:
+            raise RuntimeError("make failed with exit status %d" % (-1 * make_process.returncode))
         os.chdir(pwd)
 
     def write_namelist(self, nml=None):
@@ -266,19 +285,24 @@ class ModelController(object):
             nml = []
         nml_string = self._formatted_namelist(nml)
         # write namelist to local work dir
-        with open(os.path.join(self._dirs['lwrkdir'],
-                               'model.namelist'), 'w') as nl_file:
+        nml_path = os.path.join(self._dirs['lwrkdir'], 'model.namelist')
+        with open(nml_path, 'w') as nl_file:
             nl_file.write(nml_string)
         nl_file.close()
+        if self.debug: print "%s\n%s" % (nml_path, nml_string)
         return nml_string
 
     def run_model(self):
         """x.run_model(self) -> None. Start the model run."""
         pwd = os.getcwd()
         os.chdir(self._dirs['lwrkdir'])
-        subprocess.call('time ' + os.path.join(self._dirs['lmodeldir'],
-                                               'bin', 'model'),
-                        shell=True)
+        run_process = subprocess.Popen('time ' + os.path.join(self._dirs['lmodeldir'],
+                                               'bin', 'model') + ' 2>&1',
+                        shell=True, 
+                        stdout=subprocess.PIPE,
+                        executable='/bin/bash')
+        output = run_process.communicate()[0]
+        if self.debug: print "Run model:\n%s" % output
         os.chdir(pwd)
 
     def post_process(self):
@@ -298,10 +322,14 @@ class ModelController(object):
         # Setting up variables
         self._vars['jobid'] = str(os.getenv('PBS_JOBID')).split('.')[0].split(':')[-1]
         self._vars['pbs_jobname'] = str(os.getenv('PBS_JOBNAME'))
-        self._dirs['workdir'] = str(os.getenv('PBS_O_WORKDIR'))
+        if 'workdir' not in self._dirs:
+            self._dirs['workdir'] = str(os.getenv('PBS_O_WORKDIR'))
         self._dirs['modeldir'] = os.path.join(self._dirs['workdir'], self.model)
         self._dirs['outdir'] = os.path.join(self._dirs['workdir'], 'output')
         self._dirs['indir'] = os.path.join(self._dirs['workdir'], 'input')
+        if self.debug:
+            for dic in (self._vars, self._dirs):
+                print(str(dic))
         self._dirs.update({'lwrkdir': '', 'loutdir':'', 'lindir':'',
                            'lmodeldir':''})
 
@@ -329,14 +357,15 @@ class ModelController(object):
                     raise ValueError("More than one namelist %s defined" % nml.name)
 
         nml_string = ""
+        filename_map = {DOMAIN_NL: ["in_file_H"],
+                        SWM_FORCING_NL: ["filename"],
+                        SWM_BS_NL: ["filename"]}
         for nml in nml_list:
-            if nml.name == OUTPUT_NL:
-                nml["oprefix"] = os.path.join(self._dirs['loutdir'], nml['oprefix'])
-            elif nml.name == SWM_FORCING_NL and 'filename' in nml:
-                nml["filename"] = os.path.join(self._dirs['lindir'], nml['filename'])
-            elif nml.name == SWM_BS_NL and "bs_filename" in nml:
-                nml['bs_filename'] = os.path.join(self._dirs['lindir'],
-                                               nml['bs_filename'])
+            for key in nml.keys():
+                if nml.name == OUTPUT_NL and key == "oprefix":
+                    nml[key] = os.path.join(self._dirs['loutdir'], nml[key])
+                elif nml.name in filename_map and key in filename_map[nml.name] and nml[key]:
+                    nml[key] = os.path.join(self._dirs["lindir"], nml[key])
             nml_string += str(nml)
         self._vars['formatted_namelist'] = nml_string
         return nml_string
