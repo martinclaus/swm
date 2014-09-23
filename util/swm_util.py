@@ -12,87 +12,18 @@ import shutil
 import subprocess32 as subprocess
 import tempfile
 from string import Template
-import sys
-if sys.version_info[:2] < (2, 7):
-    DictClass = dict
-else:
-    # If Python 2.7 or higher use OrderedDict to preserve
-    # the order of the Namelist
-    from collections import OrderedDict as DictClass
+#import sys
+from namelist import Namelist
 
-
-MODULE_NAME = "swm_util"
 MODEL_NL = "model_nl"
 CALENDAR_NL = "calendar_nl"
 DOMAIN_NL = "domain_nl"
-SWM_BS_NL = "swm_bs_nl"
+SWM_TIMESTEP_NL = "swm_timestep_nl"
 SWM_FORCING_NL = "swm_forcing_nl"
 DIAG_NL = "diag_nl"
 OUTPUT_NL = "output_nl"
 
 NML_LINE_LENGTH = 70
-
-class Namelist(DictClass):
-    """ Class to handle Fortran Namelists
-    Namelist(string) -> new namelist with fortran nml identifier string
-    Namelist(string, init_val) -> new initialized namelist with nml identifier
-        string and init_val beeing a valid initialisation object for the parent
-        class (either OrderedDict for Python >= 2.7 or else dict).
-    A fortran readable string representation of the namelist can be generated
-    via str() build-in function. A string representation of the Python object
-    that can be used with eval or string.Template substitution can be obtained
-    by repr() build-in function. 
-    """
-    @property
-    def name(self):
-        """ Read only property name, representing the fortran namelist
-        identifier.
-        """
-        return self._name
-    
-    def __init__(self, name, init_val=()):
-        """x.__init__(...) initializes x; see help(type(x)) for signature"""
-        self._name = name
-        super(self.__class__, self).__init__(init_val)
-
-    def __str__(self):
-        """x.__str__(self) -> Fortran readable string representation of the
-        namelist. If a value v is a sequence, an 1D fortran array representation
-        is created using iter(v).
-        """
-        retstr = "&%s\n" % str(self.name)
-        for k, v in self.items():
-            if hasattr(v, '__iter__'):
-                retstr += "%s = (/ " % k
-                tmpstr = ""
-                for vv in v:
-                    tmpstr += "%s," % repr(vv)
-                    if len(tmpstr) > NML_LINE_LENGTH:
-                        if vv == v[-1]:
-                            tmpstr = tmpstr[:-1]
-                        retstr += tmpstr + " &\n"
-                        tmpstr = ""
-                retstr = retstr + tmpstr[:-1] + "/)\n"
-            else:
-                retstr += "%s = %s\n" % (str(k), repr(v))
-        retstr += "&end\n"
-        return retstr
-
-    def __repr__(self):
-        """x.__repr__(self) -> string that can be used by eval to create a copy
-        of x.
-        """
-        retstr = "%s.%s(%s, (" % (MODULE_NAME, self.__class__.__name__,
-                                 repr(self.name))
-        for k, v in self.items():
-            retstr += "%s, " % repr((k, v))
-        retstr += "))"
-        return retstr
-    
-    def has_name(self, name):
-        """x.hasname(self, name) <==> name==x.name"""
-        return name == self.name
-        
 
 class ModelController(object):
     """ Class to manage experiments on HPC Cluster
@@ -125,10 +56,11 @@ class ModelController(object):
                     ("lat_e", 10.),
                     ("in_file_H", ""),
                     ("h_overwrite", 1.))),
-        Namelist(SWM_BS_NL, (
+        Namelist(SWM_TIMESTEP_NL, (
                     ("filename", ""),
                     ("varname", "PSI"),
-                    ("chunksize", 1))),
+                    ("chunksize", 0),
+                    ("ab_chi", .1))),
         Namelist(SWM_FORCING_NL, (
                     ("filename", "tau_x.nc"),
                     ("varname", "TAUX"),
@@ -153,12 +85,11 @@ class ModelController(object):
                     ("oprefix", "default"),
                     ("osuffix", "")))]
 
-    _default_header = {"swm_tstep": "SWM_TSTEP_HEAPS",
-                       "freq_wind": 4.354613902181461e-08,
-                       "tau_scale": 1.,
-                       "fxdep": "* SIN(FREQ_WIND * dt * itt)",
+    _default_header = {"tau_scale": 1.,
+                       "fxdep": "* 1._8 ",
                        "velocity_sponge": "",
-                       "newtonian_sponge": ""}
+                       "newtonian_sponge": "",
+                       "model": "FULLY_NONLINEAR"}
 
     _header_template_string = """
 #ifndef FILE_MODEL_SEEN
@@ -170,15 +101,18 @@ class ModelController(object):
 
 /* Switch for Shallow Water Model */
 #define SWM
-#define ${swm_tstep}
+#define BAROTROPIC
+#define ${model}
+#define SWM_TSTEP_ADAMSBASHFORTH
+
 /* Switches for forcing */
-#define FREQ_WIND ${freq_wind}
 #define TAU_SCALE ${tau_scale}
 #define FXDEP ${fxdep}
+
 /* Switches for damping */
 #define LATERAL_MIXING
-!#define NEWTONIAN_COOLING
-!#define LINEAR_BOTTOM_FRICTION
+#define NEWTONIAN_COOLING
+#define LINEAR_BOTTOM_FRICTION
 #define VELOCITY_SPONGE "${velocity_sponge}"
 #define NEWTONIAN_SPONGE "${newtonian_sponge}"
 
@@ -233,17 +167,16 @@ class ModelController(object):
         """
         # create directories in $TMPDIR
         self._dirs['lwrkdir'] = self._create_tempdir(prefix=self.model)
-        if self.debug: print "Created directory %s" % self._dirs['lwrkdir']
         self._dirs['loutdir'] = self._create_localdir("output")
-        if self.debug: print "Created directory %s" % self._dirs['loutdir']
         self._dirs['lindir'] = self._create_localdir("input", path_only=True)
         self._dirs['lmodeldir'] = self._create_localdir(self.model,
                                                         path_only=True)
+
         # copy model an input files
-        shutil.copytree(self._dirs['modeldir'], self._dirs['lmodeldir'])
-        if self.debug: print "Move %s -> %s" % (self._dirs['modeldir'], self._dirs['lmodeldir'])
-        shutil.copytree(self._dirs['indir'], self._dirs['lindir'])
-        if self.debug: print "Move %s -> %s" % (self._dirs['indir'], self._dirs['lindir'])
+        for dir_key in ('modeldir', 'indir'):
+            shutil.copytree(self._dirs[dir_key], self._dirs['l' + dir_key])
+            if self.debug:
+                print "Move %s -> %s" % (self._dirs[dir_key], self._dirs['l' + dir_key])
 
     def write_header(self, header_dic=None):
         """x.write_header(self, header_dic) -> string
@@ -359,7 +292,7 @@ class ModelController(object):
         nml_string = ""
         filename_map = {DOMAIN_NL: ["in_file_H"],
                         SWM_FORCING_NL: ["filename"],
-                        SWM_BS_NL: ["filename"]}
+                        SWM_TIMESTEP_NL: ["filename"]}
         for nml in nml_list:
             for key in nml.keys():
                 if nml.name == OUTPUT_NL and key == "oprefix":
@@ -388,6 +321,7 @@ class ModelController(object):
 
     def _create_tempdir(self, prefix="tmp"):
         path = tempfile.mkdtemp(prefix=prefix)
+        if self.debug: print "Created directory %s" % path
         self._tempdirs.append(path)
         return path
 
@@ -395,4 +329,5 @@ class ModelController(object):
         path = os.path.join(self._dirs['lwrkdir'], d)
         if not path_only:
             os.mkdir(path, 0700)
+            if self.debug: print "Created directory %s" % path
         return path
