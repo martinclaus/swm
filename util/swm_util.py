@@ -12,7 +12,11 @@ import shutil
 import subprocess32 as subprocess
 import tempfile
 from string import Template
-#import sys
+import sys
+
+this_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, this_path)
+
 from namelist import Namelist
 
 MODEL_NL = "model_nl"
