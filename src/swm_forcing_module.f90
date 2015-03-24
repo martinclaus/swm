@@ -55,6 +55,8 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), POINTER :: stream=>null() !< Type containing forcing Streams to put into a linked list
   END TYPE stream_ptr
 
+  LOGICAL                                      :: has_forcing=.false.
+
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise forcing module
@@ -94,6 +96,7 @@ MODULE swm_forcing_module
       F_x_const = 0.
       F_y_const = 0.
       F_eta_const = 0.
+      has_forcing = .false.
       ! read input namelists
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
       DO
@@ -104,7 +107,7 @@ MODULE swm_forcing_module
         chunksize=SWM_DEF_FORCING_CHUNKSIZE
         READ(UNIT_SWM_FORCING_NL, nml=swm_forcing_nl, iostat=stat)
         IF (stat .NE. 0) EXIT
-        CALL SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
+        IF (filename .NE. "") CALL SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
       END DO
       CLOSE(UNIT_SWM_FORCING_NL)
 
@@ -145,6 +148,8 @@ MODULE swm_forcing_module
       INTEGER     :: i
       TYPE(list_node_t), POINTER    :: streamlist
       TYPE(stream_ptr)              :: sptr
+
+      if (.not. has_forcing) return
 
       streamlist => SWM_forcing_iStream
 
@@ -451,16 +456,18 @@ MODULE swm_forcing_module
       DEALLOCATE(F_x,F_y,F_x_const,F_y_const,F_eta,F_eta_const,stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
 
-      IF (.NOT. ASSOCIATED(streamlist)) THEN
-            WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
-            STOP 2
-      END IF
+      if (has_forcing) then
+        IF (.NOT. ASSOCIATED(streamlist)) THEN
+              WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
+              STOP 2
+        END IF
 
-      DO WHILE(ASSOCIATED(streamlist))
-        sptr = transfer(list_get(streamlist), sptr)
-        IF (sptr%stream%isInitialised) CALL SWM_forcing_finishStream(sptr%stream)
-        streamlist => list_next(streamlist)
-      END DO
+        DO WHILE(ASSOCIATED(streamlist))
+          sptr = transfer(list_get(streamlist), sptr)
+          IF (sptr%stream%isInitialised) CALL SWM_forcing_finishStream(sptr%stream)
+          streamlist => list_next(streamlist)
+        END DO
+      end if
 
       CALL list_free(SWM_forcing_iStream)
     END SUBROUTINE SWM_forcing_finish
@@ -500,6 +507,7 @@ MODULE swm_forcing_module
 
       IF (.NOT. ASSOCIATED(SWM_forcing_iStream)) THEN
           CALL list_init(SWM_forcing_iStream, transfer(sptr, list_data))
+          has_forcing = .true.
       ELSE
           CALL list_insert(SWM_forcing_iStream, transfer(sptr, list_data))
       END IF
