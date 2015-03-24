@@ -2,19 +2,19 @@ from netCDF4 import Dataset
 import interpolation as ip
 import numpy as np
 
-def test(xs_name,ys_name,terrain_names):
-    tauy = Dataset('tauy_sc.nc','r',format='NETCDF3')
-    variables = tauy.variables
+
+def test(xs_name, ys_name, terrain_names):
+    tauy = Dataset('tauy_sc.nc', 'r', format='NETCDF3')
     units = "empty"
     xs = tauy.variables[xs_name][:]
-    points = np.empty(xs.size,dtype=int)
+    points = np.empty(xs.size, dtype=int)
     units = tauy.variables[xs_name].units
     if units != "empty":
         if units[0:5] == "years":
             for i in xrange(points.size - 1):
                 points[i] = (xs[i+1] - xs[i]) * 6.
             points[points.size-1] = points[points.size-2]
-        elif units[0:6] == "months": #Monate mit mehr/weniger als 30 Tage?
+        elif units[0:6] == "months":  # Monate mit mehr/weniger als 30 Tage?
             for i in xrange(points.size - 1):
                 points[i] = (xs[i+1] - xs[i]) * 15.
             points[points.size-1] = points[points.size-2]
@@ -45,4 +45,4 @@ def test(xs_name,ys_name,terrain_names):
     return coefficients
 
 if __name__ == "__main__":
-    coeffs = test('time','TAUY',['LONGITUDE','LATITUDE'])
+    coeffs = test('time', 'TAUY', ['LONGITUDE', 'LATITUDE'])
