@@ -246,10 +246,18 @@ class ModelController(object):
         dir_list = os.listdir(self._dirs['loutdir'])
         for file in dir_list:
             print "Move: {0} -> {1}".format(os.path.join(
-                                                self._dirs['loutdir'], file),
+                                            self._dirs['loutdir'], file),
                                             self._dirs['outdir'])
             shutil.move(os.path.join(self._dirs['loutdir'], file),
                         os.path.join(self._dirs['outdir'], file))
+        # move profiling output to global FS
+        profiling_output = os.path.join(self._dirs['lwrkdir'], "gmon.out")
+        if os.path.exists(profiling_output):
+            print "Move Profiling output ..."
+            shutil.move(profiling_output,
+                        os.path.join(self._dirs["workdir"], "gmon.out"))
+            shutil.move(os.path.join(self._dirs['lmodeldir'], 'bin', 'model'),
+                        os.path.join(self._dirs["workdir"], "model"))
 
     def _set_vars(self):
         # Setting up variables
