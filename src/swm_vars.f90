@@ -12,7 +12,7 @@ module swm_vars
          SWM_u, SWM_v, SWM_eta, &
          NG0, NG0m1, NG, &
          G_u, G_v, G_eta, &
-         D, EDens, Pot, zeta, MV, MU, &
+         D, Dh, Du, Dv, EDens, Pot, zeta, MV, MU, &
          psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi
 
   INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
@@ -24,7 +24,7 @@ module swm_vars
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:), pointer               :: D
+  REAL(8), DIMENSION(:,:), pointer               :: D, Dh, Du, Dv
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: EDens
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: Pot
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: zeta
@@ -92,16 +92,25 @@ module swm_vars
       CALL addToRegister(MV,"SWM_MV",v_grid)
 
 #if defined FULLY_NONLINEAR
-      ALLOCATE(D(1:Nx,1:Ny), stat=alloc_error)
+      ALLOCATE(D(1:Nx,1:Ny), Dh(1:Nx, 1:Ny), Du(1:Nx, 1:Ny), Dv(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
         STOP 1
       END IF
       D = 1.
+      Dh = 1.
+      Du = 1.
+      Dv = 1.
 #else
-      D => eta_grid%H
+      D  => eta_grid%H
+      Dh => H_grid%H
+      Du => u_grid%H
+      Dv => v_grid%H
 #endif
       CALL addToRegister(D,"SWM_D",eta_grid)
+      CALL addToRegister(Dh,"SWM_DH",eta_grid)
+      CALL addToRegister(Du,"SWM_DU",eta_grid)
+      CALL addToRegister(Dv,"SWM_DV",eta_grid)
 
 #ifdef LINEARISED_MEAN_STATE
       ALLOCATE(psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), zeta_bs(1:Nx,1:Ny,1),  stat=alloc_error)
@@ -125,8 +134,12 @@ module swm_vars
     !------------------------------------------------------------------
     subroutine SWM_vars_finish()
       integer  :: alloc_error
-      deallocate(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, D, EDens, Pot, zeta, MV, MU, stat=alloc_error)
+      deallocate(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, EDens, Pot, zeta, MV, MU, stat=alloc_error)
       if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+#ifdef FULLY_NONLINEAR
+      deallocate(D, Du, Dv, Dh, stat=alloc_error)
+      if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+#endif
 #ifdef LINEARISED_MEAN_STATE
       deallocate(psi_bs, u_bs, v_bs, zeta_bs, stat=alloc_error)
       if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
