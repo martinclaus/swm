@@ -171,33 +171,42 @@ MODULE swm_timestep_module
 
     subroutine computeD()
       use vars_module, only : N0
-      use domain_module, only : eta_grid, Nx, Ny
-      use calc_lib, only : interpolate, eta2H, eta2u, eta2v
-      integer :: i,j
+      use domain_module, only : eta_grid, Nx, Ny, jm1, im1
+      !use calc_lib, only : interpolate, eta2H, eta2u, eta2v
+      integer :: i,j, ip, jp, im, jm
 #ifdef FULLY_NONLINEAR
-!$OMP PARALLEL DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel
+!$OMP DO PRIVATE(i,j) SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
           if (eta_grid%ocean(i, j) .ne. 1_1) cycle
           D(i,j) = SWM_eta(i,j,N0) + eta_grid%H(i,j)
         end do
       end do
-!$OMP END PARALLEL DO
-!      if (any(D .lt. minD)) print *, "WARNING: Outcropping detected!!"
-!      where (D .lt. minD) D = minD
-!$OMP PARALLEL DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP end do
+!$OMP do PRIVATE(i,j, im, jm, ip, jp) SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
-          Dh(i,j) = interpolate(D, eta2H, i, j)
-          Du(i, j) = interpolate(D, eta2u, i, j)
-          Dv(i, j) = interpolate(D, eta2v, i, j)
+          ip = i
+          jp = j
+          im = im1(i)
+          jm = jm1(j)
+          Dh(i, j) = ( eta_grid%ocean(ip, jp) * D(ip, jp) + &
+                       eta_grid%ocean(im, jm) * D(im, jm) + &
+                       eta_grid%ocean(im, jp) * D(im, jp) + &
+                       eta_grid%ocean(ip, jm) * D(ip, jm) ) &
+                     / (eta_grid%ocean(ip, jp) + eta_grid%ocean(im, jm) + eta_grid%ocean(im, jp) + eta_grid%ocean(ip, jm))
+          
+          Du(i, j) = (eta_grid%ocean(ip, jp) * D(ip, jp) + eta_grid%ocean(im, jp) * D(im, jp)) &
+                     / (eta_grid%ocean(ip, jp) + eta_grid%ocean(im, jp))
+          Dv(i, j) = (eta_grid%ocean(ip, jp) * D(ip, jp) + eta_grid%ocean(ip, jm) * D(ip, jm)) &
+                     / (eta_grid%ocean(ip, jp) + eta_grid%ocean(ip, jm)) 
         end do
       end do
-!$OMP END PARALLEL DO
+!$OMP end do
+!$OMP end parallel
+!      if (any(D .lt. minD)) print *, "WARNING: Outcropping detected!!"
+!      where (D .lt. minD) D = minD
 #endif
     end subroutine computeD
 
@@ -238,19 +247,19 @@ MODULE swm_timestep_module
 
     subroutine computeEdens()
       use vars_module, only : G, N0
-      use domain_module, only : eta_grid, Nx, Ny
+      use domain_module, only : eta_grid, u_grid, v_grid, Nx, Ny, ip1, jp1
       use calc_lib, only : interpolate, u2eta, v2eta
 #if defined FULLY_NONLINEAR || defined LINEARISED_MEAN_STATE
       real(8), dimension(size(SWM_u, 1), size(SWM_u, 2)) :: u2, v2
 #endif
-      integer :: i, j
+      integer :: i, j, ip, jp, im, jm
 !$OMP parallel
 #if defined FULLY_NONLINEAR
 !$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
-          u2 = SWM_u(i, j, N0) ** 2
-          v2 = SWM_v(i, j, N0) ** 2
+          u2(i, j) = SWM_u(i, j, N0) ** 2
+          v2(i, j) = SWM_v(i, j, N0) ** 2
         end do
       end do
 !$OMP end do
@@ -258,8 +267,8 @@ MODULE swm_timestep_module
 !$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
-          u2 = SWM_u(i, j, N0) * u_bs(i, j, 1)
-          v2 = SWM_v(i, j, N0) * v_bs(i, j, 1)
+          u2(i, j) = SWM_u(i, j, N0) * u_bs(i, j, 1)
+          v2(i, j) = SWM_v(i, j, N0) * v_bs(i, j, 1)
         end do
       end do
 !$OMP end do
@@ -268,16 +277,24 @@ MODULE swm_timestep_module
       do j = 1, Ny
         do i = 1, Nx
           IF (eta_grid%land(i, j) .EQ. 1_1) cycle !skip this point if it is land
+          ip = ip1(i)
+          im = i
+          jp = jp1(j)
+          jm = j
 #if defined FULLY_NONLINEAR
           !Energy-Density EDens = g * eta + 1/2 * (u^2 + v^2)
-          EDens(i, j) = (  interpolate(u2, u2eta, i, j) &
-                         + interpolate(v2, v2eta, i, j) &
-                        ) / 2._8 &
+          EDens(i, j) = ( (u_grid%ocean(ip, j) * u2(ip, j) + u_grid%ocean(im, j) * u2(im, j) &
+                           / (u_grid%ocean(ip, j) + u_grid%ocean(im, j))) &
+                        + (v_grid%ocean(i, jp) * v2(i, jp) + v_grid%ocean(i, jm) * v2(i, jm) ) &
+                           / (v_grid%ocean(i, jp) + v_grid%ocean(i, jm)) &
+                        ) * .5_8 &
                         + G * SWM_eta(i, j, N0)
 #elif defined LINEARISED_MEAN_STATE
           !Energy-Density EDens = g * eta + uU + vV
-          EDens(i, j) =  (  interpolate(u2, u2eta, i, j) &
-                          + interpolate(v2, v2eta, i, j) &
+          EDens(i, j) =  ( (u_grid%ocean(ip, j) * u2(ip, j) + u_grid%ocean(im, j) * u2(im, j) &
+                           / (u_grid%ocean(ip, j) + u_grid%ocean(im, j))) &
+                        + (v_grid%ocean(i, jp) * v2(i, jp) + v_grid%ocean(i, jm) * v2(i, jm) ) &
+                           / (v_grid%ocean(i, jp) + v_grid%ocean(i, jm)) &
                          ) &
                          + G * SWM_eta(i,j,N0)
 #elif defined LINEARISED_STATE_OF_REST
