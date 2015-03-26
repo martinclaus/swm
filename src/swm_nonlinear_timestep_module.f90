@@ -366,10 +366,7 @@ MODULE swm_timestep_module
                                    / dTheta &
 #endif
                                   ) / (A * eta_grid%cos_lat(j)) &
-                               + F_eta(i,j) &
-#ifdef FETADEP
-                                FETADEP
-#endif
+                                + F_eta(i,j) &
                                )
             ! Integrate
           END IF ETA
@@ -405,11 +402,8 @@ MODULE swm_timestep_module
 #ifdef LATERAL_MIXING
                              + SWM_LateralMixing(i, j, N0, u_grid) &  !
 #endif
-                           + F_x(i,j) &                                                 ! forcing
-#ifdef FXDEP
-                            FXDEP & !
-#endif
-                            )
+                            + F_x(i,j) &                                                 ! forcing
+                           )
             ! Integrate
           END IF U
         END DO XSPACE2
@@ -442,11 +436,8 @@ MODULE swm_timestep_module
 #ifdef LATERAL_MIXING
                              + SWM_LateralMixing(i, j, N0, v_grid) &   !
 #endif
-                           + F_y(i,j) &                                                 ! forcing
-#ifdef FYDEP
-                             FYDEP &  !
-#endif
-                             )
+                            + F_y(i,j) &                                                 ! forcing
+                           )
             ! Integrate
           END IF V
         END DO XSPACE3

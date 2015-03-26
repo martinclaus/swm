@@ -122,13 +122,32 @@ MODULE swm_forcing_module
     !! dependent forcing on top
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_update
+      use domain_module, ONLY : Nx, Ny
       IMPLICIT NONE
+      integer :: i, j
       ! reset forcing data to constant forcing
       F_eta = F_eta_const
       F_x = F_x_const
       F_y = F_y_const
       ! add time dependent forcing
       CALL SWM_forcing_getForcing(isTDF=.TRUE.)
+#if defined FXDEP || defined FYDEP || defined FETADEP
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      do j = 1, Ny
+        do i = 1, Nx
+#ifdef FXDEP
+          F_x(i, j) = F_x(i, j) FXDEP
+#endif
+#ifdef FYDEP
+          F_y(i, j) = F_y(i, j) FYDEP
+#endif
+#ifdef FETADEP
+          F_eta(i, j) = F_eta(i, j) FETADEP
+#endif
+        end do
+      end do
+!$OMP end parallel do
+#endif
     END SUBROUTINE SWM_forcing_update
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
