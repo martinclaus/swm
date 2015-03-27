@@ -131,7 +131,7 @@ MODULE swm_forcing_module
       F_y = F_y_const
       ! add time dependent forcing
       CALL SWM_forcing_getForcing(isTDF=.TRUE.)
-#if defined FXDEP || defined FYDEP || defined FETADEP
+#if defined(FXDEP) || defined(FYDEP) || defined(FETADEP)
 !$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
