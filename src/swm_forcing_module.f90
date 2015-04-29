@@ -123,6 +123,7 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_update
       use domain_module, ONLY : Nx, Ny
+      USE vars_module, ONLY : itt, dt
       IMPLICIT NONE
       integer :: i, j
       ! reset forcing data to constant forcing

@@ -158,8 +158,10 @@ MODULE swm_timestep_module
       call SWM_LateralMixing_step
 #endif
       CALL SWM_timestep_nonlinear
+#ifdef FULLY_NONLINEAR
       eta => SWM_eta(:,:, N0p1)
-      where (eta .lt. minD - eta_grid%H) eta = minD - eta_grid%H
+      where (eta .lt. (minD - eta_grid%H)) eta = minD - eta_grid%H
+#endif
 !#ifdef SWM_TSTEP_HEAPS
 !      CALL alreadyStepped(already_stepped)
 !      CALL SWM_timestep_Heaps

@@ -46,7 +46,7 @@ module swm_vars
     !! domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid
     !------------------------------------------------------------------
     subroutine SWM_vars_init()
-      use vars_module, only : Ns, addToRegister
+      use vars_module, only : Ns, addToRegister, N0
       use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
       integer   :: alloc_error
 
@@ -58,9 +58,9 @@ module swm_vars
       SWM_u = 0.
       SWM_v = 0.
       SWM_eta = 0.
-      call addToRegister(SWM_u,"SWM_U", u_grid)
-      call addToRegister(SWM_v,"SWM_V", v_grid)
-      call addToRegister(SWM_eta,"SWM_ETA", eta_grid)
+      call addToRegister(SWM_u(:, :, N0), "SWM_U", u_grid)
+      call addToRegister(SWM_v(:, :, N0), "SWM_V", v_grid)
+      call addToRegister(SWM_eta(:, :, N0), "SWM_ETA", eta_grid)
 
       ALLOCATE(G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
