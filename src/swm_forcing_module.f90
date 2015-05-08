@@ -34,13 +34,16 @@ MODULE swm_forcing_module
   !! additional information, i.e forcing type and component, parsed from the name list
   !------------------------------------------------------------------
   TYPE :: SWM_forcingStream
-    TYPE(memoryChunk)   :: memChunk               !< Memory chunk associated with forcing file
-    CHARACTER(CHARLEN)  :: forcingType            !< Type of forcing. One of WINDSTRESS, EFM, CUSTOM or HEATING
+    TYPE(memoryChunk)   :: memChunk, memChunk2    !< Memory chunk associated with forcing file
+    CHARACTER(CHARLEN)  :: forcingType            !< Type of forcing. One of WINDSTRESS, EFM, CUSTOM, HEATING or OSCILLATING
     !> - For WINDSTRESS and CUSTOM forcing types: either ZONAL or MERIDIONAL
     !! - For EFM: one of U2, V2 or REY
     !! - For HEATING: not used.
+    !! - For OSCILLATING: One of ZONAL, MERIDIONAL or CONTINUITY
     CHARACTER(CHARLEN)  :: component
     LOGICAL             :: isInitialised=.FALSE.  !< Flag if the object is properly initialised
+    LOGICAL             :: isConstant=.FALSE.     !< Flag if the dataset is constant in time
+    real(8)             :: omega
   END TYPE
 
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: F_x    !< Forcing term in zonal momentum equation. Sum of constant and time dependent forcing. Size Nx,Ny
@@ -74,12 +77,14 @@ MODULE swm_forcing_module
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       INTEGER            :: stat
-      CHARACTER(CHARLEN) :: filename, varname, forcingtype, component
+      CHARACTER(CHARLEN) :: filename, filename2, varname, varname2, forcingtype, component
       INTEGER            :: chunksize
+      real(8)            :: omega
 
       !< namelist definition of forcing variable
       NAMELIST / swm_forcing_nl / &
-        filename, varname, forcingtype, component, chunksize
+        filename, filename2, varname, varname2, forcingtype, component, chunksize, omega
+
       ! allocate forcing fields
       ALLOCATE(F_x(1:Nx, 1:Ny), F_y(1:Nx, 1:Ny), F_eta(1:Nx,1:Ny), &
                F_x_const(1:Nx, 1:Ny), F_y_const(1:Nx, 1:Ny), F_eta_const(1:Nx,1:Ny), stat=stat)
@@ -101,13 +106,17 @@ MODULE swm_forcing_module
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
       DO
         filename=""
+        filename2=""
         varname=""
+        varname2=""
         forcingtype=""
         component=""
+        omega=0._8
         chunksize=SWM_DEF_FORCING_CHUNKSIZE
         READ(UNIT_SWM_FORCING_NL, nml=swm_forcing_nl, iostat=stat)
         IF (stat .NE. 0) EXIT
-        IF (filename .NE. "") CALL SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
+        IF (filename .NE. "") CALL SWM_forcing_initStream(filename, filename2, varname, varname2, &
+                                                          chunksize, forcingtype, component, omega)
       END DO
       CLOSE(UNIT_SWM_FORCING_NL)
 
@@ -123,7 +132,7 @@ MODULE swm_forcing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_update
       use domain_module, ONLY : Nx, Ny
-      USE vars_module, ONLY : itt, dt
+      use vars_module, ONLY : itt, dt
       IMPLICIT NONE
       integer :: i, j
       ! reset forcing data to constant forcing
@@ -157,12 +166,8 @@ MODULE swm_forcing_module
     !!
     !! If isTDF is .TRUE., only the time dependent forcing streams will be
     !! processed. If .FALSE., the constant one are handled.
-    !!
-    !! @par Uses:
-    !! memchunk_module, ONLY : isConstant
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_getForcing(isTDF)
-      USE memchunk_module, ONLY : isConstant
       IMPLICIT NONE
       LOGICAL, INTENT(in) :: isTDF  !< Defines which forcing datasets should be processed.
       INTEGER     :: i
@@ -180,7 +185,7 @@ MODULE swm_forcing_module
       DO WHILE (ASSOCIATED(streamlist))
         IF (ASSOCIATED(list_get(streamlist))) THEN
             sptr = transfer(list_get(streamlist), sptr)
-            IF ((sptr%stream%isInitialised) .AND. (.NOT. (isTDF .EQV. isConstant(sptr%stream%memChunk)))) THEN
+            IF ((sptr%stream%isInitialised) .AND. (.NOT. (isTDF .EQV. sptr%stream%isConstant))) THEN
                     CALL SWM_forcing_processInputStream(sptr%stream)
             END IF
         END IF
@@ -218,6 +223,8 @@ MODULE swm_forcing_module
           CALL SWM_forcing_processEMF(iStream)
         CASE("H","h")
           CALL SWM_forcing_processHeating(iStream)
+        CASE("O", "o")
+          CALL SWM_forcing_processOscillation(iStream)
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown forcing type:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"Component :",X,A,/)') &
            TRIM(iStream%forcingtype),TRIM(getFileNameMC(iStream%memChunk)),&
@@ -269,7 +276,7 @@ MODULE swm_forcing_module
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
-          IF (isConstant(iStream%memChunk)) THEN
+          IF (iStream%isConstant) THEN
             forcingTerm => F_x_const
           ELSE
             forcingTerm => F_x
@@ -277,7 +284,7 @@ MODULE swm_forcing_module
           oceanMask => ocean_u
           H => H_u
         CASE("M","m")
-          IF (isConstant(iStream%memChunk)) THEN
+          IF (iStream%isConstant) THEN
             forcingTerm => F_y_const
           ELSE
             forcingTerm => F_y
@@ -302,6 +309,40 @@ MODULE swm_forcing_module
         ))
     END SUBROUTINE SWM_forcing_processWindstress
 
+    SUBROUTINE SWM_forcing_processOscillation(iStream)
+      USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
+      USE vars_module, ONLY : itt, dt
+      USE domain_module, ONLY : u_grid, v_grid, eta_grid, RHO0, Nx, Ny
+      TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
+      REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
+      INTEGER(1), DIMENSION(:,:), POINTER         :: oceanMask
+
+      ! Setup pointer
+      SELECT CASE(iStream%component(1:1))
+        CASE("Z","z")
+          forcingTerm => F_x
+          oceanMask => u_grid%ocean
+        CASE("M","m")
+          forcingTerm => F_y
+          oceanMask => v_grid%ocean
+        CASE("C", "c")
+          forcingTerm => F_eta
+          oceanMask => eta_grid%ocean
+        CASE DEFAULT
+          WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
+           TRIM(iStream%component),TRIM(getFileNameMC(iStream%memChunk)),&
+           TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%forcingtype)
+          STOP 2
+      END SELECT
+      ! Do the calculation
+      WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + 2._8 * DBLE(&
+        ((1D0, 0D0) * getChunkData(iStream%memChunk,itt*dt) &
+         + (0D0, 1D0) * getChunkData(iStream%memChunk2,itt*dt)) &
+        * exp((0D0, 1D0) * iStream%omega * itt * dt) &
+        )
+    END SUBROUTINE SWM_forcing_processOscillation
+
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Process forcing stream associated with a custom forcing in
     !! momentum equation
@@ -324,30 +365,33 @@ MODULE swm_forcing_module
     SUBROUTINE SWM_forcing_processCustomForcing(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
       USE vars_module, ONLY : itt, dt
-      USE domain_module, ONLY : u_grid, v_grid
+      USE domain_module, ONLY : u_grid, v_grid, eta_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
       INTEGER(1), DIMENSION(:,:), POINTER         :: oceanMask
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)), TARGET :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)), TARGET :: ocean_v
 
-      ocean_u = u_grid%ocean
-      ocean_v = v_grid%ocean
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
-          IF (isConstant(iStream%memChunk)) THEN
+          IF (iStream%isConstant) THEN
             forcingTerm => F_x_const
           ELSE
             forcingTerm => F_x
           END IF
-          oceanMask => ocean_u
+          oceanMask => u_grid%ocean
         CASE("M","m")
-          IF (isConstant(iStream%memChunk)) THEN
+          IF (iStream%isConstant) THEN
             forcingTerm => F_y_const
           ELSE
             forcingTerm => F_y
           END IF
-          oceanMask => ocean_v
+          oceanMask => v_grid%ocean
+        CASE("C","c")
+          IF (iStream%isConstant) THEN
+            forcingTerm => F_eta_const
+          ELSE
+            forcingTerm => F_eta
+          END IF
+          oceanMask => eta_grid%ocean
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
@@ -379,28 +423,23 @@ MODULE swm_forcing_module
                                 ip1, jp1, im1, jm1, A, u_grid, v_grid
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm_x, forcingTerm_y
-      REAL(8), DIMENSION(:,:), ALLOCATABLE        :: data
+      REAL(8), DIMENSION(Nx, Ny)                  :: data
       INTEGER     :: i,j, alloc_error
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
-      REAL(8), DIMENSION(SIZE(u_grid%cos_lat)) :: cosTheta_u
-      REAL(8), DIMENSION(SIZE(v_grid%cos_lat)) :: cosTheta_v
+      INTEGER(1), DIMENSION(:,:), POINTER :: ocean_u
+      INTEGER(1), DIMENSION(:,:), POINTER :: ocean_v
+      REAL(8), DIMENSION(:), POINTER :: cosTheta_u
+      REAL(8), DIMENSION(:), POINTER :: cosTheta_v
 
-      ocean_u = u_grid%ocean
-      cosTheta_u = u_grid%cos_lat
-      ocean_v = v_grid%ocean
-      cosTheta_v = v_grid%cos_lat
-      IF (isConstant(iStream%memChunk)) THEN
+      ocean_u => u_grid%ocean
+      ocean_v => v_grid%ocean
+      cosTheta_u => u_grid%cos_lat
+      cosTheta_v => v_grid%cos_lat
+      IF (iStream%isConstant) THEN
         forcingTerm_x => F_x_const
         forcingTerm_y => F_y_const
       ELSE
         forcingTerm_x => F_x
         forcingTerm_y => F_y
-      END IF
-      ALLOCATE(data(1:Nx,1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
       END IF
       data = getChunkData(iStream%memChunk,itt*dt)
       SELECT CASE(iStream%component(1:1))
@@ -427,8 +466,6 @@ MODULE swm_forcing_module
            TRIM(getFileNameMC(iStream%memChunk)),TRIM(getVarNameMC(iStream%memChunk))
           STOP 2
       END SELECT
-      DEALLOCATE(data, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_forcing_processEMF
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -452,7 +489,7 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm
 
-      IF (isConstant(iStream%memChunk)) THEN
+      IF (iStream%isConstant) THEN
         forcingTerm => F_eta_const
       ELSE
         forcingTerm => F_eta
@@ -502,14 +539,16 @@ MODULE swm_forcing_module
     !! @par Uses:
     !! memchunk_module, ONLY : initMemChunk, isInitialised
     !------------------------------------------------------------------
-    SUBROUTINE SWM_forcing_initStream(filename, varname, chunksize, forcingtype, component)
+    SUBROUTINE SWM_forcing_initStream(filename, filename2, varname, varname2, &
+                                      chunksize, forcingtype, component, omega)
       USE memchunk_module, ONLY : initMemChunk, isInitialised, isConstant, getVarNameMC
       IMPLICIT NONE
-      CHARACTER(CHARLEN), INTENT(in)    :: filename       !< Name of file of the dataset to access
-      CHARACTER(CHARLEN), INTENT(in)    :: varname        !< Name of variable to access in filename
-      INTEGER, INTENT(in)               :: chunksize      !< Chunksize of memChunk member
-      CHARACTER(CHARLEN), INTENT(in)    :: forcingtype    !< forcingType. @see SWM_forcing_module::SWM_forcing_processInputStream
-      CHARACTER(CHARLEN), INTENT(in)    :: component      !< Component of the forcing, e.g. zonal or meridional
+      CHARACTER(CHARLEN), INTENT(in)    :: filename, filename2 !< Name of file of the dataset to access
+      CHARACTER(CHARLEN), INTENT(in)    :: varname, varname2   !< Name of variable to access in filename
+      INTEGER, INTENT(in)               :: chunksize           !< Chunksize of memChunk member
+      CHARACTER(CHARLEN), INTENT(in)    :: forcingtype         !< forcingType. @see SWM_forcing_module::SWM_forcing_processInputStream
+      CHARACTER(CHARLEN), INTENT(in)    :: component           !< Component of the forcing, e.g. zonal or meridional
+      real(8), intent(in)               :: omega               !< Angular frequency of forcing if forcingtype is OSCILLATING
       TYPE(stream_ptr)                  :: sptr
 
 
@@ -521,9 +560,25 @@ MODULE swm_forcing_module
               TRIM(filename),TRIM(varname),TRIM(forcingtype),TRIM(component)
           STOP 2
       END IF
+      if (filename2 .ne. "" .and. varname2 .ne. "") then
+          call initMemChunk(filename2, varname2, chunksize, sptr%stream%memChunk2)
+          if (.NOT. isInitialised(sptr%stream%memChunk2)) THEN
+              WRITE(*,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
+              TRIM(filename2),TRIM(varname2),TRIM(forcingtype),TRIM(component)
+              STOP 2
+          end if
+      end if
+
       sptr%stream%forcingType = forcingtype
       sptr%stream%component   = component
-      sptr%stream%isInitialised = isInitialised(sptr%stream%memChunk)
+      sptr%stream%omega       = omega
+      sptr%stream%isInitialised = .true.
+
+      if (forcingtype(1:1) == "O" .or. forcingtype(1:1) == "o") then
+          sptr%stream%isConstant = .FALSE.
+      else
+          sptr%stream%isConstant = isConstant(sptr%stream%memChunk)
+      end if
 
       IF (.NOT. ASSOCIATED(SWM_forcing_iStream)) THEN
           CALL list_init(SWM_forcing_iStream, transfer(sptr, list_data))
@@ -543,13 +598,15 @@ MODULE swm_forcing_module
     !! memchunk_module, ONLY : finishMemChunk
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_finishStream(iStream)
-      USE memchunk_module, ONLY : finishMemChunk
+      USE memchunk_module, ONLY : finishMemChunk, isInitialised
       IMPLICIT NONE
       TYPE(SWM_forcingStream), INTENT(inout) :: iStream
       IF (.NOT.iStream%isInitialised) RETURN
-      CALL finishMemChunk(iStream%memChunk)
+      if (isInitialised(iStream%memChunk)) call finishMemChunk(iStream%memChunk)
+      if (isInitialised(iStream%memChunk2)) call finishMemChunk(iStream%memChunk2)
       iStream%forcingType = ""
       iStream%component   = ""
+      iStream%omega = 0._8
       iStream%isInitialised = .FALSE.
     END SUBROUTINE SWM_forcing_finishStream
 
