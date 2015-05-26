@@ -38,7 +38,6 @@ NETDIR = @NETDIR@
 CUDADIR = @CUDADIR@
 
 bin_PROGRAMS = model$(EXEEXT)
-model_SOURCES = calc_lib.f90 calendar_module.f90 diag_module.f90 dynFromFile_module.f90 ElSolv_SOR.f90 io_module.f90 memchunk_module.f90 model.f90 swm_damping_module.f90 swm_forcing_module.f90 swm_lateralmixing_module.f90 swm_module.f90 swm_timestep_module.f90 tracer_module.f90 vars_module.f90 domain_module.f90 grid_module.f90
 
 O := -O3 $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
@@ -78,7 +77,7 @@ ifneq ($(strip $(CUDADIR)),)
   CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module $(cl_cuda)
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 $(cl_cuda)
 objects = $(modules:%=$(builddir)%.o)
 
 
@@ -96,7 +95,10 @@ model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_mo
 vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
 	$(COMPILE)
 
-calendar_module.o : calendar_module.f90 fudunits2.h io.h
+f_udunits_2.o : f_udunits_2.f90 f_udunits_2.inc
+	$(COMPILE)
+
+calendar_module.o : calendar_module.f90 f_udunits_2.o io.h
 	$(COMPILE)
 
 swm_module.o : swm_module.f90 vars_module.o io_module.o swm_vars.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
