@@ -283,8 +283,8 @@ MODULE swm_damping_module
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
                                  gamma_new_sponge * &
-                                 EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
                                  2, &
                                  Nx &
                             )),gamma)
@@ -294,8 +294,8 @@ MODULE swm_damping_module
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
                                  gamma_new_sponge * &
-                                 EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
                                  2, &
                                  Nx &
                             )),gamma)
@@ -305,8 +305,8 @@ MODULE swm_damping_module
         gamma = MAX( &
                                SPREAD( &
                                  gamma_new_sponge * &
-                                 EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
                                  2, &
                                  Ny &
                             ),gamma)
@@ -316,8 +316,8 @@ MODULE swm_damping_module
         gamma = MAX( &
                                SPREAD( &
                                  gamma_new_sponge * &
-                                 EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF)),&
+                                 (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
+                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
                                  2, &
                                  Ny &
                             ),gamma)
