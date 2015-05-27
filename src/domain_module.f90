@@ -26,14 +26,14 @@ MODULE domain_module
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     ! constant fieds H, allocated during initialization
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H     !< Size Nx,Ny \n Bathimetry on H grid.
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
-    REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
+    REAL(8), DIMENSION(:,:), POINTER :: H     !< Size Nx,Ny \n Bathimetry on H grid.
+    REAL(8), DIMENSION(:,:), POINTER :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
+    REAL(8), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
+    REAL(8), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
 
     REAL(8)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
 
-    TYPE(grid_t), TARGET, SAVE    :: H_grid, u_grid, v_grid, eta_grid
+    TYPE(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
     CONTAINS
 
         SUBROUTINE initDomain
@@ -64,7 +64,7 @@ MODULE domain_module
             ALLOCATE(H(1:Nx,1:Ny))
             ALLOCATE(H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
             ALLOCATE(ip0(1:Nx), ip1(1:Nx), im1(1:Nx), jp0(1:Ny), jp1(1:Ny), jm1(1:Ny))
-
+            allocate(H_grid, u_grid, v_grid, eta_grid)
 
             dLambda = D2R * (lon_e-lon_s)/(Nx-1)
             dTheta = D2R * (lat_e-lat_s)/(Ny-1)
