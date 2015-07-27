@@ -97,6 +97,12 @@ MODULE swm_timestep_module
       CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       zeta_bs(:,:,1) = vorticity(psi_bs(:,:,1), H_grid)
 #endif
+      ! inital computataion of diagnostic variables
+      call computeD
+      call computeRelVort
+      call computePotVort
+      call computeEDens
+      call computeMassFluxes
 
     END SUBROUTINE SWM_timestep_init
 
@@ -132,6 +138,12 @@ MODULE swm_timestep_module
       G_u(:,:,1:NG-1) = G_u(:,:,2:NG)
       G_v(:,:,1:NG-1) = G_v(:,:,2:NG)
       G_eta(:,:,1:NG-1) = G_eta(:,:,2:NG)
+      ! compute diagnostic variables
+      call computeD
+      call computeRelVort
+      call computePotVort
+      call computeEDens
+      call computeMassFluxes
     END SUBROUTINE SWM_timestep_advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -149,11 +161,6 @@ MODULE swm_timestep_module
       real(8), dimension(:,:), pointer :: eta=>null()
       already_stepped=.FALSE.
       CALL alreadyStepped(already_stepped)
-      call computeD
-      call computeRelVort
-      call computePotVort
-      call computeEDens
-      call computeMassFluxes
 #ifdef LATERAL_MIXING
       call SWM_LateralMixing_step
 #endif
@@ -162,13 +169,6 @@ MODULE swm_timestep_module
       eta => SWM_eta(:,:, N0p1)
       where (eta .lt. (minD - eta_grid%H)) eta = minD - eta_grid%H
 #endif
-!#ifdef SWM_TSTEP_HEAPS
-!      CALL alreadyStepped(already_stepped)
-!      CALL SWM_timestep_Heaps
-!#else
-!      CALL alreadyStepped(already_stepped)
-!      CALL SWM_timestep_AB_EFW
-!#endif
     END SUBROUTINE SWM_timestep_step
 
     subroutine computeD()
@@ -319,7 +319,7 @@ MODULE swm_timestep_module
       USE vars_module, ONLY : N0, dt, itt
       IMPLICIT NONE
       REAL(8), intent(in) :: G0, G0M1, SWM_N0, impl
-      INTEGER                   :: tstep
+      INTEGER             :: tstep
 
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
       tstep = 0
@@ -345,10 +345,9 @@ MODULE swm_timestep_module
       INTEGER :: i,j
       CHARACTER(1), parameter :: charx="x", chary="y"
 
-!$OMP PARALLEL
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel
+!$OMP do &
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE1: DO j=1,Ny
         XSPACE1: DO i=1,Nx
           ETA: IF (eta_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
@@ -370,17 +369,14 @@ MODULE swm_timestep_module
                                   ) / (A * eta_grid%cos_lat(j)) &
                                 + F_eta(i,j) &
                                )
-            ! Integrate
+              ! Integrate
+              SWM_eta(i, j, N0p1) = integrate(SWM_eta(i, j, N0), G_eta(i, j, NG0), G_eta(i, j, NG0m1), impl_eta(i, j))
           END IF ETA
         END DO XSPACE1
       END DO YSPACE1
-!$OMP END DO
-!$OMP workshare
-      SWM_eta(:, :, N0p1) = integrate(SWM_eta(:, :, N0), G_eta(:, :, NG0), G_eta(:, :, NG0m1), impl_eta)
-!$OMP end workshare
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP end do
+!$OMP do &
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE2: DO j=1,Ny
         XSPACE2: DO i=1,Nx
           !u equation
@@ -407,16 +403,13 @@ MODULE swm_timestep_module
                             + F_x(i,j) &                                                 ! forcing
                            )
             ! Integrate
+            SWM_u(i, j, N0p1) = integrate(SWM_u(i, j, N0), G_u(i, j, NG0), G_u(i, j, NG0m1), impl_u(i, j))
           END IF U
         END DO XSPACE2
       END DO YSPACE2
-!$OMP END DO
-!$OMP workshare
-      SWM_u(:, :, N0p1) = integrate(SWM_u(:, :, N0), G_u(:, :, NG0), G_u(:, :, NG0m1), impl_u)
-!$OMP end workshare
-!$OMP DO &
-!$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP end do
+!$OMP do &
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE3: DO j=1,Ny
         XSPACE3: DO i=1,Nx
           V: IF (v_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
@@ -441,14 +434,12 @@ MODULE swm_timestep_module
                             + F_y(i,j) &                                                 ! forcing
                            )
             ! Integrate
+            SWM_v(i, j, N0p1) = integrate(SWM_v(i, j, N0), G_v(i, j, NG0), G_v(i, j, NG0m1), impl_v(i, j))
           END IF V
         END DO XSPACE3
       END DO YSPACE3
-!$OMP END DO
-!$OMP workshare
-      SWM_v(:, :, N0p1) = integrate(SWM_v(:, :, N0), G_v(:, :, NG0), G_v(:, :, NG0m1), impl_v)
-!$OMP end workshare
-!$OMP END PARALLEL
+!$OMP end do
+!$OMP end parallel
     END SUBROUTINE SWM_timestep_nonlinear
 
 
