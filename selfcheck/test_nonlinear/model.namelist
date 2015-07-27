@@ -4,7 +4,7 @@
   gamma_new = 0., !2.3148148148148148e-08,  ! Newtonian cooling parameter (1/s)
   new_sponge_efolding=8e-2, ! efolding scale of sponge layers
   gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
-  Ah = 1e3,               ! horizontal eddy viscosity (m^2/s)
+  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   run_length = 5.184e7, ! length of run in seconds
   dt = 3.5e3  ! time step (s)
 &end
@@ -37,9 +37,9 @@
   osuffix = "",  ! suffix to name model run
 &end
 
-&diag_nl filename="u_out.nc", varname="u", type="snapshot", frequency=100 &end
-&diag_nl filename="v_out.nc", varname="v", type="snapshot", frequency=100 &end
-&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=100 &end
+!&diag_nl filename="u_out.nc", varname="u", type="snapshot", frequency=100 &end
+!&diag_nl filename="v_out.nc", varname="v", type="snapshot", frequency=100 &end
+!&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=100 &end
 !&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
 !&diag_nl filename="u_mean_out.nc", varname="u", type="A", period=2.628e6 &end
 !&diag_nl filename="v_mean_out.nc", varname="v", type="average", period=2.628e6 &end
@@ -56,9 +56,9 @@
 !&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" &end
 !&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" &end
 !&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" &end
-$diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=10 &end
-$diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=10 &end
-$diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=10 &end
-$diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=10 &end
-$diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=10 &end
-$diag_nl filename="d.nc", varname="swm_d", type="S" frequency=10 &end
+$diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=50 &end
+$diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=50 &end
+$diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=50 &end
+$diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50 &end
+$diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50 &end
+$diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50 &end
