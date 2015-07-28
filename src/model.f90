@@ -6,7 +6,6 @@
 !!   -# call diag to write initial conditions to file
 !!   -# loop in time
 !!      - call timestep routines of modules
-!!      - flush dynamical variables
 !!      - call advance routines
 !!      - call diagnosic routine
 !!   -# deinitialise modules
@@ -114,12 +113,6 @@ PROGRAM model
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        !! Prepare output file (don't forget to close the files at the end of the programm)
-        !------------------------------------------------------------------
-        call initDiag
-        print *, 'initDiag done'
-
-        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Initialise tracer field, timestepping coefficients and compute 2nd initial condition
         !------------------------------------------------------------------
 #ifdef TRACER
@@ -134,6 +127,12 @@ PROGRAM model
 	call CUDA_initCuda
 	print *, 'initCuda done'
 #endif
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! Prepare output file (don't forget to close the files at the end of the programm)
+        !------------------------------------------------------------------
+        call initDiag
+        print *, 'initDiag done'
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! write initial fields to file
@@ -165,23 +164,23 @@ PROGRAM model
           call DFF_timestep
 #endif
 
-#if defined(SWM) && !defined(CUDA_ENABLED)
+#if defined(SWM)
+#if !defined(CUDA_ENABLED)
           call SWM_timestep
-#endif
-
-#ifdef CUDA_ENABLED
+#else
           call CUDA_timestep
+#endif
 #endif
 
 #ifdef TRACER
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! time step tracer
           !------------------------------------------------------------------
-          call TRC_tracerStep
+          call TRC_timestep
 #endif
 
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-          !! shift model timestep
+          !! shift model timestep and update diagnostic variables
           !------------------------------------------------------------------
           call model_advance
 
@@ -209,16 +208,20 @@ PROGRAM model
     SUBROUTINE finishModel
       IMPLICIT NONE
 
-#ifdef TRACER
-        call TRC_finishTracer
-#endif
-
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Close opened files
         !------------------------------------------------------------------
         call finishDiag
-      
+
         call finishCalcLib
+
+#ifdef CUDA_ENABLED
+        call CUDA_finish
+#endif
+
+#ifdef TRACER
+        call TRC_finishTracer
+#endif
 
 #ifdef SWM
         call SWM_finishSWM
@@ -226,10 +229,6 @@ PROGRAM model
 
 #ifdef DYNFROMFILE
         call DFF_finishDynFromFile
-#endif
-
-#ifdef CUDA_ENABLED
-        call CUDA_finish
 #endif
 
         call finishIO
@@ -255,11 +254,12 @@ PROGRAM model
 #ifdef DYNFROMFILE
       CALL DFF_advance
 #endif
+#ifdef SWM
 #ifdef CUDA_ENABLED
       CALL CUDA_advance
-#endif
-#if defined(SWM) && !defined(CUDA_ENABLED)
+#else
       CALL SWM_advance
+#endif
 #endif
 #ifdef TRACER
       CALL TRC_advance

@@ -8,6 +8,7 @@ selfcheck : $(tests)
 test1 : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test1/
 test_diaglist : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_diaglist/
 test_nonlinear : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nonlinear/
+test_nl_tracer : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nl_tracer/
 test_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
 test% : clean model
 	@echo $@
