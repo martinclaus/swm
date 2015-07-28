@@ -382,9 +382,9 @@ MODULE vars_module
 
       var => getVarPtrFromRegister(varname)
 
-      IF (ASSOCIATED(var%data2d)) vardata => var%data2d
-      IF (ASSOCIATED(var%grid)) grid => var%grid
-      if(associated(var%grid_l)) grid_l => var%grid_l
+      if (associated(var%data2d)) vardata => var%data2d
+      if (present(grid) .and. associated(var%grid)) grid => var%grid
+      if (present(grid_l) .and. associated(var%grid_l)) grid_l => var%grid_l
     END SUBROUTINE get2DFromRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
