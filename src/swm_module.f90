@@ -68,7 +68,6 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep
       IMPLICIT NONE
-      CALL SWM_forcing_update
       CALL SWM_timestep_step
     END SUBROUTINE SWM_timestep
 
@@ -94,6 +93,7 @@ MODULE swm_module
       u(:,:,N0)     = u(:,:,N0) + SWM_u(:,:,N0)
       v(:,:,N0)     = v(:,:,N0) + SWM_v(:,:,N0)
       eta(:,:,N0)   = eta(:,:,N0) + SWM_eta(:,:,N0)
+      CALL SWM_forcing_update
       CALL SWM_timestep_advance
     END SUBROUTINE SWM_advance
 

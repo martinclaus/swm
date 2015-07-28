@@ -122,6 +122,7 @@ MODULE swm_forcing_module
 
       ! compute constant forcing
       CALL SWM_forcing_getForcing(isTDF=.FALSE.)
+      call SWM_forcing_update
     END SUBROUTINE SWM_forcing_init
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
