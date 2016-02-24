@@ -25,7 +25,7 @@
 MODULE tracer_module
 #include "model.h"
   use tracer_vars
-  USE swm_timestep_module, ONLY : AB_Chi, AB_C1, AB_C2
+  USE swm_timestep_module, ONLY : integrate
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -192,6 +192,7 @@ MODULE tracer_module
       use domain_module, only: Nx, Ny
       type(TRC_tracer), pointer, intent(inout) :: trc
       real(8), dimension(:, :), pointer :: CH1, CH2, GCH0, GCH1, impl
+      real(8), dimension(:), pointer :: GCH
       integer :: i, j
 
       CH1 => trc%CH(:, :, TRC_N0)
@@ -200,23 +201,14 @@ MODULE tracer_module
       GCH1 => trc%G_CH(:, :, TRC_NG0)
       impl => trc%impl
 
-      if (itt .ge. 2) then
 !$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-        do j=1,Ny
-          do i=1,Nx
-            CH2(i, j) = (CH1(i, j) + dt * (AB_C1 * GCH1(i, j) - AB_C2 * GCH0(i, j))) * impl(i, j)
-          end do
+      do j=1,Ny
+        do i=1,Nx
+          GCH => trc%G_CH(i, j, :)
+          CH2(i, j) = integrate(CH1(i, j), GCH, impl(i, j))
         end do
+      end do
 !$OMP end parallel do
-      else
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-        do j=1,Ny
-          do i=1,Nx
-            CH2(i, j) = (CH1(i, j) + dt * GCH1(i, j)) * impl(i, j)
-          end do
-        end do
-!$OMP end parallel do
-      end if
     end subroutine TRC_tracer_integrate
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

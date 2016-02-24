@@ -11,7 +11,7 @@ Header file for tracer module.
 #ifdef TRC_TSTEP_ADAMSBASHFORTH
 #define TRC_NLEVEL 2
 #define TRC_NLEVEL0 1
-#define TRC_GLEVEL 2
+#define TRC_GLEVEL 3
 #endif
 
 
