@@ -15,15 +15,15 @@ module swm_vars
          D, Dh, Du, Dv, EDens, Pot, zeta, MV, MU, &
          psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi
 
-  INTEGER, PARAMETER                             :: NG=2          !< maximal level of timestepping. Increments stored in memory
+  INTEGER, PARAMETER                             :: NG=3          !< maximal level of timestepping. Increments stored in memory
   INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
   INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
   real(8), dimension(:,:,:), allocatable, target :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
   real(8), dimension(:,:,:), allocatable, target :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
   real(8), dimension(:,:,:), allocatable, target :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,swm_timestep_module::NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,swm_timestep_module::NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,NG
+  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,NG
   REAL(8), DIMENSION(:,:), pointer               :: D, Dh, Du, Dv
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: EDens
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: Pot

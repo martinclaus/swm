@@ -34,15 +34,14 @@ MODULE swm_timestep_module
   PRIVATE
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            AB_Chi, AB_C1, AB_C2
+            integrate
 
   ! constant coefficients (specific for time stepping scheme)
 !  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
 !  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
 !  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
-  REAL(8)                                        :: AB_Chi = .1_8 !< AdamsBashforth displacement coefficient
-  REAL(8)                                        :: AB_C1         !< AdamsBashforth weight factor for present time level (set in swm_timestep_init)
-  REAL(8)                                        :: AB_C2         !< AdamsBashforth weight factor for past time level (set in swm_timestep_init)
+  REAL(8)                                        :: AB_Chi = .1_8  !< AdamsBashforth displacement coefficient
+  real(8), dimension(NG, NG)                     :: ab_coeff       !< AdamsBashforth weight factor
   real(8)                                        :: minD=1.
 
   CONTAINS
@@ -85,8 +84,10 @@ MODULE swm_timestep_module
         PRINT *,"ERROR loading timestep namelist SWM_timestep_nl"
         STOP 1
       END IF
-      AB_C1 = 1.5_8 + AB_Chi
-      AB_C2 =  .5_8 + AB_Chi
+      ab_coeff = 0.
+      ab_coeff(1, NG0) = 1._8
+      if (NG .ge. 2) ab_coeff(NG0-1:NG0, 2) = (/ -0.5_8 - AB_Chi, 1.5_8 + AB_Chi /)
+      if (NG .ge. 3) ab_coeff(NG0-2:NG0, 3) = (/ 5._8 / 12._8, -16._8 / 12._8, 23._8 / 12._8 /)
       timestepInitialised = .TRUE.
 #endif
 
@@ -315,23 +316,24 @@ MODULE swm_timestep_module
     !! @par Uses:
     !! vars_module, ONLY : N0,dt,itt
     !------------------------------------------------------------------
-    real(8) elemental function integrate(SWM_N0, G0, G0M1, impl) result(SWM_N0P1)
+    real(8) function integrate(SWM_N0, G, impl) result(SWM_N0P1)
       USE vars_module, ONLY : N0, dt, itt
       IMPLICIT NONE
-      REAL(8), intent(in) :: G0, G0M1, SWM_N0, impl
+      REAL(8), intent(in) :: G(NG), SWM_N0, impl
       INTEGER             :: tstep
 
 #ifdef SWM_TSTEP_ADAMSBASHFORTH
-      tstep = 0
+      tstep = min(NG, itt)
 #endif
 #ifdef SWM_TSTEP_EULERFW
       tstep = 1
 #endif
-      IF (tstep .EQ. 0 .AND. itt .GE. 2) THEN ! use AdamsBashforth timestepping scheme
-          SWM_N0P1 = (SWM_N0 + dt * (AB_C1*G0 - AB_C2*G0M1)) / impl
-      ELSE                                    ! use explicit forward timestepping scheme
-          SWM_N0P1 = (SWM_N0 + dt * G0) / impl
-      END IF
+      SWM_N0P1 = (SWM_N0 + dt * dot_product(ab_coeff(:, tstep), G)) / impl
+!      IF (tstep .EQ. 0 .AND. itt .GE. 2) THEN ! use AdamsBashforth timestepping scheme
+!          SWM_N0P1 = (SWM_N0 + dt * (AB_C1*G0 - AB_C2*G0M1)) / impl
+!      ELSE                                    ! use explicit forward timestepping scheme
+!          SWM_N0P1 = (SWM_N0 + dt * G(0)) / impl
+!      END IF
     END FUNCTION integrate
 
 
@@ -370,7 +372,7 @@ MODULE swm_timestep_module
                                 + F_eta(i,j) &
                                )
               ! Integrate
-              SWM_eta(i, j, N0p1) = integrate(SWM_eta(i, j, N0), G_eta(i, j, NG0), G_eta(i, j, NG0m1), impl_eta(i, j))
+              SWM_eta(i, j, N0p1) = integrate(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j))
           END IF ETA
         END DO XSPACE1
       END DO YSPACE1
@@ -403,7 +405,7 @@ MODULE swm_timestep_module
                             + F_x(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_u(i, j, N0p1) = integrate(SWM_u(i, j, N0), G_u(i, j, NG0), G_u(i, j, NG0m1), impl_u(i, j))
+            SWM_u(i, j, N0p1) = integrate(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j))
           END IF U
         END DO XSPACE2
       END DO YSPACE2
@@ -434,7 +436,7 @@ MODULE swm_timestep_module
                             + F_y(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_v(i, j, N0p1) = integrate(SWM_v(i, j, N0), G_v(i, j, NG0), G_v(i, j, NG0m1), impl_v(i, j))
+            SWM_v(i, j, N0p1) = integrate(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j))
           END IF V
         END DO XSPACE3
       END DO YSPACE3

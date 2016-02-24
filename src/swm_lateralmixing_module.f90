@@ -197,13 +197,14 @@ MODULE swm_lateralmixing_module
       do j = 1, Ny
         do i = 1, Nx
           if (eta_grid%ocean(i, j) .eq. 1_1) then
-            pll(i, j) = D(i, j) * dot_product(pll_coeff(:, i, j), &
+            pll(i, j) = D(i, j) * &
+                        dot_product(pll_coeff(:, i, j), &
                                               (/swm_u(ip1(i), j, N0) - swm_u(i, j, N0), &
                                                 swm_v(i, jp1(j), N0), swm_v(i, j, N0)/))
           end if
           if (H_grid%ocean(i, j) .eq. 1_1) then
-            plt(i, j) = Dh(i, j) &
-                        * dot_product(plt_coeff(:, i, j), &
+            plt(i, j) = Dh(i, j) * &
+                        dot_product(plt_coeff(:, i, j), &
                                       (/swm_v(i, j, N0) - swm_v(im1(i), j, N0), &
                                         swm_u(i, j, N0), swm_u(i, jm1(j), N0)/))
           end if
