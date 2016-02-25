@@ -122,27 +122,19 @@ MODULE domain_module
             end if
             H(:,1)  = 0._8
             H(:,Ny) = 0._8
-
-            !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            !! interpolate topography on all grids
-            !------------------------------------------------------------------
-            FORALL (i=1:Nx,j=1:Ny)
-                H_u(i,j)   = (H(i,j) + H(i,jp1(j))) / 2._8
-                H_v(i,j)   = (H(i,j) + H(ip1(i),j)) / 2._8
-                H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i),jp1(j))) / 4._8
-            END FORALL
-
+            
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create landmasks
             !------------------------------------------------------------------
             land_H = 0_1
             WHERE (H .EQ. 0._8) land_H = 1_1
-            land_eta = 0_1
-            WHERE (H_eta .EQ. 0._8) land_eta = 1_1
             land_u = 0_1
-            WHERE (H_u .EQ. 0._8) land_u = 1_1
+            where ((land_H + cshift(land_H, 1, 2)) .eq. 2_1) land_u = 1_1
             land_v = 0_1
-            WHERE (H_v .EQ. 0._8) land_v = 1_1
+            where ((land_H + cshift(land_H, 1, 1)) .eq. 2_1) land_v = 1_1
+            land_eta = 0_1
+            where ((land_v + cshift(land_v, 1, 1)) .eq. 2_1 .and. &
+                   (land_u + cshift(land_u, 1, 1)) .eq. 2_1) land_eta = 1_1
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create oceanmasks
@@ -151,6 +143,17 @@ MODULE domain_module
             ocean_u   = 1_1 - land_u
             ocean_v   = 1_1 - land_v
             ocean_eta = 1_1 - land_eta
+
+            !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            !! interpolate topography on all grids
+            !------------------------------------------------------------------
+            forall (i=1:Nx, j=1:Ny, ocean_u(i, j) .ne. 0_1) &
+              H_u(i,j) = (H(i,j) + H(i,jp1(j))) / (ocean_H(i, j) + ocean_H(i, jp1(j)))
+            forall (i=1:Nx, j=1:Ny, ocean_v(i, j) .ne. 0_1) &
+              H_v(i,j)   = (H(i,j) + H(ip1(i),j)) / (ocean_H(i, j) + ocean_H(ip1(i), j))
+            forall (i=1:Nx, j=1:Ny, ocean_eta(i, j) .ne. 0_1) &
+              H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i), jp1(j))) &
+                           / (ocean_H(i, j) + ocean_H(ip1(i), j) + ocean_H(i, jp1(j)) + ocean_H(ip1(i), jp1(j)))
 
 #ifdef H_OVERWRITE
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
