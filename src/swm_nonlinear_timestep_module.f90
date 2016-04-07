@@ -175,7 +175,7 @@ MODULE swm_timestep_module
     subroutine computeD()
       use vars_module, only : N0
       use domain_module, only : eta_grid, Nx, Ny
-      use calc_lib, only : interpolate, eta2H, eta2u, eta2v
+      use calc_lib, only : interpolate, eta2H_noland, eta2u_noland, eta2v_noland
       integer :: i,j
 #ifdef FULLY_NONLINEAR
 !$OMP PARALLEL DO &
@@ -195,9 +195,9 @@ MODULE swm_timestep_module
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
-          Dh(i,j) = interpolate(D, eta2H, i, j)
-          Du(i, j) = interpolate(D, eta2u, i, j)
-          Dv(i, j) = interpolate(D, eta2v, i, j)
+          Dh(i,j) = interpolate(D, eta2H_noland, i, j)
+          Du(i, j) = interpolate(D, eta2u_noland, i, j)
+          Dv(i, j) = interpolate(D, eta2v_noland, i, j)
         end do
       end do
 !$OMP END PARALLEL DO
@@ -339,7 +339,7 @@ MODULE swm_timestep_module
 
     SUBROUTINE SWM_timestep_nonlinear
       USE calc_lib, ONLY : vorticity, evaluateStreamfunction, &
-                           interpolate, eta2u, eta2v, H2u, H2v, u2v, v2u
+                           interpolate, eta2u, eta2v, H2u, H2v, u2v, v2u, eta2u_noland, eta2v_noland
       USE vars_module, ONLY : dt, G, N0, N0p1
       USE domain_module, ONLY : A, Nx, Ny, ip1, jp1, im1, jm1, dLambda, dTheta, &
                                 u_grid, v_grid, eta_grid, H_grid
@@ -361,11 +361,11 @@ MODULE swm_timestep_module
                                     - MV(i,j) * v_grid%cos_lat(j)) &
                                    / dTheta &
 #ifdef LINEARISED_MEAN_STATE
-                                 - (interpolate(SWM_eta(:,:,N0), eta2u, ip1(j),j) * u_bs(ip1(i),j,1) &
-                                    - interpolate(SWM_eta(:,:,N0), eta2u, i, j) * u_bs(i,j,1)) &
+                                 - (interpolate(SWM_eta(:,:,N0), eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
+                                    - interpolate(SWM_eta(:,:,N0), eta2u_noland, i, j) * u_bs(i,j,1)) &
                                    / dLambda &
-                                 - (v_grid%cos_lat(jp1(j)) * interpolate(SWM_eta(:,:,N0), eta2v, i, jp1(j)) * v_bs(i, jp1(j),1) &
-                                    - v_grid%cos_lat(j) * interpolate(SWM_eta(:,:,N0), eta2v, i,j) * v_bs(i,j,1)) &
+                                 - (v_grid%cos_lat(jp1(j)) * interpolate(SWM_eta(:,:,N0), eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j),1) &
+                                    - v_grid%cos_lat(j) * interpolate(SWM_eta(:,:,N0), eta2v_noland, i,j) * v_bs(i,j,1)) &
                                    / dTheta &
 #endif
                                   ) / (A * eta_grid%cos_lat(j)) &

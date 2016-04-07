@@ -81,22 +81,18 @@ MODULE calc_lib
   end type
 
   type :: t_interpolater2point
-    integer, dimension(:), pointer      :: im => null()
-    integer, dimension(:), pointer      :: ip => null()
-    integer, dimension(:), pointer      :: jm => null()
-    integer, dimension(:), pointer      :: jp => null()
-    integer(1), dimension(:,:), pointer :: weight => null()
-    integer(1), dimension(:,:), pointer :: mask => null()
-    integer(1), dimension(:,:), pointer :: to_mask => null()
+    integer, dimension(:, :, :), pointer :: iind => null()
+    integer, dimension(:, :, :), pointer :: jind => null()
+    integer(1), dimension(:,:), pointer  :: mask => null()
+    real(8), dimension(:, :, :), pointer :: weight_vec => null()
+    integer(1), dimension(:,:), pointer  :: to_mask => null()
   end type
 
   type :: t_interpolater4point
-    integer, dimension(:), pointer      :: im => null()
-    integer, dimension(:), pointer      :: ip => null()
-    integer, dimension(:), pointer      :: jm => null()
-    integer, dimension(:), pointer      :: jp => null()
-    integer(1), dimension(:,:), pointer :: weight => null()
+    integer, dimension(:, :, :), pointer :: iind => null()
+    integer, dimension(:, :, :), pointer :: jind => null()
     integer(1), dimension(:,:), pointer :: mask => null()
+    real(8), dimension(:, :, :), pointer :: weight_vec => null()
     integer(1), dimension(:,:), pointer :: to_mask => null()
   end type
 
@@ -110,6 +106,11 @@ MODULE calc_lib
                                             u2eta, u2H, &
                                             v2eta, v2H, &
                                             H2u, H2v
+  type(t_interpolater4point), save       :: eta2H_noland, u2v_noland, v2u_noland, H2eta_noland
+  type(t_interpolater2point), save       :: eta2u_noland, eta2v_noland, &
+                                            u2eta_noland, u2H_noland, &
+                                            v2eta_noland, v2H_noland, &
+                                            H2u_noland, H2v_noland
 
   CONTAINS
 
@@ -135,18 +136,34 @@ MODULE calc_lib
       chi_computed=.FALSE.
       u_nd = 0._8
       v_nd = 0._8
-      call set4PointInterpolater(eta2H, eta_grid)
-      call set4PointInterpolater(u2v, u_grid)
-      call set4PointInterpolater(v2u, v_grid)
-      call set4PointInterpolater(H2eta, H_grid)
-      call set2PointInterpolater(eta2u, eta_grid, "x")
-      call set2PointInterpolater(eta2v, eta_grid, "y")
-      call set2PointInterpolater(u2eta, u_grid, "x")
-      call set2PointInterpolater(u2H, u_grid, "y")
-      call set2PointInterpolater(v2eta, v_grid, "y")
-      call set2PointInterpolater(v2H, v_grid, "x")
-      call set2PointInterpolater(H2u, H_grid, "y")
-      call set2PointInterpolater(H2v, H_grid, "x")
+      ! Interpolators including land/coast points as zero
+      call set2PointInterpolater(eta2u, eta_grid, "x", .false.)
+      call set4PointInterpolater(eta2H, eta_grid, .false.)
+      call set4PointInterpolater(u2v, u_grid, .false.)
+      call set4PointInterpolater(v2u, v_grid, .false.)
+      call set4PointInterpolater(H2eta, H_grid, .false.)
+      call set2PointInterpolater(eta2u, eta_grid, "x", .false.)
+      call set2PointInterpolater(eta2v, eta_grid, "y", .false.)
+      call set2PointInterpolater(u2eta, u_grid, "x", .false.)
+      call set2PointInterpolater(u2H, u_grid, "y", .false.)
+      call set2PointInterpolater(v2eta, v_grid, "y", .false.)
+      call set2PointInterpolater(v2H, v_grid, "x", .false.)
+      call set2PointInterpolater(H2u, H_grid, "y", .false.)
+      call set2PointInterpolater(H2v, H_grid, "x", .false.)
+
+      ! Interpolators neglecting land/coast points
+      call set4PointInterpolater(eta2H_noland, eta_grid, .true.)
+      call set4PointInterpolater(u2v_noland, u_grid, .true.)
+      call set4PointInterpolater(v2u_noland, v_grid, .true.)
+      call set4PointInterpolater(H2eta_noland, H_grid, .true.)
+      call set2PointInterpolater(eta2u_noland, eta_grid, "x", .true.)
+      call set2PointInterpolater(eta2v_noland, eta_grid, "y", .true.)
+      call set2PointInterpolater(u2eta_noland, u_grid, "x", .true.)
+      call set2PointInterpolater(u2H_noland, u_grid, "y", .true.)
+      call set2PointInterpolater(v2eta_noland, v_grid, "y", .true.)
+      call set2PointInterpolater(v2H_noland, v_grid, "x", .true.)
+      call set2PointInterpolater(H2u_noland, H_grid, "y", .true.)
+      call set2PointInterpolater(H2v_noland, H_grid, "x", .true.)
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_INIT
       ! initialise elliptic solver
       call CALC_LIB_ELLIPTIC_SOLVER_INIT
@@ -179,121 +196,147 @@ MODULE calc_lib
     END SUBROUTINE advanceCalcLib
 
 
-    subroutine set2PointInterpolater(int_obj, from_grid, direction)
+    subroutine set2PointInterpolater(int_obj, from_grid, direction, exclude_land)
       use grid_module, only : grid_t
       use domain_module, only : jp0, ip0
       type(t_interpolater2point), intent(inout) :: int_obj
       type(grid_t), intent(in) :: from_grid
       character(*), intent(in) :: direction
+      logical, intent(in)      :: exclude_land
+
       type(grid_t), pointer :: out_grid
+      integer, dimension(:), pointer :: im => null()
+      integer, dimension(:), pointer :: ip => null()
+      integer, dimension(:), pointer :: jm => null()
+      integer, dimension(:), pointer :: jp => null()
+      integer, dimension(:), pointer :: ii, jj
       integer :: i, j, stat, Nx, Ny
+      real(8) :: weight
+
       select case(direction)
         case("X", "x", "zonal", "lambda")
-          call getOutGrid(from_grid, direction, out_grid, int_obj%ip, int_obj%im)
-          int_obj%jp => jp0
-          int_obj%jm => jp0
+          call getOutGrid(from_grid, direction, out_grid, ip, im)
+          jp => jp0
+          jm => jp0
         case("Y", "y", "theta", "meridional")
-          call getOutGrid(from_grid, direction, out_grid, int_obj%jp, int_obj%jm)
-          int_obj%ip => ip0
-          int_obj%im => ip0
+          call getOutGrid(from_grid, direction, out_grid, jp, jm)
+          ip => ip0
+          im => ip0
         case default
           print *, "ERROR: Wrong direction for interpolation specified. Check your Code!"
           stop 1
       end select
+
       int_obj%mask => from_grid%ocean
       int_obj%to_mask => out_grid%ocean
       Nx = size(int_obj%mask, 1)
       Ny = size(int_obj%mask, 2)
-      allocate(int_obj%weight(1:Nx, 1:Ny), stat=stat)
+
+      allocate(int_obj%weight_vec(2, 1:Nx, 1:Ny),&
+               int_obj%iind(2, 1:Nx, 1:Ny), int_obj%jind(2, 1:Nx, 1:Ny), stat=stat)
       if (stat .ne. 0) then
         print *, "ERROR: Allocation failed in ", __FILE__, __LINE__
         stop 1
       end if
-      int_obj%weight = 1
+
       do j = 1,Ny
         do i = 1,Nx
-          if (out_grid%land(i, j) .eq. 1_1) cycle
-          int_obj%weight(i,j) = int_obj%mask(int_obj%ip(i), int_obj%jp(j)) &
-                              + int_obj%mask(int_obj%im(i), int_obj%jm(j))
+          int_obj%iind(:, i, j) = (/ ip(i), im(i) /)
+          int_obj%jind(:, i, j) = (/ jp(j), jm(j) /)
         end do
       end do
+      
+      if (exclude_land) then
+        do j = 1,Ny
+          do i = 1,Nx
+            ii => int_obj%iind(:, i, j)
+            jj => int_obj%jind(:, i, j)
+            weight = 1 / max(real(int_obj%mask(ii(1), jj(1)) + int_obj%mask(ii(2), jj(2))), &
+                             1._8)
+            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                             real(int_obj%mask(ii(2), jj(2))) * weight /)
+          end do
+        end do
+      else
+        do j = 1,Ny
+          do i = 1,Nx
+            ii => int_obj%iind(:, i, j)
+            jj => int_obj%jind(:, i, j)
+            weight = .5_8
+            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                             real(int_obj%mask(ii(2), jj(2))) * weight /)
+          end do
+        end do
+      end if
     end subroutine set2PointInterpolater
 
-    subroutine set4PointInterpolater(int_obj, from_grid)
+    subroutine set4PointInterpolater(int_obj, from_grid, exclude_land)
       use grid_module, only : grid_t
       use domain_module, only : jp0, ip0
       type(t_interpolater4point), intent(inout) :: int_obj
       type(grid_t), intent(in) :: from_grid
+      logical, intent(in)      :: exclude_land
+
       type(grid_t), pointer :: out_intermediat, out_grid
+      integer, dimension(:), pointer :: im => null()
+      integer, dimension(:), pointer :: ip => null()
+      integer, dimension(:), pointer :: jm => null()
+      integer, dimension(:), pointer :: jp => null()
+      integer, dimension(:), pointer :: ii, jj
       integer :: i, j, stat, Nx, Ny
-      call getOutGrid(from_grid, "x", out_intermediat, int_obj%ip, int_obj%im)
-      call getOutGrid(out_intermediat, "y", out_grid, int_obj%jp, int_obj%jm)
+      real(8) :: weight
+
+      call getOutGrid(from_grid, "x", out_intermediat, ip, im)
+      call getOutGrid(out_intermediat, "y", out_grid, jp, jm)
+
       int_obj%mask => from_grid%ocean
       int_obj%to_mask => out_grid%ocean
       Nx = size(int_obj%mask, 1)
       Ny = size(int_obj%mask, 2)
-      allocate(int_obj%weight(1:Nx, 1:Ny), stat=stat)
+
+      allocate(int_obj%weight_vec(4, 1:Nx, 1:Ny),&
+               int_obj%iind(4, 1:Nx, 1:Ny), int_obj%jind(4, 1:Nx, 1:Ny), stat=stat)
       if (stat .ne. 0) then
         print *, "ERROR: Allocation failed in ", __FILE__, __LINE__
         stop 1
       end if
-      int_obj%weight = 1
+
       do j = 1,Ny
         do i = 1,Nx
-          if (out_grid%land(i, j) .eq. 1_1) cycle
-          int_obj%weight(i,j) = int_obj%mask(int_obj%ip(i), int_obj%jp(j)) &
-                              + int_obj%mask(int_obj%im(i), int_obj%jm(j)) &
-                              + int_obj%mask(int_obj%im(i), int_obj%jp(j)) &
-                              + int_obj%mask(int_obj%ip(i), int_obj%jm(j))
+          int_obj%iind(:, i, j) = (/ ip(i), im(i), im(i), ip(i) /)
+          int_obj%jind(:, i, j) = (/ jp(j), jm(j), jp(j), jm(j) /)
         end do
       end do
+
+      if (exclude_land) then
+        do j = 1,Ny
+          do i = 1,Nx
+            ii => int_obj%iind(:, i, j)
+            jj => int_obj%jind(:, i, j)
+            weight = 1 / max(real(int_obj%mask(ii(1), jj(1)) + int_obj%mask(ii(2), jj(2)) &
+                                  + int_obj%mask(ii(3), jj(3)) + int_obj%mask(ii(4), jj(4))), &
+                             1._8)
+            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                             real(int_obj%mask(ii(2), jj(2))) * weight, &
+                                             real(int_obj%mask(ii(3), jj(3))) * weight, &
+                                             real(int_obj%mask(ii(4), jj(4))) * weight /)
+          end do
+        end do
+      else
+        do j = 1,Ny
+          do i = 1,Nx
+            ii => int_obj%iind(:, i, j)
+            jj => int_obj%jind(:, i, j)
+            weight = .25_8
+            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                             real(int_obj%mask(ii(2), jj(2))) * weight, &
+                                             real(int_obj%mask(ii(3), jj(3))) * weight, &
+                                             real(int_obj%mask(ii(4), jj(4))) * weight /)
+          end do
+        end do
+      end if
     end subroutine set4PointInterpolater
 
-
-!    function interpMask2Point(int_obj, i, j) result(mask)
-!      type(t_interpolater2point), intent(in) :: int_obj
-!      integer, intent(in)                    :: i, j
-!      integer, dimension(2)               :: mask
-!      mask = pack(int_obj%mask((/int_obj%ip(i), int_obj%im(i)/), (/int_obj%jp(j), int_obj%jm(j)/)), .true.)
-!    end function interpMask2Point
-!
-!    function interpMask4Point(int_obj, i, j) result(mask)
-!      type(t_interpolater4point), intent(in) :: int_obj
-!      integer, intent(in)                    :: i, j
-!      integer, dimension(4)               :: mask
-!      mask = (/int_obj%mask(int_obj%ip(i), int_obj%jp(j)), &
-!               int_obj%mask(int_obj%im(i), int_obj%jm(j)), &
-!               int_obj%mask(int_obj%ip(i), int_obj%jm(j)), &
-!               int_obj%mask(int_obj%im(i), int_obj%jp(j))/)
-!    end function interpMask4Point
-!
-!    function interpIv4Point(int_obj, i) result(indices)
-!      type(t_interpolater4point), intent(in) :: int_obj
-!      integer, intent(in)                    :: i
-!      integer, dimension(2)                  :: indices
-!      indices = (/int_obj%ip(i), int_obj%im(i)/)
-!    end function interpIv4Point
-!
-!    function interpJv4Point(int_obj, j) result(indices)
-!      type(t_interpolater4point), intent(in) :: int_obj
-!      integer, intent(in)                    :: j
-!      integer, dimension(2)                  :: indices
-!      indices = (/int_obj%jp(j), int_obj%jm(j)/)
-!    end function interpJv4Point
-!
-!    function interpIv2Point(int_obj, i) result(indices)
-!      type(t_interpolater2point), intent(in) :: int_obj
-!      integer, intent(in)                    :: i
-!      integer, dimension(2)                  :: indices
-!      indices = (/int_obj%ip(i), int_obj%im(i)/)
-!    end function interpIv2Point
-!
-!    function interpJv2Point(int_obj, j) result(indices)
-!      type(t_interpolater2point), intent(in) :: int_obj
-!      integer, intent(in)                    :: j
-!      integer, dimension(2)                  :: indices
-!      indices = (/int_obj%jp(j), int_obj%jm(j)/)
-!    end function interpJv2Point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief 1D linear interpolation, usually in time.
@@ -318,7 +361,7 @@ MODULE calc_lib
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Get a weighting object for spatial bilinear interolation
+    !> @brief Get a weighting object for spatial bilinear interpolation
     !!
     !! Returns a weighting object for spatial bilinear interpolation. Also returned
     !! are the indices of the four nearest points, which will be used for interpolation.
@@ -374,16 +417,11 @@ MODULE calc_lib
       real(8), dimension(:,:), intent(in)    :: var
       type(t_interpolater2point), intent(in) :: interpolator
       integer, intent(in)                    :: i, j
-      integer, pointer :: ip, im, jp, jm
-      if (interpolator%to_mask(i, j) .eq. 0_1) then
-        inter = 0.
-      else
-        ip => interpolator%ip(i)
-        im => interpolator%im(i)
-        jp => interpolator%jp(j)
-        jm => interpolator%jm(j)
-        inter = (interpolator%mask(ip, jp) * var(ip, jp) + interpolator%mask(im, jm) * var(im, jm)) / interpolator%weight(i, j)
-      end if
+      integer, dimension(:), pointer :: ii, jj
+      ii => interpolator%iind(:, i, j)
+      jj => interpolator%jind(:, i, j)
+      inter = dot_product(interpolator%weight_vec(:, i, j), &
+                          (/ var(ii(1), jj(1)), var(ii(2), jj(2))/))
     end function interpolate_2point
 
     real(8) function interpolate_4point(var, interpolator, i, j) result(inter)
@@ -391,20 +429,12 @@ MODULE calc_lib
       real(8), dimension(:,:), intent(in)    :: var
       type(t_interpolater4point), intent(in) :: interpolator
       integer, intent(in)                    :: i, j
-      integer, pointer :: ip, im, jp, jm
-      if (interpolator%to_mask(i, j) .eq. 0_1) then
-        inter = 0._8
-      else
-        ip => interpolator%ip(i)
-        im => interpolator%im(i)
-        jp => interpolator%jp(j)
-        jm => interpolator%jm(j)
-        inter = (  interpolator%mask(ip, jp) * var(ip, jp) &
-                 + interpolator%mask(im, jm) * var(im, jm) &
-                 + interpolator%mask(im, jp) * var(im, jp) &
-                 + interpolator%mask(ip, jm) * var(ip, jm) &
-                ) / interpolator%weight(i, j)
-      end if
+      integer, dimension(:), pointer :: ii, jj
+      ii => interpolator%iind(:, i, j)
+      jj => interpolator%jind(:, i, j)
+      inter = dot_product(interpolator%weight_vec(:, i, j), &
+                          (/ var(ii(1), jj(1)), var(ii(2), jj(2)), &
+                             var(ii(3), jj(3)), var(ii(4), jj(4)) /) )
     end function interpolate_4point
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

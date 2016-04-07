@@ -13,6 +13,7 @@ MODULE grid_module
     REAL(8), DIMENSION(:), POINTER        :: tan_lat => null()
     INTEGER(1), DIMENSION(:,:), POINTER   :: land => null()
     INTEGER(1), DIMENSION(:,:), POINTER   :: ocean => null()
+    REAL(8), DIMENSION(:, :), POINTER     :: bc  => null()      !< Boundary condition factor (no-slip=2, free-slip=0 at the boundary, 1 in the ocean)
     REAL(8), DIMENSION(:), POINTER        :: f => null()
   END TYPE grid_t
 
@@ -160,18 +161,37 @@ MODULE grid_module
       grid%valid = 1_1
      end subroutine setGridLagrange
 
-    SUBROUTINE setGridEuler(gr, lon, lat, land, ocean, H)
+    SUBROUTINE setGridEuler(gr, lon, lat, land, ocean, H, bc_fac)
       IMPLICIT NONE
-        TYPE(grid_t), INTENT(inout)                     :: gr
-        REAL(8), DIMENSION(:), POINTER, INTENT(in)      :: lon, lat
-        REAL(8), DIMENSION(:,:), POINTER, INTENT(in)    :: H
-        INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
+      TYPE(grid_t), INTENT(inout)                     :: gr
+      REAL(8), DIMENSION(:), POINTER, INTENT(in)      :: lon, lat
+      REAL(8), DIMENSION(:,:), POINTER, INTENT(in)    :: H
+      INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
+      REAL(8), intent(in), optional                   :: bc_fac
+      real(8) :: lbc_fac
+      integer :: i, j, alloc_error
 
-        CALL setLon(gr, lon)
-        CALL setLat(gr, lat)
-        CALL setLand(gr, land)
-        CALL setOcean(gr, ocean)
-        call setTopo(gr, H)
+      if (present(bc_fac)) then
+        lbc_fac = bc_fac
+      else
+        lbc_fac = 0._8   ! Free-slip default
+      end if
+
+      CALL setLon(gr, lon)
+      CALL setLat(gr, lat)
+      CALL setLand(gr, land)
+      CALL setOcean(gr, ocean)
+      call setTopo(gr, H)
+      allocate(gr%bc(lbound(ocean, 1):ubound(ocean, 1), lbound(ocean, 2):ubound(ocean, 2)), stat=alloc_error)
+      if (alloc_error .ne. 0) then
+        write(*,*) "Allocation error in setGridEuler:",alloc_error
+        STOP 1
+      end if
+      where (ocean .eq. 1_1)
+        gr%bc = 1._8
+      elsewhere
+        gr%bc = lbc_fac 
+      end where
     END SUBROUTINE setGridEuler
 
     function getTopo(gr) result(H)

@@ -41,8 +41,8 @@ MODULE swm_lateralmixing_module
   PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step, &
             SWM_LateralMixing
 
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 3,Ny
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 3,Ny
+  REAL(8), DIMENSION(:, :,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 3,Nx,Ny
+  REAL(8), DIMENSION(:, :,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 3,Nx,Ny
   real(8), dimension(:,:,:), allocatable, target  :: pll_coeff  !< Time independent coefficients for the computation of \f$P_{\lambda\lambda}\f$. Size 3, Nx, Ny
   real(8), dimension(:,:,:), allocatable, target  :: plt_coeff !< Time independent coefficients for the computation of \f$P_{\lambda\theta}\f$. Size 3, Nx, Ny
   real(8), dimension(:,:), allocatable, target  :: pll !< \f$P_{\lambda\lambda}\f$
@@ -61,11 +61,11 @@ MODULE swm_lateralmixing_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_LateralMixing_init
       USE vars_module, ONLY : Ah,  addToRegister
-      USE domain_module, ONLY : Nx, Ny, dLambda, dTheta, A, u_grid, v_grid
+      USE domain_module, ONLY : Nx, Ny, jp1, jm1, dLambda, dTheta, A, u_grid, v_grid, h_grid, eta_grid
       IMPLICIT NONE
-      INTEGER   :: i,j,alloc_error
+      INTEGER   :: i,j,alloc_error, o_tmp
 
-      ALLOCATE(lat_mixing_u(1:3, 1:Ny), lat_mixing_v(1:3, 1:Ny), stat=alloc_error)
+      ALLOCATE(lat_mixing_u(1:3, 1:Nx, 1:Ny), lat_mixing_v(1:3, 1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
@@ -76,14 +76,17 @@ MODULE swm_lateralmixing_module
       lat_mixing_v = 0._8
 
       do j = 1, Ny
-        lat_mixing_u(1, j) = - 1._8 / A / u_grid%cos_lat(j) / dLambda
-        lat_mixing_u(2, j) = - 1._8 / A / dTheta
-        lat_mixing_u(3, j) = + u_grid%tan_lat(j) / A
-        lat_mixing_v(1, j) = - 1._8 / A / v_grid%cos_lat(j) / dLambda
-        lat_mixing_v(2, j) = + 1._8 / A / dTheta
-        lat_mixing_v(3, j) = - v_grid%tan_lat(j) / A
+        do i = 1,Nx
+          o_tmp = max(1_1, h_grid%ocean(i, j) + h_grid%ocean(i, jp1(j)))
+          lat_mixing_u(:, i, j) = (/ - u_grid%bc(i, j) / A / u_grid%cos_lat(j) / dLambda, &
+                                     - (u_grid%bc(i, j) / A / dTheta - 2._8 * u_grid%tan_lat(j) / A / o_tmp), &
+                                     - (-u_grid%bc(i, j) / A / dTheta - 2._8 *  u_grid%tan_lat(j) / A / o_tmp) /)
+          o_tmp = max(1_1, eta_grid%ocean(i, j) + eta_grid%ocean(i, jm1(j)))
+          lat_mixing_v(:, i, j) = (/ - v_grid%bc(i, j) / A / v_grid%cos_lat(j) / dLambda, &
+                                     - (-v_grid%bc(i, j) / A / dTheta + 2._8 * v_grid%tan_lat(j) / A / o_tmp), &
+                                     - (v_grid%bc(i, j) / A / dTheta + 2._8 * v_grid%tan_lat(j) / A / o_tmp) /)
+        end do
       end do
-
       call SWM_LateralMixing_init_p_coefficients
     END SUBROUTINE SWM_LateralMixing_init
 
@@ -123,22 +126,14 @@ MODULE swm_lateralmixing_module
       plt = 0._8
       do j = 1, Ny
         do i = 1, Nx
-          if (eta_grid%ocean(i, j) .eq. 1_1) then
-            pll_coeff(1, i, j) = - Ah * eta_grid%ocean(i, j) / dLambda / A / eta_grid%cos_lat(j)
-            o_tmp = v_grid%ocean(i, jp1(j)) + v_grid%ocean(i, j)
-            pll_coeff(2, i, j) = Ah * eta_grid%ocean(i, j) / A &
-                                 * (1._8 / dTheta + eta_grid%tan_lat(j) * v_grid%ocean(i, jp1(j)) / o_tmp)
-            pll_coeff(3, i, j) = Ah * eta_grid%ocean(i, j) / A &
-                                 * (-1._8 / dTheta + eta_grid%tan_lat(j) * v_grid%ocean(i, j) / o_tmp)
-          end if
-          if (H_grid%ocean(i, j) .eq. 1_1) then
-            plt_coeff(1, i, j) = - Ah * H_grid%ocean(i, j) / dLambda / A / H_grid%cos_lat(j)
-            o_tmp = u_grid%ocean(i, j) + u_grid%ocean(i, jm1(j))
-            plt_coeff(2, i, j) = - Ah * H_grid%ocean(i, j) / A &
-                                 * (1._8 / dTheta + H_grid%tan_lat(j) * u_grid%ocean(i, j) / o_tmp)
-            plt_coeff(3, i, j) = - Ah * H_grid%ocean(i, j) / A &
-                                 * (-1._8 / dTheta + H_grid%tan_lat(j) * u_grid%ocean(i, jm1(j)) / o_tmp)
-          end if
+          o_tmp = max(1_1, v_grid%ocean(i, j) + v_grid%ocean(i, jp1(j)))
+          pll_coeff(:, i, j) = (/ - Ah * eta_grid%bc(i, j) / dLambda / A / eta_grid%cos_lat(j), &
+                                  Ah / A * (eta_grid%bc(i, j) / dTheta + v_grid%ocean(i, jp1(j)) * eta_grid%tan_lat(j) / o_tmp), &
+                                  Ah / A * (-eta_grid%bc(i, j) / dTheta + v_grid%ocean(i, j) * eta_grid%tan_lat(j) / o_tmp) /)
+          o_tmp = max(1_1, u_grid%ocean(i, j) + u_grid%ocean(i, jm1(j)))
+          plt_coeff(:, i, j) = (/ - Ah * H_grid%bc(i, j) / dLambda / A / H_grid%cos_lat(j), &
+                                  - Ah / A * (h_grid%bc(i, j) / dTheta + u_grid%ocean(i, j) * h_grid%tan_lat(j) / o_tmp), &
+                                  - Ah / A * (-h_grid%bc(i, j) / dTheta + u_grid%ocean(i, jm1(j)) * h_grid%tan_lat(j) / o_tmp) /)
         end do
       end do
     end subroutine SWM_LateralMixing_init_p_coefficients
@@ -171,15 +166,13 @@ MODULE swm_lateralmixing_module
       type(grid_t), pointer, intent(in)    :: grid
 
       if (associated(grid, u_grid)) then
-        mixing = dot_product(lat_mixing_u(:, j), &
+        mixing = dot_product(lat_mixing_u(:, i, j), &
                              (/pll(i, j) - pll(im1(i), j), &
-                               plt(i, jp1(j)) - plt(i, j), &
-                               plt(i, jp1(j)) + plt(i, j)/)) / Du(i, j)
+                               plt(i, jp1(j)), plt(i, j)/)) / Du(i, j)
       else if (associated(grid, v_grid)) then
-        mixing = dot_product(lat_mixing_v(:, j), &
+        mixing = dot_product(lat_mixing_v(:, i, j), &
                              (/plt(ip1(i), j) - plt(i, j), &
-                               pll(i, j) - pll(i, jm1(j)), &
-                               pll(i, j) + pll(i, jm1(j))/)) / Dv(i, j)
+                               pll(i, j), pll(i, jm1(j))/)) / Dv(i, j)
       else
         print *, "ERROR: Target grid for lateral mixing computation is neither grid_u nor grid_v!"
         stop 2
