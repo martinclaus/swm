@@ -338,8 +338,7 @@ MODULE swm_timestep_module
 
 
     SUBROUTINE SWM_timestep_nonlinear
-      USE calc_lib, ONLY : vorticity, evaluateStreamfunction, &
-                           interpolate, eta2u, eta2v, H2u, H2v, u2v, v2u, eta2u_noland, eta2v_noland
+      USE calc_lib, ONLY : interpolate, eta2u, eta2v, H2u, H2v, u2v, v2u, eta2u_noland, eta2v_noland
       USE vars_module, ONLY : dt, G, N0, N0p1
       USE domain_module, ONLY : A, Nx, Ny, ip1, jp1, im1, jm1, dLambda, dTheta, &
                                 u_grid, v_grid, eta_grid, H_grid

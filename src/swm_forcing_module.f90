@@ -422,6 +422,7 @@ MODULE swm_forcing_module
       USE vars_module, ONLY : itt, dt
       USE domain_module, ONLY : H_u, H_v, H, H_eta, Nx, Ny, dLambda, dTheta, &
                                 ip1, jp1, im1, jm1, A, u_grid, v_grid
+      use calc_lib, only : interpolate, H2eta
       TYPE(SWM_forcingStream), INTENT(inout)      :: iStream      !< Forcing stream to process
       REAL(8), DIMENSION(:,:), POINTER            :: forcingTerm_x, forcingTerm_y
       REAL(8), DIMENSION(Nx, Ny)                  :: data
@@ -445,22 +446,36 @@ MODULE swm_forcing_module
       data = getChunkData(iStream%memChunk,itt*dt)
       SELECT CASE(iStream%component(1:1))
         CASE("U","u")
-          FORALL (i=1:Nx, j=1:Ny, ocean_u(i,j) .eq. 1) forcingTerm_x(i,j) = forcingTerm_x(i,j) + ( &
-            -((data(i,j)+data(ip1(i),j)+data(i,jp1(j))+data(ip1(i),jp1(j)))*H_eta(i,j)&
-              -(data(im1(i),j)+data(im1(i),jp1(j))+data(i,j)+data(i,jp1(j)))*H_eta(im1(i),j))&
-            /(8*A*dLambda*cosTheta_u(j)*H_u(i,j)))
+          do j=1,Ny
+            do i=1,nx
+              if (ocean_u(i,j) .ne. 1) cycle
+              forcingTerm_x(i,j) = forcingTerm_x(i,j) + ( &
+                                   - (interpolate(data, H2eta, i, j) * H_eta(i,j) - interpolate(data, H2eta, im1(i), j) * H_eta(im1(i),j))&
+                                     /(2*A*dLambda*cosTheta_u(j)*H_u(i,j)))
+            end do
+          end do
         CASE("V","v")
-          FORALL (i=1:Nx, j=1:Ny, ocean_v(i,j) .eq. 1) forcingTerm_y(i,j) = forcingTerm_y(i,j) + ( &
-                 -(cosTheta_u(j)*H_eta(i,j)*(data(i,j)+data(ip1(i),j)+data(i,jp1(j))+data(ip1(i),jp1(j)))&
-                   -cosTheta_u(jm1(j))*H_eta(i,jm1(j))*(data(i,jm1(j))+data(ip1(i),jm1(j))+data(i,j)+data(ip1(i),j)))&
-                 /(8*A*dTheta*cosTheta_v(j)*H_v(i,j)))
+          do j=1,Ny
+            do i=1,nx
+              if (ocean_v(i,j) .ne. 1) cycle
+              forcingTerm_y(i,j) = forcingTerm_y(i,j) + ( &
+                                   -(cosTheta_u(j)*H_eta(i,j)*interpolate(data, H2eta, i, j) - cosTheta_u(jm1(j))*H_eta(i,jm1(j))*interpolate(data, H2eta, i, jm1(j)))&
+                                    / (8*A*dTheta*cosTheta_v(j)*H_v(i,j)))
+            end do
+          end do
         CASE("R","r")
-          FORALL (i=1:Nx, j=1:Ny, ocean_u(i,j) .eq. 1) forcingTerm_x(i,j) = forcingTerm_x(i,j) + ( &
-                 -(cosTheta_v(jp1(j))*data(i,jp1(j))*H(i,jp1(j)) - cosTheta_v(j)*data(i,j)*H(i,j)) &
-                  /(2*A*dTheta*cosTheta_u(j)*H_u(i,j)))
-          FORALL (i=1:Nx, j=1:Ny, ocean_v(i,j) .eq. 1) forcingTerm_y(i,j) = forcingTerm_y(i,j) + ( &
-                 -(data(ip1(i),j)*H(ip1(i),j) - data(i,j)*H(i,j)) &
-                  /(2*A*dLambda*cosTheta_v(j)*H_v(i,j))) ! Reynolds stress term \overbar{u'v'}_x
+          do j=1,Ny
+            do i=1,nx
+              if (ocean_u(i,j) .eq. 1) &
+                forcingTerm_x(i,j) = forcingTerm_x(i,j) + ( &
+                                     -(cosTheta_v(jp1(j))*data(i,jp1(j))*H(i,jp1(j)) - cosTheta_v(j)*data(i,j)*H(i,j)) &
+                                      / (2*A*dTheta*cosTheta_u(j)*H_u(i,j)))
+              if (ocean_v(i,j) .eq. 1) &
+              forcingTerm_y(i,j) = forcingTerm_y(i,j) + ( &
+                                   - (data(ip1(i),j)*H(ip1(i),j) - data(i,j)*H(i,j)) &
+                                     / (2*A*dLambda*cosTheta_v(j)*H_v(i,j))) ! Reynolds stress term \overbar{u'v'}_x
+            end do
+          end do
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
