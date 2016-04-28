@@ -850,7 +850,7 @@ do i=1,Nx-1
     !! domain_module, ONLY : A, dLambda \n
     !! grid_module, only : grid_t
     !------------------------------------------------------------------
-    function pder_zonal3D(var,grid) result(var_lambda)
+    function pder_zonal3D(var, grid) result(var_lambda)
       use domain_module, only : A, dLambda
       use grid_module, only : grid_t
       real(8), dimension(:,:,:), intent(in)                   :: var
@@ -873,9 +873,9 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if (grid_out%ocean(i,j) .eq. 0_1) cycle
-            var_lambda(i,j,l) = grid%ocean(ind0(i),j)*grid%ocean(indm1(i),j)/(A*grid_out%cos_lat(j)*dLambda)&
-                                *(grid%ocean(ind0(i),j)*var(ind0(i),j,l)-grid%ocean(indm1(i),j)*var(indm1(i),j,l))
+            if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_1) cycle
+            var_lambda(i,j,l) = grid_out%bc(i, j) / (A*grid_out%cos_lat(j)*dLambda) &
+                                *(var(ind0(i),j,l) - var(indm1(i),j,l))
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -943,9 +943,8 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if (grid_out%ocean(i,j) .eq. 0_1) cycle
-            var_theta(i,j,l) = grid%ocean(i,ind0(j))*grid%ocean(i,indm1(j))*&
-                                 (grid%ocean(i,ind0(j))*var(i,ind0(j),l)-grid%ocean(i,indm1(j))*var(i,indm1(j),l))/(A*dTheta)
+            if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_1) cycle
+            var_theta(i,j,l) = grid_out%bc(i, j) * (var(i,ind0(j),l) - var(i,indm1(j),l)) / (A*dTheta)
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -1010,11 +1009,10 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if (grid%ocean(i,j) .ne. 1_1) cycle
-            var_lambda2(i,j,l) = grid%ocean(i,j)/(A*grid%cos_lat(j)*dLambda)**2 &
-                                *(grid_d1%ocean(ip_d1(i),j)*grid%ocean(ip1(i),j)*var(ip1(i),j,l)&
-                                  -(grid_d1%ocean(ip_d1(i),j)+grid_d1%ocean(im_d1(i),j))*grid%ocean(i,j)*var(i,j,l)&
-                                  +grid_d1%ocean(im_d1(i),j)*grid%ocean(im1(i),j)*var(im1(i),j,l))
+            if ((grid%ocean(i, j) + grid%ocean(ip1(i), j) + grid%ocean(im1(i), j)) .eq. 1_1) cycle
+            var_lambda2(i,j,l) = 1._8 / (A*grid%cos_lat(j)*dLambda)**2 &
+                                * (grid_d1%bc(ip_d1(i),j) * (var(ip1(i),j,l) - var(i,j,l))&
+                                  -(grid_d1%bc(im_d1(i),j) * (var(i,j,l) - var(im1(i),j,l))))
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -1079,11 +1077,10 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if (grid%ocean(i,j) .eq. 0_1) cycle
-            var_theta2(i,j,l) = grid%ocean(i,j)/(A*dTheta)**2 *&
-                                 (grid_d1%ocean(i,ip_d1(j))*grid%ocean(i,jp1(j))*var(i,jp1(j),l)&
-                                  -(grid_d1%ocean(i,ip_d1(j))+grid_d1%ocean(i,im_d1(j)))*grid%ocean(i,j)*var(i,j,l)&
-                                  +grid_d1%ocean(i,im_d1(j))*grid%ocean(i,jm1(j))*var(i,jm1(j),l))
+            if ((grid%ocean(i,j) + grid%ocean(i,jp1(j)) + grid%ocean(i,jm1(j))) .eq. 0_1) cycle
+            var_theta2(i,j,l) = 1._8 / (A*dTheta)**2 * &
+                                 (grid_d1%bc(i,ip_d1(j)) * (var(i,jp1(j),l) - var(i,j,l)) &
+                                  - grid_d1%bc(i,im_d1(j))*(var(i,j,l) - var(i,jm1(j),l)))
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -1152,13 +1149,11 @@ do i=1,Nx-1
         do i=1,size(var,1)
           if (grid%ocean(i,j).ne.1_1) cycle
           var_lap(i,j) = 1/(A * grid%cos_lat(j) * dLambda)**2 &
-                          * (grid_d1x%ocean(ip_d1x(i),j)*grid%ocean(ip1(i),j)*var(ip1(i),j) &
-                             - (grid_d1x%ocean(ip_d1x(i),j)+grid_d1x%ocean(im_d1x(i),j))*grid%ocean(i,j)*var(i,j) &
-                             + grid_d1x%ocean(im_d1x(i),j)*grid%ocean(im1(i),j)*var(im1(i),j)) &
+                          * (grid_d1x%bc(ip_d1x(i),j) * (var(ip1(i),j) - var(i,j)) &
+                            - grid_d1x%bc(im_d1x(i),j) * (var(i,j) - var(im1(i),j))) &
                          + 1/(A**2 * grid%cos_lat(j) * dTheta**2) &
-                          * (grid_d1y%ocean(i,ip_d1y(j))*grid%ocean(i,jp1(j))*grid%cos_lat(jp1(j))*var(i,jp1(j)) &
-                             - (grid_d1y%ocean(i,ip_d1y(j))+grid_d1y%ocean(i,im_d1y(j)))*grid%ocean(i,j)*grid%cos_lat(j)*var(i,j) &
-                             + grid_d1y%ocean(i,im_d1y(j))*grid%ocean(i,jm1(j))*grid%cos_lat(jm1(j))*var(i,jm1(j)))
+                          * (grid_d1y%bc(i,ip_d1y(j)) * (grid%cos_lat(jp1(j))*var(i,jp1(j)) - grid%cos_lat(j)*var(i,j)) &
+                            - grid_d1y%bc(i,im_d1y(j)) * (grid%cos_lat(j)*var(i,j) - grid%cos_lat(jm1(j))*var(i,jm1(j))))
         end do
       end do
 !$OMP END DO
