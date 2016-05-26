@@ -223,7 +223,7 @@ MODULE swm_timestep_module
 !$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
-          if (H_grid%land(i, j) .eq. 1_1) cycle
+          !if (H_grid%land(i, j) .eq. 1_1) cycle ! compute vorticity also on land points (needed for no-slip boundary condition)
 #if defined FULLY_NONLINEAR
           !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
           Pot(i, j) = (H_grid%f(j) + zeta(i,j)) / Dh(i, j)
