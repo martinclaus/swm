@@ -29,14 +29,10 @@
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
   theta0 = 20.
+  lbc=2.              ! lateral boundary condition (0. = free-slip, 2. = no-slip)
 &end
 
-!&swm_timestep_nl 
-  filename="input/bs_sc.nc" 
-  varname="PSI" 
-  chunksize=1 
-  AB_Chi = .1
-&end
+!&swm_timestep_nl, filename="input/bs_sc.nc", varname="PSI", chunksize=1, AB_Chi = .1 &end
 
 !&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
 

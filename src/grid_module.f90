@@ -174,7 +174,7 @@ MODULE grid_module
       if (present(bc_fac)) then
         lbc_fac = bc_fac
       else
-        lbc_fac = 0._8   ! Free-slip default
+        lbc_fac = 0._8  ! Free-slip default
       end if
 
       CALL setLon(gr, lon)

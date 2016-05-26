@@ -4,7 +4,7 @@ MODULE domain_module
   USE grid_module
   USE io_module, ONLY : fileHandle, initFH, readInitialCondition
   IMPLICIT NONE
-    real(8)               :: bc_fac = 0._8       !< boundary condition (2.=no-slip, 0.=free-slip)
+    real(8)               :: lbc = 2._8          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
     REAL(8)               :: A = 6371000         !< Earth radius \f$[m]\f$
     REAL(8)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
     REAL(8)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
@@ -41,6 +41,7 @@ MODULE domain_module
           IMPLICIT NONE
           TYPE(fileHandle)                      :: FH_H
           INTEGER                               :: i,j
+          real(8)                               :: lbc
           INTEGER, DIMENSION(:,:), ALLOCATABLE  :: missmask, missmask_H
           REAL(8), DIMENSION(:), POINTER        :: lat_H, lat_u, lat_v, lat_eta
           REAL(8), DIMENSION(:), POINTER        :: lon_H, lon_u, lon_v, lon_eta
@@ -51,7 +52,7 @@ MODULE domain_module
               Nx, Ny, H_overwrite, &
               lon_s, lon_e, lat_s, lat_e, &
               in_file_H, in_varname_H, &
-              theta0
+              theta0, lbc
 
             open(UNIT_DOMAIN_NL, file = DOMAIN_NL)
             read(UNIT_DOMAIN_NL, nml = domain_nl)
@@ -168,10 +169,10 @@ MODULE domain_module
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! set the grid-type for all grids
             !------------------------------------------------------------------
-            CALL setGrid(H_grid,lon_H,lat_H,land_H,ocean_H, H, bc_fac)
-            CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u, H_u, bc_fac)
-            CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v, H_v, bc_fac)
-            CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, bc_fac)
+            CALL setGrid(H_grid,lon_H,lat_H,land_H,ocean_H, H, lbc)
+            CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u, H_u, lbc)
+            CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v, H_v, lbc)
+            CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, lbc)
 
             CALL setf(H_grid, theta0, OMEGA)
             CALL setf(u_grid, theta0, OMEGA)
