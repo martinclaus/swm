@@ -201,7 +201,7 @@ MODULE tracer_module
       GCH1 => trc%G_CH(:, :, TRC_NG0)
       impl => trc%impl
 
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP parallel do private(i, j, GCH) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j=1,Ny
         do i=1,Nx
           GCH => trc%G_CH(i, j, :)
