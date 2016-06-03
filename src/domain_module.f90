@@ -135,8 +135,7 @@ MODULE domain_module
             land_v = 0_1
             where ((land_H + cshift(land_H, 1, 1)) .eq. 2_1) land_v = 1_1
             land_eta = 0_1
-            where ((land_v + cshift(land_v, 1, 1)) .eq. 2_1 .and. &
-                   (land_u + cshift(land_u, 1, 1)) .eq. 2_1) land_eta = 1_1
+            where (land_H + cshift(land_H, 1, 2) + cshift(land_H, 1, 1) + cshift(cshift(land_H, 1, 1), 1, 2) .eq. 4_1) land_eta = 1_1
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create oceanmasks
