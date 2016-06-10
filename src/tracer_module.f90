@@ -26,6 +26,9 @@ MODULE tracer_module
 #include "model.h"
   use tracer_vars
   USE swm_timestep_module, ONLY : integrate
+#ifdef SWM
+  use swm_forcing_module, only : F_eta
+#endif
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -159,7 +162,7 @@ MODULE tracer_module
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
           if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
-          GCH(i, j) = DOT_PRODUCT( &
+          GCH(i, j) = (DOT_PRODUCT( &
                         (/CH(ip1(i), j     ) * u(ip1(i), j),&
                           CH(im1(i), j     ) * u(i     , j),&
                           CH(i     , jp1(j)) * v(i     , jp1(j)),&
@@ -173,7 +176,11 @@ MODULE tracer_module
                           kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
                           kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
                         TRC_coeff(:, i ,j)) &
-                      - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j))
+                      - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
+#ifdef SWM
+                      + C(i, j) * F_eta(i, j) &
+#endif
+                      )
         END DO XSPACE
       END DO YSPACE
 !$OMP end parallel do
