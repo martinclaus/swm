@@ -15,7 +15,7 @@
 !!
 !! @par Uses:
 !! vars_module, calc_lib, diag_module, domain_module,
-!! dynFromFile_module, swm_module, tracer_module
+!! dynFromFile_module, swm_module, tracer_module, time_integration_module
 !------------------------------------------------------------------
 PROGRAM model
 #include "model.h"
@@ -25,6 +25,7 @@ PROGRAM model
   USE domain_module
   USE calc_lib
   USE diag_module
+  use time_integration_module, only: time_integration_init
 #ifdef DYNFROMFILE
   USE dynFromFile_module
 #endif
@@ -95,6 +96,12 @@ PROGRAM model
         !------------------------------------------------------------------
         call initCalcLib
         print *, 'initCalcLib done'
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! initialise Calc library
+        !------------------------------------------------------------------
+        call time_integration_init
+        print *, 'time_integration_init done'
 
 #ifdef DYNFROMFILE
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

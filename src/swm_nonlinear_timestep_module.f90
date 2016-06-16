@@ -26,23 +26,15 @@ MODULE swm_timestep_module
 #include "io.h"
   use swm_vars, only : SWM_u, SWM_v, SWM_eta, NG, NG0, NG0m1, G_u, G_v, G_eta, EDens, D, Dh, Du, Dv, &
                        EDens, Pot, zeta, MV, MU, &
-                       psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi
+                       psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
   USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step
+  use time_integration_module, only : integrate_AB
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance,&
-            integrate
-
-  ! constant coefficients (specific for time stepping scheme)
-!  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_u    !< Coefficients for integration zonal momentum equation. Size 11,Nx,Ny
-!  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_v    !< Coefficients for integration meridional momentum equation. Size 11,Nx,Ny
-!  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: SWM_Coef_eta  !< Coefficients for integration continuity equation. Size 5,Nx,Ny for Heaps and 9,Nx,Ny for AB2
-  REAL(8)                                        :: AB_Chi = .1_8  !< AdamsBashforth displacement coefficient
-  real(8), dimension(NG, NG)                     :: ab_coeff       !< AdamsBashforth weight factor
-  real(8)                                        :: minD=1.
+  PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance
 
   CONTAINS
 
@@ -64,19 +56,14 @@ MODULE swm_timestep_module
       use calc_lib, only : vorticity, evaluateStreamfunction
       CHARACTER(CHARLEN)  :: filename="", varname=""
       INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat, alloc_error
-      LOGICAL             :: timestepInitialised=.FALSE.
-      namelist / swm_timestep_nl / filename, varname, chunksize, AB_Chi
+      namelist / swm_timestep_nl / filename, varname, chunksize
 
 #ifdef LATERAL_MIXING
       call SWM_LateralMixing_init
 #endif
 
-#ifdef SWM_TSTEP_ADAMSBASHFORTH
+#ifdef LINEARISED_MEAN_STATE
       ! read the basic state namelist and close again
-      IF (timestepInitialised) THEN
-        PRINT *,"ERROR: Multiple time stepping schemes defined"
-        STOP 1000
-      END IF
       open(UNIT_MODEL_NL, file = MODEL_NL)
       read(UNIT_MODEL_NL, nml = swm_timestep_nl, iostat=stat)
       close(UNIT_MODEL_NL)
@@ -84,20 +71,14 @@ MODULE swm_timestep_module
         PRINT *,"ERROR loading timestep namelist SWM_timestep_nl"
         STOP 1
       END IF
-      ab_coeff = 0.
-      ab_coeff(1, NG0) = 1._8
-      if (NG .ge. 2) ab_coeff(NG0-1:NG0, 2) = (/ -0.5_8 - AB_Chi, 1.5_8 + AB_Chi /)
-      if (NG .ge. 3) ab_coeff(NG0-2:NG0, 3) = (/ 5._8 / 12._8, -16._8 / 12._8, 23._8 / 12._8 /)
-      timestepInitialised = .TRUE.
-#endif
 
-#ifdef LINEARISED_MEAN_STATE
       ! get basic state
       CALL initMemChunk(filename,varname,chunksize,SWM_MC_bs_psi)
       psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
       CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       zeta_bs(:,:,1) = vorticity(psi_bs(:,:,1), H_grid)
 #endif
+
       ! inital computataion of diagnostic variables
       call computeD
       call computeRelVort
@@ -308,35 +289,6 @@ MODULE swm_timestep_module
 !$OMP end parallel do
     end subroutine computeMassFluxes
 
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Integrates the vector for the timestepping schemes
-    !!
-    !! Uses the integration method for the used timestepping scheme
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : N0,dt,itt
-    !------------------------------------------------------------------
-    real(8) function integrate(SWM_N0, G, impl) result(SWM_N0P1)
-      USE vars_module, ONLY : N0, dt, itt
-      IMPLICIT NONE
-      REAL(8), intent(in) :: G(NG), SWM_N0, impl
-      INTEGER             :: tstep
-
-#ifdef SWM_TSTEP_ADAMSBASHFORTH
-      tstep = min(NG, itt)
-#endif
-#ifdef SWM_TSTEP_EULERFW
-      tstep = 1
-#endif
-      SWM_N0P1 = (SWM_N0 + dt * dot_product(ab_coeff(:, tstep), G)) / impl
-!      IF (tstep .EQ. 0 .AND. itt .GE. 2) THEN ! use AdamsBashforth timestepping scheme
-!          SWM_N0P1 = (SWM_N0 + dt * (AB_C1*G0 - AB_C2*G0M1)) / impl
-!      ELSE                                    ! use explicit forward timestepping scheme
-!          SWM_N0P1 = (SWM_N0 + dt * G(0)) / impl
-!      END IF
-    END FUNCTION integrate
-
-
     SUBROUTINE SWM_timestep_nonlinear
       USE calc_lib, ONLY : interpolate, eta2u, eta2v, H2u, H2v, u2v, v2u, eta2u_noland, eta2v_noland
       USE vars_module, ONLY : dt, G, N0, N0p1
@@ -371,7 +323,7 @@ MODULE swm_timestep_module
                                 + F_eta(i,j) &
                                )
               ! Integrate
-              SWM_eta(i, j, N0p1) = integrate(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j))
+              SWM_eta(i, j, N0p1) = integrate_AB(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j), NG)
           END IF ETA
         END DO XSPACE1
       END DO YSPACE1
@@ -404,7 +356,7 @@ MODULE swm_timestep_module
                             + F_x(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_u(i, j, N0p1) = integrate(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j))
+            SWM_u(i, j, N0p1) = integrate_AB(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j), NG)
           END IF U
         END DO XSPACE2
       END DO YSPACE2
@@ -435,7 +387,7 @@ MODULE swm_timestep_module
                             + F_y(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_v(i, j, N0p1) = integrate(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j))
+            SWM_v(i, j, N0p1) = integrate_AB(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j), NG)
           END IF V
         END DO XSPACE3
       END DO YSPACE3

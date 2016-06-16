@@ -77,7 +77,8 @@ ifneq ($(strip $(CUDADIR)),)
   CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 $(cl_cuda)
+modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module $(cl_cuda)
+
 objects = $(modules:%=$(builddir)%.o)
 
 
@@ -93,6 +94,9 @@ model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_mo
 	$(COMPILE)
 
 vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
+	$(COMPILE)
+
+time_integration_module.o : time_integration_module.f90 vars_module.o io.h
 	$(COMPILE)
 
 f_udunits_2.o : f_udunits_2.f90 f_udunits_2.inc
@@ -122,7 +126,7 @@ ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h
 tracer_vars.o : tracer_vars.f90 tracer_module.h io.h generic_list.o io_module.o domain_module.o vars_module.o
 	$(COMPILE)
 
-tracer_module.o : tracer_module.f90 model.h tracer_vars.o swm_timestep_module.o vars_module.o generic_list.o domain_module.o calc_lib.o
+tracer_module.o : tracer_module.f90 model.h tracer_vars.o vars_module.o generic_list.o domain_module.o calc_lib.o time_integration_module.o
 	$(COMPILE)
 
 calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o domain_module.o model.h $(cl_elsolv.o)
@@ -140,7 +144,7 @@ swm_vars.o : swm_vars.f90 vars_module.o domain_module.o memchunk_module.o
 swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o generic_list.o calc_lib.o
 	$(COMPILE)
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o vars_module.o memchunk_module.o calc_lib.o domain_module.o grid_module.o
+swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o vars_module.o memchunk_module.o calc_lib.o domain_module.o grid_module.o time_integration_module.o
 	$(COMPILE)
 
 swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h swm_vars.o vars_module.o domain_module.o memchunk_module.o str.o

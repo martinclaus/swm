@@ -13,7 +13,7 @@ module swm_vars
          NG0, NG0m1, NG, &
          G_u, G_v, G_eta, &
          D, Dh, Du, Dv, EDens, Pot, zeta, MV, MU, &
-         psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi
+         psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
 
   INTEGER, PARAMETER                             :: NG=3          !< maximal level of timestepping. Increments stored in memory
   INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
@@ -30,6 +30,7 @@ module swm_vars
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: zeta
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MV
   REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MU
+  real(8)                                        :: minD=1._8     !< Minimum layer thickness
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: psi_bs
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: u_bs
   REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: v_bs

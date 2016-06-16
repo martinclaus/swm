@@ -18,13 +18,13 @@ module tracer_vars
             TRC_NLEVEL_SCHEME, TRC_N0, TRC_N0p1, TRC_N0m1, TRC_NG, TRC_NG0, TRC_NG0m1, &
             TRC_vars_init, TRC_vars_finish, TRC_has_tracer
 
-  integer(1), PARAMETER                           :: TRC_NLEVEL_SCHEME=TRC_NLEVEL !< Number of time levels used
-  integer(1), PARAMETER                           :: TRC_N0=TRC_NLEVEL0           !< Index of the present time step
-  integer(1), PARAMETER                           :: TRC_N0p1=TRC_N0+1            !< Index of the next time step
-  integer(1), PARAMETER                           :: TRC_N0m1=TRC_N0-1            !< Index of the previous time step
-  integer(1), PARAMETER                           :: TRC_NG=TRC_GLEVEL            !< Number of increments to hold in memory
-  integer(1), PARAMETER                           :: TRC_NG0=TRC_NG               !< Index of present increment
-  integer(1), PARAMETER                           :: TRC_NG0m1=TRC_NG0-1          !< Index of youngest passed increment
+  integer(4), PARAMETER                           :: TRC_NLEVEL_SCHEME=TRC_NLEVEL !< Number of time levels used
+  integer(4), PARAMETER                           :: TRC_N0=TRC_NLEVEL0           !< Index of the present time step
+  integer(4), PARAMETER                           :: TRC_N0p1=TRC_N0+1            !< Index of the next time step
+  integer(4), PARAMETER                           :: TRC_N0m1=TRC_N0-1            !< Index of the previous time step
+  integer(4), PARAMETER                           :: TRC_NG=TRC_GLEVEL            !< Number of increments to hold in memory
+  integer(4), PARAMETER                           :: TRC_NG0=TRC_NG               !< Index of present increment
+  integer(4), PARAMETER                           :: TRC_NG0m1=TRC_NG0-1          !< Index of youngest passed increment
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Object containing the data associated with a tracer field and

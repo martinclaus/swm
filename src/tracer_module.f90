@@ -25,7 +25,7 @@
 MODULE tracer_module
 #include "model.h"
   use tracer_vars
-  USE swm_timestep_module, ONLY : integrate
+  USE time_integration_module, ONLY : integrate_AB
 #ifdef SWM
   use swm_forcing_module, only : F_eta
 #endif
@@ -190,16 +190,12 @@ MODULE tracer_module
     !> @brief  Integrates the tracer
     !!
     !! Integrates the tracer equation.
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : itt, dt
     !------------------------------------------------------------------
     subroutine TRC_tracer_integrate(trc)
-      USE vars_module, ONLY : dt, itt
       use domain_module, only: Nx, Ny
       type(TRC_tracer), pointer, intent(inout) :: trc
       real(8), dimension(:, :), pointer :: CH1, CH2, GCH0, GCH1, impl
-      real(8), dimension(:), pointer :: GCH
+      real(8), dimension(:, :, :), pointer :: GCH
       integer :: i, j
 
       CH1 => trc%CH(:, :, TRC_N0)
@@ -207,12 +203,12 @@ MODULE tracer_module
       GCH0 => trc%G_CH(:, :, TRC_NG0m1)
       GCH1 => trc%G_CH(:, :, TRC_NG0)
       impl => trc%impl
+      GCH => trc%G_CH
 
-!$OMP parallel do private(i, j, GCH) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j=1,Ny
         do i=1,Nx
-          GCH => trc%G_CH(i, j, :)
-          CH2(i, j) = integrate(CH1(i, j), GCH, impl(i, j))
+          CH2(i, j) = integrate_AB(CH1(i, j), GCH(i, j, :), impl(i, j), TRC_NG)
         end do
       end do
 !$OMP end parallel do
