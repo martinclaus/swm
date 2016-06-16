@@ -263,8 +263,8 @@ MODULE calc_lib
             ii => int_obj%iind(:, i, j)
             jj => int_obj%jind(:, i, j)
             weight = .5_8
-            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
-                                             real(int_obj%mask(ii(2), jj(2))) * weight /)
+            int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                          !   real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
         end do
       end if
@@ -328,10 +328,10 @@ MODULE calc_lib
             ii => int_obj%iind(:, i, j)
             jj => int_obj%jind(:, i, j)
             weight = .25_8
-            int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
-                                             real(int_obj%mask(ii(2), jj(2))) * weight, &
-                                             real(int_obj%mask(ii(3), jj(3))) * weight, &
-                                             real(int_obj%mask(ii(4), jj(4))) * weight /)
+            int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
+                                          !   real(int_obj%mask(ii(2), jj(2))) * weight, &
+                                          !   real(int_obj%mask(ii(3), jj(3))) * weight, &
+                                          !   real(int_obj%mask(ii(4), jj(4))) * weight /)
           end do
         end do
       end if
