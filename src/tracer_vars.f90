@@ -156,7 +156,7 @@ module tracer_vars
       tracer%CH = 0._8
       tracer%CH(:, :, TRC_N0) = swm_d * tracer%C
       tracer%G_CH = 0._8
-      tracer%impl = 1._8 / (1._8 + dt * tracer%cons)
+      tracer%impl = 1._8 + dt * tracer%cons
 
       call addToRegister(tracer%C, trim(tracer%varid) // "_C", eta_grid)
       call addToRegister(tracer%CH(:, :, TRC_N0), trim(tracer%varid) // "_CH", eta_grid)
