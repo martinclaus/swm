@@ -40,6 +40,8 @@ module tracer_vars
     real(8), dimension(:, :), allocatable     :: C0       !< Tracer concentration to relax to. Size Nx,Ny
     real(8), dimension(:, :), allocatable     :: impl     !< Implicit damping term, dependent on relaxation and consumption
     real(8)                                   :: kappa_h=0._8 !< Horizontal diffusivity
+    real(8), dimension(:, :), allocatable     :: uhc      !< u* h * C for tracer budged diagnostics
+    real(8), dimension(:, :), allocatable     :: vhc      !< v* h * C for tracer budged diagnostics
   end type TRC_tracer
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -118,7 +120,7 @@ module tracer_vars
     subroutine TRC_add_to_list(varid, kappa_h, cons, gamma_C, &
                                filename_C, filename_C0, filename_gamma_C, filename_cons, &
                                varname_C, varname_C0, varname_gamma_C, varname_cons)
-      use domain_module, only: Nx, Ny, eta_grid
+      use domain_module, only: Nx, Ny, eta_grid, u_grid, v_grid
       use vars_module, only: addToRegister, getFromRegister, dt
       use generic_list, only: list_init, list_insert, list_data
       character(CHARLEN), intent(in) :: filename_C0, filename_C, filename_gamma_C, filename_cons, &
@@ -142,6 +144,7 @@ module tracer_vars
 
       allocate(tracer%C(1:Nx, 1:Ny), tracer%CH(1:Nx, 1:Ny, 1:TRC_NLEVEL_SCHEME), tracer%G_CH(1:Nx, 1:Ny, 1:TRC_NG), &
                tracer%gamma_C(1:Nx, 1:Ny), tracer%cons(1:Nx, 1:Ny), tracer%C0(1:Nx, 1:Ny), tracer%impl(1:Nx, 1:Ny), &
+               tracer%uhc(1:Nx, 1:Ny), tracer%vhc(1:Nx, 1:Ny), &
                stat=stat)
       if (stat .ne. 0) then
         write (*,*) "Allocation error in TRC_add_to_list"
@@ -157,6 +160,8 @@ module tracer_vars
       tracer%CH(:, :, TRC_N0) = swm_d * tracer%C
       tracer%G_CH = 0._8
       tracer%impl = 1._8 + dt * tracer%cons
+      tracer%uhc = 0._8
+      tracer%vhc = 0._8
 
       call addToRegister(tracer%C, trim(tracer%varid) // "_C", eta_grid)
       call addToRegister(tracer%CH(:, :, TRC_N0), trim(tracer%varid) // "_CH", eta_grid)
@@ -165,6 +170,8 @@ module tracer_vars
       call addToRegister(tracer%gamma_C, trim(tracer%varid) // "_gamma_C", eta_grid)
       call addToRegister(tracer%G_CH(:, :, TRC_NG0), trim(tracer%varid) // "_G_CH", eta_grid)
       call addToRegister(tracer%impl, trim(tracer%varid) // "_impl", eta_grid)
+      call addToRegister(tracer%uhc, trim(tracer%varid) // "_uhc", u_grid)
+      call addToRegister(tracer%vhc, trim(tracer%varid) // "_vhc", v_grid)
 
       trc_listnode%tracer => tracer
       if (.NOT. TRC_has_tracer()) then
@@ -224,6 +231,7 @@ module tracer_vars
       integer :: alloc_stat
       deallocate(tracer%C, tracer%C0, tracer%CH, tracer%cons, &
                  tracer%gamma_C, tracer%G_CH, tracer%impl, &
+                 tracer%uhc, tracer%vhc, &
                  stat=alloc_stat)
       if (alloc_stat .NE. 0) print *, "Deallocation failed in ", __FILE__, __LINE__, alloc_stat
       nullify(tracer)

@@ -40,7 +40,7 @@ MODULE tracer_module
   real(8), dimension(:,:,:), allocatable, target  :: TRC_coeff     !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme. Size TRC_NCOEFF, Nx, Ny
   real(8), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
   real(8), dimension(:, :), pointer               :: h, h_u, h_v   !< Pointer to layer thickness of the shallow water component
-  real(8), dimension(:, :), pointer               :: u, v          !< horizontal velocity components
+  real(8), dimension(:, :), pointer               :: u, v, mu, mv  !< horizontal velocity components
 
   CONTAINS
 
@@ -68,6 +68,10 @@ MODULE tracer_module
       ! get pointer to u, v (TODO: implement alternative computation of divergence-free velocity, if model is not non-linear)
       call getFromRegister("U", u)
       call getFromRegister("V", v)
+
+      ! get pointer to mass flux vector components
+      call getFromRegister("SWM_MU", mu)
+      call getFromRegister("SWM_MV", mv)
 
       ! Setup coefficients for forward schemes
       call TRC_initCoeffs
@@ -232,6 +236,8 @@ MODULE tracer_module
           trc%CH(i, j, 1:TRC_NLEVEL_SCHEME-1) = trc%CH(i, j, 2:TRC_NLEVEL_SCHEME)
           !< compute diagnostic variables
           trc%C(i, j) = trc%CH(i, j, TRC_N0) / h(i, j)
+          trc%uhc(i, j) = mu(i, j) * .5 * (trc%C(i, j) + trc%C(im1(i), j))
+          trc%vhc(i, j) = mv(i, j) * .5 * (trc%C(i, j) + trc%C(i, jm1(j)))
         end do
       end do
 !$OMP end parallel do
