@@ -222,7 +222,7 @@ MODULE tracer_module
     !> @brief Advancing routine of an individual tracer object
     !------------------------------------------------------------------
     subroutine TRC_tracer_advance(trc)
-      use domain_module, only: eta_grid, Nx, Ny
+      use domain_module, only: eta_grid, Nx, Ny, im1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
       integer :: i, j
 !$OMP parallel do &
