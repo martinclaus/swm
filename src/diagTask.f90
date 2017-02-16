@@ -360,7 +360,7 @@ MODULE diagTask
       end if
 
       !< reset record counter
-      CALL updateNrec(task%FH, 1)
+      CALL updateNrec(task%FH, 1_KINT)
     END SUBROUTINE createTaskDS
 
 
