@@ -1,25 +1,26 @@
 MODULE grid_module
 #include "model.h"
+  use types
   IMPLICIT NONE
-  REAL(8), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
-  REAL(8), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
+  real(KDOUBLE), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
+  real(KDOUBLE), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian
 
   TYPE :: grid_t
-    real(8), dimension(:,:), pointer      :: H => null()
-    REAL(8), DIMENSION(:), POINTER        :: lon => null()
-    REAL(8), DIMENSION(:), POINTER        :: lat => null()
-    REAL(8), DIMENSION(:), POINTER        :: sin_lat => null()
-    REAL(8), DIMENSION(:), POINTER        :: cos_lat => null()
-    REAL(8), DIMENSION(:), POINTER        :: tan_lat => null()
-    INTEGER(1), DIMENSION(:,:), POINTER   :: land => null()
-    INTEGER(1), DIMENSION(:,:), POINTER   :: ocean => null()
-    REAL(8), DIMENSION(:, :), POINTER     :: bc  => null()      !< Boundary condition factor (no-slip=2, free-slip=0 at the boundary, 1 in the ocean)
-    REAL(8), DIMENSION(:), POINTER        :: f => null()
+    real(KDOUBLE), dimension(:,:), pointer      :: H => null()
+    real(KDOUBLE), DIMENSION(:), POINTER        :: lon => null()
+    real(KDOUBLE), DIMENSION(:), POINTER        :: lat => null()
+    real(KDOUBLE), DIMENSION(:), POINTER        :: sin_lat => null()
+    real(KDOUBLE), DIMENSION(:), POINTER        :: cos_lat => null()
+    real(KDOUBLE), DIMENSION(:), POINTER        :: tan_lat => null()
+    integer(KSHORT), DIMENSION(:,:), POINTER   :: land => null()
+    integer(KSHORT), DIMENSION(:,:), POINTER   :: ocean => null()
+    real(KDOUBLE), DIMENSION(:, :), POINTER     :: bc  => null()      !< Boundary condition factor (no-slip=2, free-slip=0 at the boundary, 1 in the ocean)
+    real(KDOUBLE), DIMENSION(:), POINTER        :: f => null()
   END TYPE grid_t
 
   type :: t_grid_lagrange
-    integer, dimension(:), pointer        :: id=>null()
-    integer(1), dimension(:), pointer     :: valid=>null()
+    integer(KINT), dimension(:), pointer        :: id=>null()
+    integer(KSHORT), dimension(:), pointer     :: valid=>null()
   end type t_grid_lagrange
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -38,14 +39,14 @@ MODULE grid_module
 
     subroutine setTopo(gr, H)
       type(grid_t), intent(inout)                 :: gr
-      real(8), dimension(:,:), target, intent(in) :: H
+      real(KDOUBLE), dimension(:,:), target, intent(in) :: H
 
       gr%H => H
     end subroutine setTopo
 
     SUBROUTINE setLon(gr, lon)
       TYPE(grid_t), INTENT(inout)                 :: gr
-      REAL(8), DIMENSION(:), TARGET, INTENT(in)   :: lon
+      real(KDOUBLE), DIMENSION(:), TARGET, INTENT(in)   :: lon
 
         gr%lon => lon
     END SUBROUTINE setLon
@@ -53,9 +54,9 @@ MODULE grid_module
     SUBROUTINE setLat(gr, lat)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                 :: gr
-        REAL(8), DIMENSION(:), TARGET, INTENT(in)   :: lat
-        REAL(8), DIMENSION(:), POINTER              :: s_lat, c_lat, t_lat
-        INTEGER                                     :: siz
+        real(KDOUBLE), DIMENSION(:), TARGET, INTENT(in)   :: lat
+        real(KDOUBLE), DIMENSION(:), POINTER              :: s_lat, c_lat, t_lat
+        integer(KINT)                                     :: siz
 
         siz = SIZE(lat)
         ALLOCATE(s_lat(1:siz), c_lat(1:siz), t_lat(1:siz))
@@ -74,7 +75,7 @@ MODULE grid_module
     SUBROUTINE setSin(gr, sin_lat)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                 :: gr
-        REAL(8), DIMENSION(:), POINTER, INTENT(in)  :: sin_lat
+        real(KDOUBLE), DIMENSION(:), POINTER, INTENT(in)  :: sin_lat
 
         gr%sin_lat => sin_lat
     END SUBROUTINE setSin
@@ -82,7 +83,7 @@ MODULE grid_module
     SUBROUTINE setCos(gr, cos_lat)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                 :: gr
-        REAL(8), DIMENSION(:), POINTER, INTENT(in)  :: cos_lat
+        real(KDOUBLE), DIMENSION(:), POINTER, INTENT(in)  :: cos_lat
 
         gr%cos_lat => cos_lat
     END SUBROUTINE setCos
@@ -90,7 +91,7 @@ MODULE grid_module
     SUBROUTINE setTan(gr, tan_lat)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                 :: gr
-        REAL(8), DIMENSION(:), POINTER, INTENT(in)  :: tan_lat
+        real(KDOUBLE), DIMENSION(:), POINTER, INTENT(in)  :: tan_lat
 
         gr%tan_lat => tan_lat
     END SUBROUTINE setTan
@@ -98,7 +99,7 @@ MODULE grid_module
     SUBROUTINE setLand(gr, land)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                     :: gr
-        INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: land
+        integer(KSHORT), DIMENSION(:,:), POINTER, INTENT(in) :: land
 
         gr%land => land
     END SUBROUTINE setLand
@@ -106,7 +107,7 @@ MODULE grid_module
     SUBROUTINE setOcean(gr, ocean)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)                     :: gr
-        INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: ocean
+        integer(KSHORT), DIMENSION(:,:), POINTER, INTENT(in) :: ocean
 
         gr%ocean => ocean
     END SUBROUTINE setOcean
@@ -114,11 +115,11 @@ MODULE grid_module
     SUBROUTINE setf(gr, theta0, OMEGA)
       IMPLICIT NONE
         TYPE(grid_t), INTENT(inout)     :: gr
-        REAL(8), INTENT(in)             :: OMEGA
-        REAL(8), DIMENSION(:), POINTER  :: f, rtheta
-        REAL(8), INTENT(in)             :: theta0
-        REAL(8)                         :: rtheta0
-        INTEGER                         :: siz
+        real(KDOUBLE), INTENT(in)             :: OMEGA
+        real(KDOUBLE), DIMENSION(:), POINTER  :: f, rtheta
+        real(KDOUBLE), INTENT(in)             :: theta0
+        real(KDOUBLE)                         :: rtheta0
+        integer(KINT)                         :: siz
 
         siz = SIZE(gr%lat)
         ALLOCATE(f(1:siz), rtheta(1:siz))
@@ -140,8 +141,8 @@ MODULE grid_module
 
     subroutine setGridLagrange(grid,Nparticle)
        type(t_grid_lagrange), intent(inout)  :: grid
-       integer, intent(in)                   :: Nparticle
-       integer   :: alloc_error, i
+       integer(KINT), intent(in)                   :: Nparticle
+       integer(KINT)   :: alloc_error, i
        !< free preallocated memory
        if (associated(grid%id)) then
          deallocate(grid%id)
@@ -158,23 +159,23 @@ MODULE grid_module
         STOP 1
       end if
       grid%id = (/ (i,i=1,Nparticle) /)
-      grid%valid = 1_1
+      grid%valid = 1_KSHORT
      end subroutine setGridLagrange
 
     SUBROUTINE setGridEuler(gr, lon, lat, land, ocean, H, bc_fac)
       IMPLICIT NONE
       TYPE(grid_t), INTENT(inout)                     :: gr
-      REAL(8), DIMENSION(:), POINTER, INTENT(in)      :: lon, lat
-      REAL(8), DIMENSION(:,:), POINTER, INTENT(in)    :: H
-      INTEGER(1), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
-      REAL(8), intent(in), optional                   :: bc_fac
-      real(8) :: lbc_fac
-      integer :: i, j, alloc_error
+      real(KDOUBLE), DIMENSION(:), POINTER, INTENT(in)      :: lon, lat
+      real(KDOUBLE), DIMENSION(:,:), POINTER, INTENT(in)    :: H
+      integer(KSHORT), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
+      real(KDOUBLE), intent(in), optional                   :: bc_fac
+      real(KDOUBLE) :: lbc_fac
+      integer(KINT) :: i, j, alloc_error
 
       if (present(bc_fac)) then
         lbc_fac = bc_fac
       else
-        lbc_fac = 0._8  ! Free-slip default
+        lbc_fac = 0._KDOUBLE  ! Free-slip default
       end if
 
       CALL setLon(gr, lon)
@@ -187,15 +188,15 @@ MODULE grid_module
         write(*,*) "Allocation error in setGridEuler:",alloc_error
         STOP 1
       end if
-      where (ocean .eq. 1_1)
-        gr%bc = 1._8
+      where (ocean .eq. 1_KSHORT)
+        gr%bc = 1._KDOUBLE
       elsewhere
         gr%bc = lbc_fac 
       end where
     END SUBROUTINE setGridEuler
 
     function getTopo(gr) result(H)
-      real(8), dimension(:,:), pointer :: H
+      real(KDOUBLE), dimension(:,:), pointer :: H
       type(grid_t), intent(in)         :: gr
 
       H => gr%H
@@ -203,7 +204,7 @@ MODULE grid_module
 
     FUNCTION getLon(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getLon
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getLon
         TYPE(grid_t), INTENT(in)        :: gr
 
         getLon = gr%lon
@@ -211,7 +212,7 @@ MODULE grid_module
 
     FUNCTION getLat(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getLat
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getLat
         TYPE(grid_t), INTENT(in)        :: gr
 
         getLat = gr%lat
@@ -219,7 +220,7 @@ MODULE grid_module
 
     FUNCTION getSin(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getSin
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getSin
         TYPE(grid_t), INTENT(in)        :: gr
 
         getSin = gr%sin_lat
@@ -227,7 +228,7 @@ MODULE grid_module
 
     FUNCTION getCos(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getCos
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getCos
         TYPE(grid_t), INTENT(in)        :: gr
 
         getCos = gr%cos_lat
@@ -235,7 +236,7 @@ MODULE grid_module
 
     FUNCTION getTan(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getTan
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getTan
         TYPE(grid_t), INTENT(in)        :: gr
 
         getTan = gr%tan_lat
@@ -243,7 +244,7 @@ MODULE grid_module
 
     FUNCTION getLand(gr)
       IMPLICIT NONE
-        INTEGER(1), DIMENSION(:,:), POINTER :: getLand
+        integer(KSHORT), DIMENSION(:,:), POINTER :: getLand
         TYPE(grid_t), INTENT(in)            :: gr
 
         getLand => gr%land
@@ -251,7 +252,7 @@ MODULE grid_module
 
     FUNCTION getOcean(gr)
       IMPLICIT NONE
-        INTEGER(1), DIMENSION(:,:), POINTER :: getOcean
+        integer(KSHORT), DIMENSION(:,:), POINTER :: getOcean
         TYPE(grid_t), INTENT(in)            :: gr
 
         getOcean => gr%ocean
@@ -259,7 +260,7 @@ MODULE grid_module
 
     FUNCTION getf(gr)
       IMPLICIT NONE
-        REAL(8), DIMENSION(:), POINTER  :: getf
+        real(KDOUBLE), DIMENSION(:), POINTER  :: getf
         TYPE(grid_t), INTENT(in)        :: gr
 
         getf => gr%f

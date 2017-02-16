@@ -24,6 +24,7 @@ MODULE swm_timestep_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
+  use types
   use swm_vars, only : SWM_u, SWM_v, SWM_eta, NG, NG0, NG0m1, G_u, G_v, G_eta, EDens, D, Dh, Du, Dv, &
                        EDens, Pot, zeta, MV, MU, &
                        psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
@@ -55,7 +56,7 @@ MODULE swm_timestep_module
       USE memchunk_module, ONLY : initMemChunk, getChunkData
       use calc_lib, only : vorticity, evaluateStreamfunction
       CHARACTER(CHARLEN)  :: filename="", varname=""
-      INTEGER             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat, alloc_error
+      integer(KINT)             :: chunksize=SWM_DEF_FORCING_CHUNKSIZE, stat, alloc_error
       namelist / swm_timestep_nl / filename, varname, chunksize
 
 #ifdef LATERAL_MIXING
@@ -74,7 +75,7 @@ MODULE swm_timestep_module
 
       ! get basic state
       CALL initMemChunk(filename,varname,chunksize,SWM_MC_bs_psi)
-      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._8)
+      psi_bs(:,:,1) = getChunkData(SWM_MC_bs_psi,0._KDOUBLE)
       CALL evaluateStreamfunction(psi_bs,u_bs,v_bs)
       zeta_bs(:,:,1) = vorticity(psi_bs(:,:,1), H_grid)
 #endif
@@ -99,7 +100,7 @@ MODULE swm_timestep_module
     SUBROUTINE SWM_timestep_finish
       USE memchunk_module, ONLY : finishMemChunk
       IMPLICIT NONE
-      INTEGER   :: alloc_error
+      integer(KINT)   :: alloc_error
 #ifdef LATERAL_MIXING
       call SWM_LateralMixing_finish
 #endif
@@ -140,7 +141,7 @@ MODULE swm_timestep_module
       use domain_module, only: eta_grid
       IMPLICIT NONE
       LOGICAL                          :: already_stepped
-      real(8), dimension(:,:), pointer :: eta=>null()
+      real(KDOUBLE), dimension(:,:), pointer :: eta=>null()
       already_stepped=.FALSE.
       CALL alreadyStepped(already_stepped)
 #ifdef LATERAL_MIXING
@@ -157,14 +158,14 @@ MODULE swm_timestep_module
       use vars_module, only : N0
       use domain_module, only : eta_grid, Nx, Ny
       use calc_lib, only : interpolate, eta2H_noland, eta2u_noland, eta2v_noland
-      integer :: i,j
+      integer(KINT) :: i,j
 #ifdef FULLY_NONLINEAR
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
-          if (eta_grid%ocean(i, j) .ne. 1_1) cycle
+          if (eta_grid%ocean(i, j) .ne. 1_KSHORT) cycle
           D(i,j) = SWM_eta(i,j,N0) + eta_grid%H(i,j)
         end do
       end do
@@ -198,13 +199,13 @@ MODULE swm_timestep_module
     subroutine computePotVort()
       USE domain_module, ONLY: H_grid, Nx, Ny, eta_grid
       IMPLICIT NONE
-      INTEGER  :: i,j
+      integer(KINT)  :: i,j
 !$OMP parallel do &
 !$OMP private(i,j) &
 !$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
-          !if (H_grid%land(i, j) .eq. 1_1) cycle ! compute vorticity also on land points (needed for no-slip boundary condition)
+          !if (H_grid%land(i, j) .eq. 1_KSHORT) cycle ! compute vorticity also on land points (needed for no-slip boundary condition)
 #if defined FULLY_NONLINEAR
           !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
           Pot(i, j) = (H_grid%f(j) + zeta(i,j)) / Dh(i, j)
@@ -225,9 +226,9 @@ MODULE swm_timestep_module
       use domain_module, only : eta_grid, Nx, Ny
       use calc_lib, only : interpolate, u2eta, v2eta
 #if defined FULLY_NONLINEAR || defined LINEARISED_MEAN_STATE
-      real(8), dimension(size(SWM_u, 1), size(SWM_u, 2)) :: u2, v2
+      real(KDOUBLE), dimension(size(SWM_u, 1), size(SWM_u, 2)) :: u2, v2
 #endif
-      integer :: i, j
+      integer(KINT) :: i, j
 !$OMP parallel
 #if defined FULLY_NONLINEAR
 !$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
@@ -251,12 +252,12 @@ MODULE swm_timestep_module
 !$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
-          IF (eta_grid%land(i, j) .EQ. 1_1) cycle !skip this point if it is land
+          IF (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle !skip this point if it is land
 #if defined FULLY_NONLINEAR
           !Energy-Density EDens = g * eta + 1/2 * (u^2 + v^2)
           EDens(i, j) = (  interpolate(u2, u2eta, i, j) &
                          + interpolate(v2, v2eta, i, j) &
-                        ) / 2._8 &
+                        ) / 2._KDOUBLE &
                         + G * SWM_eta(i, j, N0)
 #elif defined LINEARISED_MEAN_STATE
           !Energy-Density EDens = g * eta + uU + vV
@@ -276,14 +277,14 @@ MODULE swm_timestep_module
     subroutine computeMassFluxes()
       use vars_module, only : N0
       use domain_module, only : u_grid, v_grid, Nx, Ny, eta_grid
-      integer :: i, j
+      integer(KINT) :: i, j
 !$OMP parallel do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j=1, Ny
         do i=1, Nx
           !Mass-Flux MU = interpolate(D,{x}) * u
-          if (u_grid%ocean(i, j) .eq. 1_1) MU(i, j) = Du(i, j) * SWM_u(i, j, N0)
+          if (u_grid%ocean(i, j) .eq. 1_KSHORT) MU(i, j) = Du(i, j) * SWM_u(i, j, N0)
           !Mass-Flux MV = interpolate(D,{y}) * v
-          if (v_grid%ocean(i, j) .eq. 1_1) MV(i, j) = Dv(i, j) * SWM_v(i, j, N0)
+          if (v_grid%ocean(i, j) .eq. 1_KSHORT) MV(i, j) = Dv(i, j) * SWM_v(i, j, N0)
         end do
       end do
 !$OMP end parallel do
@@ -295,7 +296,7 @@ MODULE swm_timestep_module
       USE domain_module, ONLY : A, Nx, Ny, ip1, jp1, im1, jm1, dLambda, dTheta, &
                                 u_grid, v_grid, eta_grid, H_grid
       IMPLICIT NONE
-      INTEGER :: i,j
+      integer(KINT) :: i,j
       CHARACTER(1), parameter :: charx="x", chary="y"
 
 !$OMP parallel
