@@ -11,6 +11,7 @@
 !! io_module, vars_module, domain_module, generic_list, diagVar
 !------------------------------------------------------------------
 MODULE diagTask
+  use types
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr, updateNrec
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start
   use grid_module, only : grid_t, t_grid_lagrange
@@ -36,24 +37,24 @@ MODULE diagTask
   !------------------------------------------------------------------
   TYPE :: diagTask_t
     PRIVATE
-    INTEGER             :: ID=0         !< Task index, starting at 1, incrementing by 1
-    TYPE(fileHandle)    :: FH           !< File handle to variable in output dataset
-    INTEGER             :: fullrec=1    !< Number of records written to all files
-    CHARACTER(CHARLEN)  :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
-    INTEGER             :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-    REAL(8)             :: period       !< Sampling period in seconds for AVERAGE output.
-    CHARACTER(CHARLEN)  :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
-    CHARACTER(CHARLEN)  :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-    TYPE(grid_t), POINTER :: grid=>null() !< euler grid of the variable
-    type(t_grid_lagrange), pointer  :: grid_l=>null() !< Lagrangian grid of the variable
-    REAL(8), DIMENSION(:,:), POINTER     :: varData2D=>null()   !< 2D data, which should be processed
-    real(8), dimension(:), pointer       :: varData1D=>null()   !< 1D data, which should be processed
-    REAL(8), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
-    REAL(8)             :: bufferCount=0.   !< Counter, counting time
-    REAL(8)             :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
-    INTEGER             :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
-    INTEGER             :: NoutChunk        !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
-    TYPE(diagVar_t), POINTER :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
+    integer(KINT)                              :: ID=0         !< Task index, starting at 1, incrementing by 1
+    TYPE(fileHandle)                           :: FH           !< File handle to variable in output dataset
+    integer(KINT)                              :: fullrec=1    !< Number of records written to all files
+    CHARACTER(CHARLEN)                         :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
+    integer(KINT)                              :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+    real(KDOUBLE)                              :: period       !< Sampling period in seconds for AVERAGE output.
+    CHARACTER(CHARLEN)                         :: process      !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
+    CHARACTER(CHARLEN)                         :: varname      !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+    TYPE(grid_t), POINTER                      :: grid=>null() !< euler grid of the variable
+    type(t_grid_lagrange), pointer             :: grid_l=>null() !< Lagrangian grid of the variable
+    real(KDOUBLE), DIMENSION(:,:), POINTER     :: varData2D=>null()   !< 2D data, which should be processed
+    real(KDOUBLE), dimension(:), pointer       :: varData1D=>null()   !< 1D data, which should be processed
+    real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE :: buffer  !< Buffer used for processing the data
+    real(KDOUBLE)                              :: bufferCount=0.   !< Counter, counting time
+    real(KDOUBLE)                              :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
+    integer(KINT)                              :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
+    integer(KINT)                              :: NoutChunk        !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+    TYPE(diagVar_t), POINTER                   :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
   END TYPE diagTask_t
 
 
@@ -81,14 +82,14 @@ MODULE diagTask
       IMPLICIT NONE
       TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
-      INTEGER, intent(in)             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      REAL(8), intent(in)             :: period      !< Sampling period for AVERAGE output.
+      integer(KINT), intent(in)       :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      real(KDOUBLE), intent(in)       :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-      INTEGER, intent(in)             :: ID          !< ID of diagTask
-      INTEGER, intent(in)             :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
+      integer(KINT), intent(in)       :: ID          !< ID of diagTask
+      integer(KINT), intent(in)       :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
       POINTER :: self
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
 
       ALLOCATE(self, stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
@@ -153,7 +154,7 @@ MODULE diagTask
     SUBROUTINE finishDiagTask(self)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout) :: self
-      INTEGER :: alloc_error=0
+      integer(KINT) :: alloc_error=0
 
       CALL closeDS(self%FH)
 
@@ -181,16 +182,16 @@ MODULE diagTask
     !------------------------------------------------------------------
     SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process,NoutChunk)
       IMPLICIT NONE
-      INTEGER, INTENT(out)             :: io_stat   !< Status of the read statement
-      INTEGER, INTENT(inout)           :: nlist     !< Number of lists processed
+      integer(KINT), INTENT(out)       :: io_stat   !< Status of the read statement
+      integer(KINT), INTENT(inout)     :: nlist     !< Number of lists processed
       CHARACTER(CHARLEN), INTENT(out)  :: filename  !< Name and path of output file
       CHARACTER(CHARLEN), INTENT(out)  :: ovarname  !< Name of output variable
       CHARACTER(CHARLEN), INTENT(out)  :: type      !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
-      INTEGER, INTENT(out)             :: frequency !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      REAL(8), INTENT(out)             :: period    !< Sampling period for AVERAGE output.
+      integer(KINT), INTENT(out)       :: frequency !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      real(KDOUBLE), INTENT(out)       :: period    !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), INTENT(out)  :: process   !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-      INTEGER, INTENT(out)             :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+      integer(KINT), INTENT(out)       :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
       NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process, NoutChunk
 
       !< Set default values
@@ -225,9 +226,9 @@ MODULE diagTask
     SUBROUTINE writeTaskToFile(self, time)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout) :: self !< Task to output
-      REAL(8), INTENT(in)                      :: time !< Timestamp in model time
-      REAL(8), DIMENSION(:,:), POINTER         :: outData2D => null()
-      real(8), dimension(:), pointer           :: outData1D => null()
+      real(KDOUBLE), INTENT(in)                :: time !< Timestamp in model time
+      real(KDOUBLE), DIMENSION(:,:), POINTER   :: outData2D => null()
+      real(KDOUBLE), dimension(:), pointer     :: outData1D => null()
 
       SELECT CASE (self%type(1:1))
         CASE ("A","a")
@@ -263,7 +264,7 @@ MODULE diagTask
     SUBROUTINE processTask(task)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout) :: task !< Task to process
-      REAL(8)     :: deltaT                         !< residual length of time interval
+      real(KDOUBLE)     :: deltaT                         !< residual length of time interval
 
       IF (mod(itt, task%nstep).NE.0) RETURN !< check if task have to be processed
 
@@ -310,8 +311,8 @@ MODULE diagTask
     SUBROUTINE addDataToTaskBuffer(task,deltaT)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout)  :: task   !< Task to process
-      REAL(8), INTENT(in)                       :: deltaT !< length of time interval
-      integer                                   :: power
+      real(KDOUBLE), INTENT(in)                 :: deltaT !< length of time interval
+      integer(KINT)                             :: power
 
       SELECT CASE (task%process(1:1))
         CASE ("S","s") !< square averaging
@@ -375,16 +376,16 @@ MODULE diagTask
       IMPLICIT NONE
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagTask_ptr)  :: task_ptr
-      INTEGER             :: io_stat=0, nlist=0
+      integer(KINT)       :: io_stat=0, nlist=0
       TYPE(fileHandle)    :: FH
       CHARACTER(CHARLEN)  :: filename    !< Name and path of output file
       CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
-      INTEGER             :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
-      REAL(8)             :: period      !< Sampling period for AVERAGE output.
+      integer(KINT)       :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
+      real(KDOUBLE)       :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-      INTEGER             :: NoutChunk
+      integer(KINT)       :: NoutChunk
       !< Read namelist
       OPEN(UNIT_DIAG_NL, file=DIAG_NL, iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
