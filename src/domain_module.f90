@@ -40,14 +40,14 @@ MODULE domain_module
 
         SUBROUTINE initDomain
           IMPLICIT NONE
-          TYPE(fileHandle)                      :: FH_H
-          integer(KINT)                               :: i,j
-          real(KDOUBLE)                               :: lbc
-          integer(KINT), DIMENSION(:,:), ALLOCATABLE  :: missmask, missmask_H
-          real(KDOUBLE), DIMENSION(:), POINTER        :: lat_H, lat_u, lat_v, lat_eta
-          real(KDOUBLE), DIMENSION(:), POINTER        :: lon_H, lon_u, lon_v, lon_eta
-          integer(KSHORT), DIMENSION(:,:), POINTER   :: land_H, land_u, land_v, land_eta
-          integer(KSHORT), DIMENSION(:,:), POINTER   :: ocean_H, ocean_u, ocean_v, ocean_eta
+          TYPE(fileHandle)                             :: FH_H
+          integer(KINT)                                :: i,j
+          real(KDOUBLE)                                :: lbc
+          integer(KSHORT), DIMENSION(:,:), ALLOCATABLE :: missmask, missmask_H
+          real(KDOUBLE), DIMENSION(:), POINTER         :: lat_H, lat_u, lat_v, lat_eta
+          real(KDOUBLE), DIMENSION(:), POINTER         :: lon_H, lon_u, lon_v, lon_eta
+          integer(KSHORT), DIMENSION(:,:), POINTER     :: land_H, land_u, land_v, land_eta
+          integer(KSHORT), DIMENSION(:,:), POINTER     :: ocean_H, ocean_u, ocean_v, ocean_eta
             namelist / domain_nl / &
               A, OMEGA, RHO0, &
               Nx, Ny, H_overwrite, &
@@ -109,10 +109,10 @@ MODULE domain_module
               !! Do not allow negative topography and set H=0 where H has missing values
               !! close N/S boundary (should be done anyway in input H field)
               !------------------------------------------------------------------
-              CALL initFH(in_file_H,in_varname_H,FH_H)
-              CALL readInitialCondition(FH_H,H,missmask)
+              CALL initFH(in_file_H, in_varname_H, FH_H)
+              CALL readInitialCondition(FH_H, H, missmask)
               missmask_H = missmask
-              WHERE(missmask_H .EQ. 1) H = 0._KDOUBLE
+              WHERE(missmask_H .EQ. 1_KSHORT) H = 0._KDOUBLE
               WHERE(H .LE. 0.) H = 0._KDOUBLE
             else
               !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
