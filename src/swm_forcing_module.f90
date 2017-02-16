@@ -180,7 +180,7 @@ MODULE swm_forcing_module
       streamlist => SWM_forcing_iStream
 
       IF (.NOT. ASSOCIATED(streamlist)) THEN
-          WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line",  __LINE__
+          WRITE (*,*) "Error in accessing SWM_forcing_iStream linked list in line",  __LINE__
           STOP 2
       END IF
       DO WHILE (ASSOCIATED(streamlist))
@@ -531,7 +531,7 @@ MODULE swm_forcing_module
 
       if (has_forcing) then
         IF (.NOT. ASSOCIATED(streamlist)) THEN
-              WRITE (*,*), "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
+              WRITE (*,*) "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
               STOP 2
         END IF
 

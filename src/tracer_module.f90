@@ -58,7 +58,7 @@ MODULE tracer_module
       integer :: alloc_error
 
       call TRC_vars_init
-      if (.not. TRC_has_tracer()) write(*, *), "Warning: no tracer defined but running tracer module."
+      if (.not. TRC_has_tracer()) write(*, *) "Warning: no tracer defined but running tracer module."
 
       ! get pointer to layer thickness
       call getFromRegister("SWM_D", h)

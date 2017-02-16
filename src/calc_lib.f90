@@ -1177,10 +1177,11 @@ do i=1,Nx-1
       use domain_module, only : u_grid, v_grid, H_grid, eta_grid, ip0, ip1, im1, jp0, jm1, jp1
       type(grid_t), intent(in)                              :: grid
       character(*), intent(in)                              :: direction
-      type(grid_t), pointer, intent(out)                    :: grid_out=>null()
+      type(grid_t), pointer, intent(out)                    :: grid_out
       integer, pointer, dimension(:), intent(out), optional :: ind0
       integer, pointer, dimension(:), intent(out), optional :: indm1
       integer, pointer, dimension(:)                        :: local_ind0, local_indm1
+      grid_out => null()
       local_ind0 => null()
       local_indm1 => null()
       select case(direction)
