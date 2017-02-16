@@ -93,49 +93,52 @@ model$(EXEEXT)   : $(modules:%=%.o) model.o
 model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h $(cl_cuda_o)
 	$(COMPILE)
 
+types.o : types.f90 types.h
+	$(COMPILE)
+
 vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
 	$(COMPILE)
 
-time_integration_module.o : time_integration_module.f90 vars_module.o io.h
+time_integration_module.o : time_integration_module.f90 vars_module.o io.h types.o
 	$(COMPILE)
 
 f_udunits_2.o : f_udunits_2.f90 f_udunits_2.inc
 	$(COMPILE)
 
-calendar_module.o : calendar_module.f90 f_udunits_2.o io.h
+calendar_module.o : calendar_module.f90 f_udunits_2.o io.h types.o
 	$(COMPILE)
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o swm_vars.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o
+swm_module.o : swm_module.f90 vars_module.o io_module.o swm_vars.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o types.o
 	$(COMPILE)
 
 diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
 	$(COMPILE)
 
-diagTask.o : diagTask.f90 io.h io_module.o vars_module.o domain_module.o diagVar.o generic_list.o str.o
+diagTask.o : diagTask.f90 io.h io_module.o vars_module.o domain_module.o diagVar.o generic_list.o str.o types.o
 	$(COMPILE)
 
-diagVar.o : diagVar.f90 vars_module.o io.h domain_module.o calc_lib.o generic_list.o
+diagVar.o : diagVar.f90 vars_module.o io.h domain_module.o calc_lib.o generic_list.o types.o
 	$(COMPILE)
 
-io_module.o : io_module.f90 io.h calendar_module.o grid_module.o str.o
+io_module.o : io_module.f90 io.h calendar_module.o grid_module.o str.o types.o
 	$(COMPILE)
 
-ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h
+ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h types.o
 	$(COMPILE)
 
-tracer_vars.o : tracer_vars.f90 tracer_module.h io.h generic_list.o io_module.o domain_module.o vars_module.o
+tracer_vars.o : tracer_vars.f90 tracer_module.h io.h generic_list.o io_module.o domain_module.o vars_module.o types.o
 	$(COMPILE)
 
-tracer_module.o : tracer_module.f90 model.h tracer_vars.o vars_module.o generic_list.o domain_module.o calc_lib.o time_integration_module.o
+tracer_module.o : tracer_module.f90 model.h tracer_vars.o vars_module.o generic_list.o domain_module.o calc_lib.o time_integration_module.o types.o
 	$(COMPILE)
 
-calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o domain_module.o model.h $(cl_elsolv.o)
+calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o domain_module.o model.h $(cl_elsolv.o) types.o
 	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
-dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o domain_module.o
+dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o domain_module.o types.o
 	$(COMPILE)
 
-memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o
+memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o types.o
 	$(COMPILE)
 
 swm_vars.o : swm_vars.f90 vars_module.o domain_module.o memchunk_module.o
@@ -153,10 +156,10 @@ swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h swm_vars.o va
 swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o swm_vars.o domain_module.o grid_module.o calc_lib.o
 	$(COMPILE)
 
-domain_module.o : domain_module.f90 grid_module.o io_module.o io.h
+domain_module.o : domain_module.f90 grid_module.o io_module.o io.h types.o
 	$(COMPILE)
 
-grid_module.o : grid_module.f90 model.h
+grid_module.o : grid_module.f90 model.h types.o
 	$(COMPILE)
 
 cuda_memory.o : cuda_memory.cu cuda_memory.h
