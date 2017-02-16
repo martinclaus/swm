@@ -30,7 +30,7 @@ MODULE swm_timestep_module
                        psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
   USE swm_damping_module, ONLY : impl_u, impl_v, impl_eta, gamma_sq_v, gamma_sq_u
   USE swm_forcing_module, ONLY : F_x, F_y, F_eta
-  USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step
+  USE swm_lateralmixing_module, only : SWM_LateralMixing, SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step, swm_latmix_u, swm_latmix_v
   use time_integration_module, only : integrate_AB
   IMPLICIT NONE
   PRIVATE
@@ -355,7 +355,7 @@ MODULE swm_timestep_module
 #endif
 
 #ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, u_grid) &  !
+                             + swm_latmix_u(i, j) &  !
 #endif
                             + F_x(i,j) &                                                 ! forcing
                            )
@@ -386,7 +386,7 @@ MODULE swm_timestep_module
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
-                             + SWM_LateralMixing(i, j, N0, v_grid) &   !
+                             + swm_latmix_v(i, j) &   !
 #endif
                             + F_y(i,j) &                                                 ! forcing
                            )

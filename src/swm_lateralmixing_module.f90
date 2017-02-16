@@ -40,15 +40,16 @@ MODULE swm_lateralmixing_module
   PRIVATE
 
   PUBLIC :: SWM_LateralMixing_init, SWM_LateralMixing_finish, SWM_LateralMixing_step, &
-            SWM_LateralMixing
+            SWM_LateralMixing, swm_latmix_u, swm_latmix_v
 
-  real(KDOUBLE), DIMENSION(:, :,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 3,Nx,Ny
-  real(KDOUBLE), DIMENSION(:, :,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 3,Nx,Ny
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 3,Nx,Ny
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 3,Nx,Ny
   real(KDOUBLE), dimension(:,:,:), allocatable, target  :: pll_coeff  !< Time independent coefficients for the computation of \f$P_{\lambda\lambda}\f$. Size 3, Nx, Ny
   real(KDOUBLE), dimension(:,:,:), allocatable, target  :: plt_coeff !< Time independent coefficients for the computation of \f$P_{\lambda\theta}\f$. Size 3, Nx, Ny
-  real(KDOUBLE), dimension(:,:), allocatable, target  :: pll !< \f$P_{\lambda\lambda}\f$
-  real(KDOUBLE), dimension(:,:), allocatable, target  :: plt
-
+  real(KDOUBLE), dimension(:,:), allocatable, target    :: pll !< \f$P_{\lambda\lambda}\f$
+  real(KDOUBLE), dimension(:,:), allocatable, target    :: plt
+  real(KDOUBLE), dimension(:,:), allocatable, target    :: swm_latmix_u !< zonal momentum trend due to lateral mixing
+  real(KDOUBLE), dimension(:,:), allocatable, target    :: swm_latmix_v !< meridional momentum trend due to lateral mixing
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -66,15 +67,21 @@ MODULE swm_lateralmixing_module
       IMPLICIT NONE
       integer(KINT)   :: i,j,alloc_error, o_tmp
 
-      ALLOCATE(lat_mixing_u(1:3, 1:Nx, 1:Ny), lat_mixing_v(1:3, 1:Nx, 1:Ny), stat=alloc_error)
+      ALLOCATE(lat_mixing_u(1:3, 1:Nx, 1:Ny), lat_mixing_v(1:3, 1:Nx, 1:Ny), &
+               swm_latmix_u(1:Nx, 1:Ny), swm_latmix_v(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
       CALL addToRegister(lat_mixing_u,"LAT_MIXING_U", u_grid)
       CALL addToRegister(lat_mixing_v,"LAT_MIXING_V", v_grid)
+      CALL addToRegister(swm_latmix_u,"SWM_LATMIX_U", u_grid)
+      CALL addToRegister(swm_latmix_v,"SWM_LATMIX_V", v_grid)
+
       lat_mixing_u = 0._KDOUBLE
       lat_mixing_v = 0._KDOUBLE
+      swm_latmix_u = 0._KDOUBLE
+      swm_latmix_v = 0._KDOUBLE
 
       do j = 1, Ny
         do i = 1,Nx
@@ -98,7 +105,7 @@ MODULE swm_lateralmixing_module
       IMPLICIT NONE
       integer(KINT)   :: alloc_error
       call SWM_LateralMixing_finish_p_coefficients
-      DEALLOCATE(lat_mixing_u, lat_mixing_v, stat=alloc_error)
+      DEALLOCATE(lat_mixing_u, lat_mixing_v, swm_latmix_u, swm_latmix_v, stat=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
     END SUBROUTINE SWM_LateralMixing_finish
 
@@ -150,7 +157,41 @@ MODULE swm_lateralmixing_module
 
     subroutine SWM_LateralMixing_step
       call SWM_LateralMixing_compute_p
+      call SWM_LateralMixing_compute_uv
     end subroutine SWM_LateralMixing_step
+
+    subroutine SWM_LateralMixing_compute_uv
+      use swm_vars, only : Du, Dv
+      use domain_module, only : Nx, Ny, im1, ip1, jm1, jp1, u_grid, v_grid
+      implicit none
+      integer(KINT) :: i, j
+!$OMP parallel
+!$OMP do &
+!$OMP private(i,j) &
+!$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          if (u_grid%ocean(i, j) .eq. 1_KSHORT) &
+          swm_latmix_u(i, j) = (lat_mixing_u(1, i, j) * (pll(i, j) - pll(im1(i), j)) &
+                                + lat_mixing_u(2, i, j) * plt(i, jp1(j)) &
+                                + lat_mixing_u(3, i, j) * plt(i, j)) / Du(i, j)
+        end do
+      end do
+!$OMP end do
+!$OMP do &
+!$OMP private(i,j) &
+!$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          if (v_grid%ocean(i, j) .eq. 1_KSHORT) &
+          swm_latmix_v(i, j) = (lat_mixing_v(1, i, j) * (plt(ip1(i), j) - plt(i, j)) &
+                                + lat_mixing_v(2, i, j) * pll(i, j) &
+                                + lat_mixing_v(3, i, j) * pll(i, jm1(j))) / Dv(i, j)
+        end do
+      end do
+!$OMP end do
+!$OMP end parallel
+    end subroutine SWM_LateralMixing_compute_uv
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Computes tendency term due to lateral mixing of momentum
