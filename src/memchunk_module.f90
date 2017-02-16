@@ -189,7 +189,7 @@ MODULE memchunk_module
       ! set length to at ! least one
       len2 = MAX(nend-nstart, 0_KINT) + 1
       ! read chunk from file
-      call getVar(memChunk%FH,var(:, :, :len2), int(nstart, 4))
+      call getVar(memChunk%FH,var(:, :, :len2), nstart)
       ! check if there is something left to read
       IF (len2.LT.len) THEN
         nstart2 = 1
@@ -259,14 +259,14 @@ MODULE memchunk_module
       IMPLICIT NONE
       TYPE(memoryChunk), INTENT(inout)   :: memChunk   !< Memory chunk to work with
       real(KDOUBLE)                      :: tmin(1), tmax(1)
-      integer                            :: nrec
+      integer(KINT)                      :: nrec
       IF (.NOT.isInitialised(memChunk)) THEN
         IF (isConstant(memChunk)) THEN
           dt = 0.
         ELSE
           nrec = getNrec(memChunk%FH)
-          CALL getTimeVar(memChunk%FH,tmin,1)
-          CALL getTimeVar(memChunk%FH,tmax,nrec)
+          CALL getTimeVar(memChunk%FH, tmin, 1_KINT)
+          CALL getTimeVar(memChunk%FH, tmax, nrec)
           dt = (tmax(1)-tmin(1))/(nrec-1.)
         END IF
       ELSE

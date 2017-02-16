@@ -37,11 +37,11 @@ MODULE io_module
   TYPE, PUBLIC :: fileHandle
     CHARACTER(len=CHARLEN), PRIVATE :: filename=''           !< Path of file. Absolute and relative path will work.
     CHARACTER(len=CHARLEN), PRIVATE :: varname=''            !< Name of variable.
-    integer, PRIVATE                :: ncid=DEF_NCID         !< NetCDF file ID.
-    integer, PRIVATE                :: varid=DEF_VARID       !< NetCDF variable ID
-    integer, PRIVATE                :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
-    integer, PRIVATE                :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
-    integer, PRIVATE                :: nrec=DEF_NREC         !< Length of record variable
+    integer(KINT_NF90), PRIVATE     :: ncid=DEF_NCID         !< NetCDF file ID.
+    integer(KINT_NF90), PRIVATE     :: varid=DEF_VARID       !< NetCDF variable ID
+    integer(KINT_NF90), PRIVATE     :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
+    integer(KINT_NF90), PRIVATE     :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
+    integer(KINT), PRIVATE          :: nrec=DEF_NREC         !< Length of record variable
     LOGICAL, PRIVATE                :: isOpen = .FALSE.      !< Flag, if the file is open at the moment
     real(KDOUBLE), PRIVATE          :: missval=MISS_VAL_DEF  !< Missing value
     TYPE(calendar), PRIVATE         :: calendar               !< Calendar the fileHandle uses
@@ -129,8 +129,8 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE check(status,line,fileName)
       IMPLICIT NONE
-      integer, INTENT(in)              :: status          !< Status returned by a call of a netcdf library function
-      integer, INTENT(in), OPTIONAL    :: line            !< Line of file where the subroutine was called
+      integer(KINT_NF90), INTENT(in)         :: status          !< Status returned by a call of a netcdf library function
+      integer, INTENT(in), OPTIONAL          :: line            !< Line of file where the subroutine was called
       CHARACTER(len=*), INTENT(in), OPTIONAL :: fileName  !< Name of file the function trys to access
       if(status /= nf90_noerr) then
         IF (PRESENT(line) .AND. PRESENT(fileName)) THEN
@@ -169,7 +169,7 @@ MODULE io_module
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
       TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Grid used to create dataset
-      integer                           :: lat_dimid, lon_dimid, &
+      integer(KINT_NF90)                :: lat_dimid, lon_dimid, &
                                            lat_varid, lon_varid, &
                                            Nx, Ny
       Nx=SIZE(grid%lon)
@@ -228,8 +228,9 @@ MODULE io_module
     subroutine createDSLagrange(FH, grid)
        type(filehandle), intent(inout)     :: FH
        type(t_grid_lagrange), intent(in)   :: grid
-       integer                             :: id_dimid, id_varid, &
-                                              Nr
+       integer(KINT_NF90)                  :: id_dimid, id_varid
+       integer(KINT_NF90)                  :: Nr
+
        Nr=SIZE(grid%id)
        FH%filename = getFname(FH%filename)
 
@@ -362,10 +363,10 @@ MODULE io_module
       wasOpen = FH%isOpen
       call openDS(FH)
       CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
-                              start = (/1,1,FH%nrec/), &
+                              start = (/1, 1 , int(FH%nrec, KINT_NF90)/), &
                               count=(/SIZE(varData,1),SIZE(varData,2),1/)),&
                  __LINE__,TRIM(FH%filename))
-      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/FH%nrec/)),&
+      CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/int(FH%nrec, KINT_NF90)/)),&
                  __LINE__,TRIM(FH%filename))
       CALL updateNrec(FH)
       IF ( .NOT. wasOpen ) call closeDS(FH)
@@ -392,10 +393,10 @@ MODULE io_module
       wasOpen = FH%isOpen
       call openDS(FH)
       call check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
-                              start = (/1,FH%nrec/), &
+                              start = (/1, int(FH%nrec, KINT_NF90)/), &
                               count=(/size(varData),1/)), &
                  __LINE__,TRIM(FH%filename))
-      call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/FH%nrec/)), &
+      call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/int(FH%nrec, KINT_NF90)/)), &
                  __LINE__,TRIM(FH%filename))
       CALL updateNrec(FH)
       if (.not.wasOpen) call closeDS(FH)
@@ -409,14 +410,14 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE getVar3Dhandle(FH,var,tstart, missmask)
       TYPE(fileHandle), INTENT(inout)                          :: FH            !< File handle pointing to the variable to read from
-      integer, INTENT(in)                                      :: tstart        !< Time index to start reading
+      integer(KINT), INTENT(in)                                :: tstart        !< Time index to start reading
       real(KDOUBLE), DIMENSION(:,:,:), INTENT(out)             :: var           !< Data read from disk
       integer(KSHORT), DIMENSION(:,:,:), OPTIONAL, INTENT(out) :: missmask      !< Missing value mask
       real(KDOUBLE)                                            :: missing_value
       LOGICAL                                                  :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
-      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1,1,tstart/), count=SHAPE(var)),&
+      call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
                  __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
@@ -438,15 +439,15 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE getVar2Dhandle(FH,var,tstart, missmask)
       TYPE(fileHandle), INTENT(inout)                        :: FH            !< File handle pointing to the variable to read data from
-      integer, INTENT(in)                                    :: tstart        !< Time index of slice to read
-      real, DIMENSION(:,:), INTENT(out)                      :: var           !< Data to be returned
+      integer(KINT), INTENT(in)                              :: tstart        !< Time index of slice to read
+      real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var           !< Data to be returned
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask      !< Mask of missing values
       real(KDOUBLE)                                          :: missing_value !< Missing value as specified by variable attribute
       LOGICAL                                                :: wasOpen
       wasOpen = FH%isOpen
       call openDS(FH)
       call check(nf90_get_var(FH%ncid, FH%varid, var, &
-                              start=(/1,1,tstart/), &
+                              start=(/1, 1, int(tstart, KINT_NF90)/), &
                               count=(/SIZE(var,1),SIZE(var,2),1/)))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
@@ -467,16 +468,16 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE getVar1Dhandle(FH,var,tstart)
       TYPE(fileHandle), INTENT(inout)            :: FH      !< File handle locating the variable to read
-      integer, INTENT(in), OPTIONAL              :: tstart  !< Index to start at
+      integer(KINT), INTENT(in), OPTIONAL        :: tstart  !< Index to start at
       real(KDOUBLE), DIMENSION(:), INTENT(out)   :: var     !< Data read from disk
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
       CALL openDS(FH)
       IF (PRESENT(tstart)) THEN
         IF (SIZE(var).NE.1) THEN
-          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/), count=SHAPE(var)))
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/int(tstart, KINT_NF90)/), count=SHAPE(var)))
         ELSE
-          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/tstart/)))
+          CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/int(tstart, KINT_NF90)/)))
         END IF
       ELSE
           CALL check(nf90_get_var(FH%ncid, FH%varid, var))
@@ -494,7 +495,7 @@ MODULE io_module
     SUBROUTINE getTimeVar(FH,time,tstart)
       TYPE(fileHandle), INTENT(inout)           :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
       real(KDOUBLE), DIMENSION(:), INTENT(out)  :: time          !< Time coordinates read from disk
-      integer, INTENT(in), OPTIONAL             :: tstart        !< Index to start reading
+      integer(KINT), INTENT(in), OPTIONAL       :: tstart        !< Index to start reading
       TYPE(fileHandle)                          :: FH_time       !< Temporarily used file handle of time coordinate variable
       FH_time = getTimeFH(FH)
       IF (PRESENT(tstart)) THEN
@@ -568,7 +569,7 @@ MODULE io_module
     !! If FH%nrec is not set yet, io_module::touch will be called.
     !! @return Length of record dimension, i.e. time dimension
     !------------------------------------------------------------------
-    integer FUNCTION getNrec(FH)
+    integer(KINT) FUNCTION getNrec(FH)
       IMPLICIT NONE
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to be inquired
       IF ( FH%nrec .EQ. DEF_NREC ) CALL touch(FH)
@@ -638,7 +639,7 @@ MODULE io_module
       CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
       CHARACTER(CHARLEN), INTENT(out) :: attval
       CHARACTER(CHARLEN)  :: tmpChar
-      integer(KINT)  :: NC_status
+      integer(KINT_NF90)  :: NC_status
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
       CALL openDS(FH)
@@ -660,9 +661,9 @@ MODULE io_module
     SUBROUTINE getDOUBLEAtt(FH,attname,attVal)
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
       CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
-      real(KDOUBLE), INTENT(out)            :: attVal
-      real(KDOUBLE)  :: tmpAtt
-      integer(KINT)  :: NC_status
+      real(KDOUBLE), INTENT(out)      :: attVal
+      real(KDOUBLE)      :: tmpAtt
+      integer(KINT_NF90) :: NC_status
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
       CALL openDS(FH)
@@ -693,13 +694,14 @@ MODULE io_module
     subroutine getTDimId(FH)
       use str, only : to_upper, to_lower
       type(fileHandle), intent(inout) :: FH
-      integer                         :: nDims
+      integer(KINT_NF90)              :: nDims, len
       if (FH%timedid .ne. DEF_TIMEDID) then
         return
       end if
       call check(nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid), __LINE__, FH%filename) !< get dimid by record dimension
       if (FH%timedid .ne. NF90_NOTIMEDIM) then
-        call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec), __LINE__, FH%filename)
+        call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=len), __LINE__, FH%filename)
+        FH%nrec = len
         return
       end if
       call check(nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
@@ -711,7 +713,8 @@ MODULE io_module
         if (nf90_inq_dimid(FH%ncid, to_upper(TAXISNAME), dimid=FH%timedid) .ne. nf90_noerr) &
           call check(nf90_inq_dimid(FH%ncid, to_lower(TAXISNAME), dimid=FH%timedid), __LINE__, FH%filename)
       end if
-      call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=FH%nrec), __LINE__, FH%filename)
+      call check(nf90_inquire_dimension(FH%ncid, FH%timedid, len=len), __LINE__, FH%filename)
+      FH%nrec = len
     end subroutine getTDimId
 
 

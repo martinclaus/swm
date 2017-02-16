@@ -8,4 +8,6 @@ module types
     INTEGER, public, parameter  :: KDOUBLE = DOUBLE_KIND
     INTEGER, public, parameter  :: KINT_ITT = INT_ITT_KIND
 
+    INTEGER, public, parameter  :: KINT_NF90 = INT_NF90_KIND
+
 end module types
