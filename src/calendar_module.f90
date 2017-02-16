@@ -10,6 +10,7 @@
 !!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
+    use types
     use f_udunits_2
     implicit none
 #include "io.h"
@@ -123,7 +124,7 @@ MODULE calendar_module
           IMPLICIT NONE
           TYPE(calendar), INTENT(in)           :: fromCal
           TYPE(calendar), INTENT(in)           :: toCal
-          REAL(8), DIMENSION(:), INTENT(inout) :: time
+          real(KDOUBLE), DIMENSION(:), INTENT(inout) :: time
           type(CV_CONVERTER_PTR) :: converter
           integer :: junk
           character (len=128) :: buffer1, buffer2
@@ -148,7 +149,7 @@ MODULE calendar_module
         subroutine convertTimeScalar(fromCal, toCal, time)
           type(calendar), intent(in)  :: fromCal
           type(calendar), intent(in)  :: toCal
-          real(8), intent(inout)      :: time
+          real(KDOUBLE), intent(inout)      :: time
           type(CV_CONVERTER_PTR)  :: converter
           converter = f_ut_get_converter(fromCal%unit, toCal%unit)
           call ut_check_status("ut_get_converter")
