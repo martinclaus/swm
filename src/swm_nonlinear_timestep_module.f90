@@ -38,6 +38,9 @@ MODULE swm_timestep_module
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance
 
   CONTAINS
+#include "abintegrate_function.inc"
+#include "interp.inc"
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Intialise time stepping module
@@ -177,9 +180,9 @@ MODULE swm_timestep_module
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
-          Dh(i,j) = interpolate(D, eta2H_noland, i, j)
-          Du(i, j) = interpolate(D, eta2u_noland, i, j)
-          Dv(i, j) = interpolate(D, eta2v_noland, i, j)
+          Dh(i,j) = interp4(D, eta2H_noland, i, j)
+          Du(i, j) = interp2(D, eta2u_noland, i, j)
+          Dv(i, j) = interp2(D, eta2v_noland, i, j)
         end do
       end do
 !$OMP END PARALLEL DO
@@ -255,14 +258,14 @@ MODULE swm_timestep_module
           IF (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle !skip this point if it is land
 #if defined FULLY_NONLINEAR
           !Energy-Density EDens = g * eta + 1/2 * (u^2 + v^2)
-          EDens(i, j) = (  interpolate(u2, u2eta, i, j) &
-                         + interpolate(v2, v2eta, i, j) &
+          EDens(i, j) = (  interp2(u2, u2eta, i, j) &
+                         + interp2(v2, v2eta, i, j) &
                         ) / 2._KDOUBLE &
                         + G * SWM_eta(i, j, N0)
 #elif defined LINEARISED_MEAN_STATE
           !Energy-Density EDens = g * eta + uU + vV
-          EDens(i, j) =  (  interpolate(u2, u2eta, i, j) &
-                          + interpolate(v2, v2eta, i, j) &
+          EDens(i, j) =  (  interp2(u2, u2eta, i, j) &
+                          + interp2(v2, v2eta, i, j) &
                          ) &
                          + G * SWM_eta(i,j,N0)
 #elif defined LINEARISED_STATE_OF_REST
@@ -313,18 +316,18 @@ MODULE swm_timestep_module
                                     - MV(i,j) * v_grid%cos_lat(j)) &
                                    / dTheta &
 #ifdef LINEARISED_MEAN_STATE
-                                 - (interpolate(SWM_eta(:,:,N0), eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
-                                    - interpolate(SWM_eta(:,:,N0), eta2u_noland, i, j) * u_bs(i,j,1)) &
+                                 - (interp2(SWM_eta(:,:,N0), eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
+                                    - interp2(SWM_eta(:,:,N0), eta2u_noland, i, j) * u_bs(i,j,1)) &
                                    / dLambda &
-                                 - (v_grid%cos_lat(jp1(j)) * interpolate(SWM_eta(:,:,N0), eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j),1) &
-                                    - v_grid%cos_lat(j) * interpolate(SWM_eta(:,:,N0), eta2v_noland, i,j) * v_bs(i,j,1)) &
+                                 - (v_grid%cos_lat(jp1(j)) * interp2(SWM_eta(:,:,N0), eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j),1) &
+                                    - v_grid%cos_lat(j) * interp2(SWM_eta(:,:,N0), eta2v_noland, i,j) * v_bs(i,j,1)) &
                                    / dTheta &
 #endif
                                   ) / (A * eta_grid%cos_lat(j)) &
                                 + F_eta(i,j) &
                                )
               ! Integrate
-              SWM_eta(i, j, N0p1) = integrate_AB(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j), NG)
+ !             SWM_eta(i, j, N0p1) = integrate_AB(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j), NG)
           END IF ETA
         END DO XSPACE1
       END DO YSPACE1
@@ -336,18 +339,18 @@ MODULE swm_timestep_module
           !u equation
           U: IF (u_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
               !u = interpolate(Pot,{y}) * interpolate(MV,{x,y}) - d/dx (g*eta + E)
-            G_u(i,j,NG0) = (interpolate(Pot, H2u, i, j) &
-                              * interpolate(MV, v2u, i, j) &       !
+            G_u(i,j,NG0) = (interp2(Pot, H2u, i, j) &
+                              * interp4(MV, v2u, i, j) &       !
 #ifdef LINEARISED_MEAN_STATE
-                             + interpolate(zeta, H2u, i, j) &
-                                 * interpolate(v_bs(:,:,N0), v2u, i, j) &   !
+                             + interp2(zeta, H2u, i, j) &
+                                 * interp4(v_bs(:,:,N0), v2u, i, j) &   !
 #endif
                              - ((EDens(i,j) - EDens(im1(i),j))  &
                                / (A * u_grid%cos_lat(j) * dLambda)) & !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT( &
                                SWM_u(i,j,N0)**2 &
-                               + (interpolate(SWM_v(:,:,N0), v2u, i, j)**2)) & ! averaging v on u grid
+                               + (interp4(SWM_v(:,:,N0), v2u, i, j)**2)) & ! averaging v on u grid
                              *SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
 
@@ -357,7 +360,7 @@ MODULE swm_timestep_module
                             + F_x(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_u(i, j, N0p1) = integrate_AB(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j), NG)
+            !SWM_u(i, j, N0p1) = integrate_AB(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j), NG)
           END IF U
         END DO XSPACE2
       END DO YSPACE2
@@ -368,18 +371,18 @@ MODULE swm_timestep_module
         XSPACE3: DO i=1,Nx
           V: IF (v_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
               !v = - interpolate(Pot,{x}) * interpolate(MU,{x,y}) - d/dy (g*eta + E)
-            G_v(i,j,NG0) = (- interpolate(Pot, H2v, i, j) &
-                              * interpolate(MU, u2v, i, j) &  !
+            G_v(i,j,NG0) = (- interp2(Pot, H2v, i, j) &
+                              * interp4(MU, u2v, i, j) &  !
 #ifdef LINEARISED_MEAN_STATE
-                             - interpolate(zeta, H2v, i, j) &
-                                * interpolate(u_bs(:,:,N0), u2v, i, j) &  !
+                             - interp2(zeta, H2v, i, j) &
+                                * interp4(u_bs(:,:,N0), u2v, i, j) &  !
 #endif
                                 - ((EDens(i,j) - EDens(i,jm1(j))) &
                                    / (A * dTheta)) &  !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT( &
                                 SWM_v(i,j,N0)**2 &
-                                + (interpolate(SWM_u(:,:,N0), u2v, i, j)**2)) & ! averaging u on v grid
+                                + (interp4(SWM_u(:,:,N0), u2v, i, j)**2)) & ! averaging u on v grid
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
@@ -388,12 +391,15 @@ MODULE swm_timestep_module
                             + F_y(i,j) &                                                 ! forcing
                            )
             ! Integrate
-            SWM_v(i, j, N0p1) = integrate_AB(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j), NG)
+            !SWM_v(i, j, N0p1) = integrate_AB(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j), NG)
           END IF V
         END DO XSPACE3
       END DO YSPACE3
 !$OMP end do
 !$OMP end parallel
+      SWM_eta(:, :, N0p1) = int_AB(SWM_eta(:, :, N0), G_eta, impl_eta, NG)
+      SWM_u(:, :, N0p1) = int_AB(SWM_u(:, :, N0), G_u, impl_u, NG)
+      SWM_v(:, :, N0p1) = int_AB(SWM_v(:, :, N0), G_v, impl_v, NG)
     END SUBROUTINE SWM_timestep_nonlinear
 
 

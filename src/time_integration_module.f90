@@ -13,7 +13,7 @@ MODULE time_integration_module
   implicit none
   private
 
-  public :: time_integration_init, integrate_AB
+  public :: time_integration_init, integrate_AB, ab_coeff
 
   real(KDOUBLE), dimension(5, 5) :: ab_coeff     !< Coefficient matrix for AB schemes up to 5th level
   real(KDOUBLE)                  :: ab_chi=.1_KDOUBLE  !< Displacement coefficient for 2nd-level AB schemes
