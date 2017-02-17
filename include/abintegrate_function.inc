@@ -3,10 +3,11 @@
     USE vars_module, ONLY : dt, itt
     USE time_integration_module, ONLY : ab_coeff
     IMPLICIT NONE
-    REAL(KDOUBLE), intent(in) :: G(:, :, :), A_N(:, :), impl(:, :)
+    REAL(KDOUBLE), intent(in) :: G(:, :, :), A_N(size(G, 1), size(G, 2)), &
+                                 impl(size(G, 1), size(G, 2))
     INTEGER(KINT)             :: tstep, ti, i, j
     integer(KINT), intent(in) :: order                 !< order of the integration scheme
-    real(KDOUBLE)             :: A_NP1(size(A_N, 1), size(A_N, 2))
+    real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2))
     
     A_NP1 = 0.
     tstep = min(order, itt)
