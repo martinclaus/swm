@@ -1,7 +1,7 @@
 /* Two point interpolation routine */
 #if defined(__SX__)
   #define interp2(v, in, i, j) (in%weight_vec(1, i, j) * v(in%iind(1, i, j), in%jind(1, i, j)) \
-                              + in%weight_vec(1, i, j) * v(in%iind(1, i, j), in%jind(1, i, j)))
+                              + in%weight_vec(2, i, j) * v(in%iind(2, i, j), in%jind(2, i, j)))
 #else
   #define interp2 interpolate
 #endif
