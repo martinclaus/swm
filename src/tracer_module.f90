@@ -163,20 +163,18 @@ MODULE tracer_module
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
           if (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle XSPACE
-          GCH(i, j) = (DOT_PRODUCT( &
-                        (/CH(ip1(i), j     ) * u(ip1(i), j),&
-                          CH(im1(i), j     ) * u(i     , j),&
-                          CH(i     , jp1(j)) * v(i     , jp1(j)),&
-                          CH(i     , jm1(j)) * v(i     , j),&
-                          CH(i     , j     ) * u(ip1(i), j),&
-                          CH(i     , j     ) * u(i     , j),&
-                          CH(i     , j     ) * v(i     , jp1(j)),&
-                          CH(i     , j     ) * v(i     , j),&
-                          kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)),&
-                          kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)),&
-                          kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
-                          kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
-                        TRC_coeff(:, i ,j)) &
+          GCH(i, j) = (  CH(ip1(i), j     ) * u(ip1(i), j) * TRC_coeff(1, i ,j) &
+                       + CH(im1(i), j     ) * u(i     , j) * TRC_coeff(2, i ,j) &
+                       + CH(i     , jp1(j)) * v(i     , jp1(j)) * TRC_coeff(3, i ,j) &
+                       + CH(i     , jm1(j)) * v(i     , j) * TRC_coeff(4, i ,j) &
+                       + CH(i     , j     ) * u(ip1(i), j) * TRC_coeff(5, i ,j) &
+                       + CH(i     , j     ) * u(i     , j) * TRC_coeff(6, i ,j) &
+                       + CH(i     , j     ) * v(i     , jp1(j)) * TRC_coeff(7, i ,j) &
+                       + CH(i     , j     ) * v(i     , j) * TRC_coeff(8, i ,j) &
+                       + kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
+                       + kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)) * TRC_coeff(10, i ,j) &
+                       + kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )) * TRC_coeff(11, i ,j) &
+                       + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j) &
                       - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
 #ifdef SWM
                       + C(i, j) * F_eta(i, j) &
@@ -208,13 +206,6 @@ MODULE tracer_module
 
       CH2 = integrate_AB(CH1, GCH, impl, TRC_NG)
 
-!!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-!      do j=1,Ny
-!        do i=1,Nx
-!          CH2(i, j) = integrate_AB(CH1(i, j), GCH(i, j, :), impl(i, j), TRC_NG)
-!        end do
-!      end do
-!!$OMP end parallel do
     end subroutine TRC_tracer_integrate
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -223,16 +214,22 @@ MODULE tracer_module
     subroutine TRC_tracer_advance(trc)
       use domain_module, only: eta_grid, Nx, Ny
       type(TRC_tracer), pointer, intent(inout) :: trc
-      integer(KINT) :: i, j
+      integer(KINT) :: i, j, ti
+!CDIR NODEP
 !$OMP parallel do &
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j=1,Ny
+!CDIR NODEP
         do i=1,Nx
           if (eta_grid%land(i, j) .eq. 1_KSHORT) cycle
-          !< Shift explicit increment vector
-          trc%G_CH(i, j, 1:TRC_NG-1) = trc%G_CH(i, j, 2:TRC_NG)
-          !< Shift prognostic variables
-          trc%CH(i, j, 1:TRC_NLEVEL_SCHEME-1) = trc%CH(i, j, 2:TRC_NLEVEL_SCHEME)
+          do ti = 1, TRC_NG-1
+            !< Shift explicit increment vector
+            trc%G_CH(i, j, ti) = trc%G_CH(i, j, ti + 1)
+          end do
+          do ti = 1, TRC_NLEVEL_SCHEME-1
+            !< Shift prognostic variables
+            trc%CH(i, j, ti) = trc%CH(i, j, ti + 1)
+          end do
           !< compute diagnostic variables
           trc%C(i, j) = trc%CH(i, j, TRC_N0) / h(i, j)
         end do
