@@ -318,6 +318,9 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), INTENT(inout)    :: iStream      !< Forcing stream to process
       real(KDOUBLE), DIMENSION(:,:), POINTER    :: forcingTerm
       integer(KSHORT), DIMENSION(:,:), POINTER  :: oceanMask
+      real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData, oscForce
+      real(KDOUBLE)  :: r_iot, i_iot
+      integer(KINT) :: i, j
 
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
@@ -336,12 +339,33 @@ MODULE swm_forcing_module
            TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%forcingtype)
           STOP 2
       END SELECT
+      ! get the data
+      rData = getChunkData(iStream%memChunk,itt*dt)
+      iData = getChunkData(iStream%memChunk2,itt*dt)
       ! Do the calculation
-      WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + 2._KDOUBLE * DBLE(&
-        ((1D0, 0D0) * getChunkData(iStream%memChunk,itt*dt) &
-         + (0D0, 1D0) * getChunkData(iStream%memChunk2,itt*dt)) &
-        * exp((0D0, 1D0) * iStream%omega * itt * dt) &
-        )
+      r_iot = cos(iStream%omega * itt * dt)
+      i_iot = sin(iStream%omega * itt * dt)
+      !e_iot = exp((0D0, 1D0) * iStream%omega * itt * dt)
+!$OMP parallel
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
+          !if (oceanMask(i, j) .ne. 1) cycle
+          oscForce(i, j) =  (forcingTerm(i, j) &
+                             + 2._8 * ( rData(i, j) * r_iot &
+                                       - iData(i, j) * i_iot )&
+                            ) * oceanMask(i, j)
+        end do
+      end do
+!$OMP end do
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
+          forcingTerm(i, j) = oscForce(i, j)
+        end do
+      end do
+!$OMP end do
+!$OMP end parallel
     END SUBROUTINE SWM_forcing_processOscillation
 
 
