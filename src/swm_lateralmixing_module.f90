@@ -165,32 +165,25 @@ MODULE swm_lateralmixing_module
       use domain_module, only : Nx, Ny, im1, ip1, jm1, jp1, u_grid, v_grid
       implicit none
       integer(KINT) :: i, j
-!$OMP parallel
-!$OMP do &
+!$OMP parallel do &
 !$OMP private(i,j) &
 !$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
+!CDIR NODEP
         do i = 1, Nx
+
           if (u_grid%ocean(i, j) .eq. 1_KSHORT) &
           swm_latmix_u(i, j) = (lat_mixing_u(1, i, j) * (pll(i, j) - pll(im1(i), j)) &
                                 + lat_mixing_u(2, i, j) * plt(i, jp1(j)) &
                                 + lat_mixing_u(3, i, j) * plt(i, j)) / Du(i, j)
-        end do
-      end do
-!$OMP end do
-!$OMP do &
-!$OMP private(i,j) &
-!$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-      do j = 1, Ny
-        do i = 1, Nx
+
           if (v_grid%ocean(i, j) .eq. 1_KSHORT) &
           swm_latmix_v(i, j) = (lat_mixing_v(1, i, j) * (plt(ip1(i), j) - plt(i, j)) &
                                 + lat_mixing_v(2, i, j) * pll(i, j) &
                                 + lat_mixing_v(3, i, j) * pll(i, jm1(j))) / Dv(i, j)
         end do
       end do
-!$OMP end do
-!$OMP end parallel
+!$OMP end parallel do
     end subroutine SWM_LateralMixing_compute_uv
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -233,15 +226,15 @@ MODULE swm_lateralmixing_module
         do i = 1, Nx
           if (eta_grid%ocean(i, j) .eq. 1_KSHORT) then
             pll(i, j) = D(i, j) * &
-                        dot_product(pll_coeff(:, i, j), &
-                                              (/swm_u(ip1(i), j, N0) - swm_u(i, j, N0), &
-                                                swm_v(i, jp1(j), N0), swm_v(i, j, N0)/))
+                        (  pll_coeff(1, i, j) * (swm_u(ip1(i), j, N0) - swm_u(i, j, N0)) &
+                         + pll_coeff(2, i, j) * swm_v(i, jp1(j), N0) &
+                         + pll_coeff(3, i, j) * swm_v(i, j, N0))
           end if
           if (H_grid%ocean(i, j) .eq. 1_KSHORT) then
             plt(i, j) = Dh(i, j) * &
-                        dot_product(plt_coeff(:, i, j), &
-                                      (/swm_v(i, j, N0) - swm_v(im1(i), j, N0), &
-                                        swm_u(i, j, N0), swm_u(i, jm1(j), N0)/))
+                        (  plt_coeff(1, i, j) * (swm_v(i, j, N0) - swm_v(im1(i), j, N0)) &
+                         + plt_coeff(2, i, j) * swm_u(i, j, N0) &
+                         + plt_coeff(3, i, j) * swm_u(i, jm1(j), N0))
           end if
         end do
       end do
