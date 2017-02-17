@@ -38,7 +38,6 @@ MODULE swm_timestep_module
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance
 
   CONTAINS
-#include "abintegrate_function.inc"
 #include "interp.inc"
 
 
@@ -397,9 +396,19 @@ MODULE swm_timestep_module
       END DO YSPACE3
 !$OMP end do
 !$OMP end parallel
-      SWM_eta(:, :, N0p1) = int_AB(SWM_eta(:, :, N0), G_eta, impl_eta, NG)
-      SWM_u(:, :, N0p1) = int_AB(SWM_u(:, :, N0), G_u, impl_u, NG)
-      SWM_v(:, :, N0p1) = int_AB(SWM_v(:, :, N0), G_v, impl_v, NG)
+      SWM_eta(:, :, N0p1) = integrate_AB(SWM_eta(:, :, N0), G_eta, impl_eta, NG)
+      SWM_u(:, :, N0p1) = integrate_AB(SWM_u(:, :, N0), G_u, impl_u, NG)
+      SWM_v(:, :, N0p1) = integrate_AB(SWM_v(:, :, N0), G_v, impl_v, NG)
+!      do j=1,Ny
+!        do i = 1, Nx
+!          IF (eta_grid%ocean(i,j) .eq. 1) &
+!            SWM_eta(i, j, N0p1) = integrate_AB(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j), NG)
+!          IF (u_grid%ocean(i,j) .eq. 1) &
+!            SWM_u(i, j, N0p1) = integrate_AB(SWM_u(i, j, N0), G_u(i, j, :), impl_u(i, j), NG)
+!          IF (v_grid%ocean(i,j) .eq. 1) &
+!            SWM_v(i, j, N0p1) = integrate_AB(SWM_v(i, j, N0), G_v(i, j, :), impl_v(i, j), NG)
+!        end do
+!      end do
     END SUBROUTINE SWM_timestep_nonlinear
 
 

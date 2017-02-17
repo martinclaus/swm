@@ -206,13 +206,15 @@ MODULE tracer_module
       impl => trc%impl
       GCH => trc%G_CH
 
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-      do j=1,Ny
-        do i=1,Nx
-          CH2(i, j) = integrate_AB(CH1(i, j), GCH(i, j, :), impl(i, j), TRC_NG)
-        end do
-      end do
-!$OMP end parallel do
+      CH2 = integrate_AB(CH1, GCH, impl, TRC_NG)
+
+!!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!      do j=1,Ny
+!        do i=1,Nx
+!          CH2(i, j) = integrate_AB(CH1(i, j), GCH(i, j, :), impl(i, j), TRC_NG)
+!        end do
+!      end do
+!!$OMP end parallel do
     end subroutine TRC_tracer_integrate
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

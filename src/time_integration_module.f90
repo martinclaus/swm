@@ -18,6 +18,11 @@ MODULE time_integration_module
   real(KDOUBLE), dimension(5, 5) :: ab_coeff     !< Coefficient matrix for AB schemes up to 5th level
   real(KDOUBLE)                  :: ab_chi=.1_KDOUBLE  !< Displacement coefficient for 2nd-level AB schemes
 
+interface integrate_AB
+  module procedure integrate_AB_scalar
+  module procedure integrate_AB_vec
+end interface integrate_AB
+
 contains
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -55,15 +60,40 @@ contains
   !! @par Uses:
   !! vars_module, ONLY : dt,itt
   !------------------------------------------------------------------
-  real(KDOUBLE) function integrate_AB(A_N, G, impl, order) result(A_NP1)
+  real(KDOUBLE) function integrate_AB_scalar(A_N, G, impl, order) result(A_NP1)
     USE vars_module, ONLY : dt, itt
     IMPLICIT NONE
     real(KDOUBLE), intent(in) :: G(:), A_N, impl
     integer(KINT)             :: tstep
-    integer(KINT)             :: order                 !< order of the integration scheme
-    
+    integer(KINT)             :: order     !< order of the integration scheme 
     tstep = min(order, itt)
     A_NP1 = (A_N + dt * dot_product(ab_coeff(1:tstep, tstep), G(1:tstep))) / impl
-  END FUNCTION integrate_AB 
+  END FUNCTION integrate_AB_scalar 
+
+  function integrate_AB_vec(A_N, G, impl, order) result(A_NP1)
+    USE vars_module, ONLY : dt, itt
+    IMPLICIT NONE
+    REAL(KDOUBLE), intent(in) :: G(:, :, :), A_N(size(G, 1), size(G, 2)), &
+                                 impl(size(G, 1), size(G, 2))
+    INTEGER(KINT)             :: tstep, i, j, ti
+    integer(KINT), intent(in) :: order     !< order of the integration scheme
+    real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2)), weight_inc
+
+    !A_NP1 = A_N
+    tstep = min(order, itt)
+!$OMP parallel do &
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+    do j = 1, size(A_NP1, 2)
+      do i = 1, size(A_NP1, 1)
+        A_NP1(i, j) = A_N(i, j)
+        do ti = 1, tstep
+          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
+        end do
+        A_NP1(i, j) = A_NP1(i, j) / impl(i, j)
+      end do
+    end do
+!$OMP end parallel do
+  END FUNCTION integrate_AB_vec
+
 
 END MODULE time_integration_module
