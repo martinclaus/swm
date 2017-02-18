@@ -4,9 +4,22 @@
 AC_PREREQ([2.69])
 AC_INIT([SWM], [1.0], [mclaus@geomar.de])
 
-AC_CONFIG_SRCDIR(src/model.f90)
+AC_PROG_MAKE_SET()
+AC_LANG([Fortran])
+
+AC_CONFIG_SRCDIR([src/model.f90])
+AC_CONFIG_FILES([Makefile])
+
+AC_ARG_VAR([NFCONFIG], [Path to nf-config executable])
+
+AC_ARG_ENABLE([elliptic-solver],
+              [AS_HELP_STRING([--enable-elliptic-solver=@<:@SOR, no@:>@], [Use elliptic solver (default is no)])],
+              [enable_elliptic_solver=$enableval],
+              [enable_elliptic_solver=no])
+AC_SUBST([ELSOLV], [$enable_elliptic_solver])
 
 # Checks for programs.
+AC_PROG_SED()
 AC_CHECK_PROG([BASH], [bash])
 AC_PATH_PROGS([NFCONFIG], [nf-config nc-config])
 
@@ -22,14 +35,21 @@ AC_FC_FREEFORM()
 #AC_FC_LIBRARY_LDFLAGS()
 AC_FC_SRCEXT([f90])
 AC_FC_PP_DEFINE()
+AC_FC_PP_SRCEXT([f90])
 AC_FC_LINE_LENGTH([unlimited])
 AC_FC_IMPLICIT_NONE()
 AC_FC_MODULE_EXTENSION()
 AC_FC_MODULE_FLAG()
 AC_FC_MODULE_OUTPUT_FLAG()
+AC_OPENMP()
 
 # Checks for library functions.
-AC_SEARCH_LIBS([nf90_inq_libvers], [netcdff])
+#AC_SEARCH_LIBS([nf90_inq_libvers], [netcdff])
+AC_LANG_PUSH([C])
 AC_SEARCH_LIBS([ut_new_system], [udunits2])
+AC_LANG_POP([C])
 
-AC_OUTPUT
+# set output variables
+#AC_SUBST([NFCONFIG])
+
+AC_OUTPUT()
