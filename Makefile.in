@@ -83,7 +83,7 @@ all     : $(bin_PROGRAMS)
 #clean
 
 model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT)
-	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libnc) $(libud) $(libcu)
+	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libcu)
 
 model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h $(cl_cuda_o)
 	$(COMPILE)
