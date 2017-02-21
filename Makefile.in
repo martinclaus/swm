@@ -11,6 +11,7 @@ FC_DEFINE = @FC_DEFINE@
 OPENMP_FCFLAGS = @OPENMP_FCFLAGS@
 
 SED = @SED@
+MKDIR = @MKDIR_P@
 
 LIBOBJS = @LIBOBJS@
 
@@ -20,13 +21,16 @@ EXEEXT = @EXEEXT@
 
 SHELL:=/bin/bash
 
+srcdir = @srcdir@
 prefix = $(CURDIR)/
 bindir = $(prefix)bin/
 builddir = $(prefix)build/
-docdir = $(prefix)doc/
-includedir = $(prefix)include/
-srcdir = $(prefix)src/
-selfcheck_dir = $(prefix)selfcheck/
+docdir = $(srcdir)/doc/
+includedir = $(srcdir)/include/
+sdir = $(srcdir)/src/
+selfcheck_dir = $(srcdir)/selfcheck/
+
+VPATH = $(srcdir):$(sdir):$(includedir)
 
 include_modelHeader = $(includedir)
 
@@ -35,22 +39,15 @@ bin_PROGRAMS = model$(EXEEXT)
 O := $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
-#libnc = -L$(NETDIR)/lib -lnetcdff
 libnc = $(shell @NFCONFIG@ --flibs)
 includenc = $(FC_MODINC)$(shell @NFCONFIG@ --includedir)
-#libud = -L$(UDDIR)/lib -ludunits2 -lexpat
-#include_dir = -Iinclude
-#include_h = -Iinclude -Ibuild
-#build_dir = build/
 DOXYGEN = @DOXYGEN@
 
 LDFLAGS = @LDFLAGS@ @LIBS@ $(libnc)
 
 COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
-VPATH = include:src:build:bin
 
 # conditional modules
-#cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
 ifeq ($(strip @ELSOLV@), SOR)
   $(info Elliptic solver used by calc_lib module: SOR)
   cl_elsolv := ElSolv_SOR
@@ -80,9 +77,14 @@ objects = $(modules:%=$(builddir)%.$(OBJEXT))
 .PHONY: all clean clean-selfcheck clean-doc selfcheck doc distclean clean-conf
 
 all     : $(bin_PROGRAMS)
-#clean
 
-model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT)
+$(builddir):
+	$(MKDIR) $(builddir)
+
+$(bindir):
+	$(MKDIR) $(bindir)
+
+model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT) $(bindir)
 	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libcu)
 
 model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h $(cl_cuda_o)
@@ -166,7 +168,7 @@ cuda_c_module.$(OBJEXT) : cuda_module.cu cuda_module.h cuda_memory.h cuda_kernel
 cuda_module.$(OBJEXT) : cuda_module.f90 cuda_c_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) swm_timestep_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT)
 	$(COMPILE)
 
-%.$(OBJEXT) : %.f90
+%.$(OBJEXT) : %.f90 $(builddir)
 	$(COMPILE)
 
 include $(selfcheck_dir)Makefile

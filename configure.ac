@@ -3,11 +3,11 @@
 
 AC_PREREQ([2.69])
 AC_INIT([SWM], [1.0], [mclaus@geomar.de])
+AC_CONFIG_AUX_DIR([config])
 
 AC_PROG_MAKE_SET()
 AC_LANG([Fortran])
 
-AC_CONFIG_SRCDIR([src/model.f90])
 AC_CONFIG_FILES([Makefile])
 
 AC_ARG_VAR([NFCONFIG], [Path to nf-config executable])
@@ -19,7 +19,8 @@ AC_ARG_ENABLE([elliptic-solver],
 AC_SUBST([ELSOLV], [$enable_elliptic_solver])
 
 # Checks for programs.
-AC_PROG_SED()
+AC_PROG_MKDIR_P
+AC_PROG_SED
 AC_CHECK_PROG([BASH], [bash])
 AC_PATH_PROGS([NFCONFIG], [nf-config nc-config])
 
