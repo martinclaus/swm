@@ -13,7 +13,10 @@ if test "X-" = "X-$FC"; then
 fi
 
 # set default flags
-FCFLAGS=${FCFLAGS:-"-vopt"}
+FCFLAGS=${FCFLAGS:-"-C vopt -size_t64 -pi,auto,max_size=500,times=15 -dir,inline"}
 
 # define compiler switches
-ac_cv_fc_pp_define
+ac_cv_fc_pp_define="-D"
+ac_cv_fc_pp_srcext_f90="-Ep"
+ac_cv_fc_implicit_none=
+ac_cv_fc_module_output_flag="-to "
