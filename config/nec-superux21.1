@@ -1,0 +1,19 @@
+# Choosing a FORTRAN Compiler
+# ---------------------------
+
+if test "no" != $cross_compiling; then
+    SX_PRE=sx
+else
+    SX_PRE=
+fi
+
+if test "X-" = "X-$FC"; then
+    FC="${SX_PRE}f03"
+    FC_BASENAME=${SX_PRE}f03
+fi
+
+# set default flags
+FCFLAGS=${FCFLAGS:-"-vopt"}
+
+# define compiler switches
+ac_cv_fc_pp_define

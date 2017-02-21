@@ -18,6 +18,13 @@ AC_ARG_ENABLE([elliptic-solver],
               [enable_elliptic_solver=no])
 AC_SUBST([ELSOLV], [$enable_elliptic_solver])
 
+# cross-compiling support for certain architectures
+AC_CANONICAL_HOST
+machscript=m4_joinall('/', [$ac_aux_dir], m4_joinall('-', $host_vendor, $host_os))
+AS_IF([test -f $machscript],
+      [AC_MSG_NOTICE([found $machscript. Will execute it.])
+      [source $machscript]])
+
 # Checks for programs.
 AC_PROG_MKDIR_P
 AC_PROG_SED
