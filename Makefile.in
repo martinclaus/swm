@@ -1,21 +1,19 @@
-@SET_MAKE@
-
 FC = @FC@
-#FCFLAGS = @FCFLAGS@ @NETFFLAGS@
-FCFLAGS = @NETFFLAGS@
+FCFLAGS = @FCFLAGS@
 FCFLAGS_f90 = @FCFLAGS_f90@
 FC_MODEXT = @FC_MODEXT@
 FC_MODINC = @FC_MODINC@
 FC_MODOUT = @FC_MODOUT@
+OBJEXT = @OBJEXT@
 CPPFLAGS = @CPPFLAGS@
+FC_DEFINE = @FC_DEFINE@
 
 OPENMP_FCFLAGS = @OPENMP_FCFLAGS@
 
 SED = @SED@
+MKDIR = @MKDIR_P@
 
-LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = @LIBS@
 
 SET_MAKE = @SET_MAKE@
 
@@ -23,158 +21,157 @@ EXEEXT = @EXEEXT@
 
 SHELL:=/bin/bash
 
+srcdir = @srcdir@
 prefix = $(CURDIR)/
 bindir = $(prefix)bin/
 builddir = $(prefix)build/
-docdir = $(prefix)doc/
-includedir = $(prefix)include/
-srcdir = $(prefix)src/
-selfcheck_dir = $(prefix)selfcheck/
+docdir = $(srcdir)/doc/
+includedir = $(srcdir)/include/
+sdir = $(srcdir)/src/
+selfcheck_dir = $(srcdir)/selfcheck/
+
+VPATH = $(srcdir):$(sdir):$(includedir)
 
 include_modelHeader = $(includedir)
 
-UDDIR = @UDDIR@
-NETDIR = @NETDIR@
-CUDADIR = @CUDADIR@
-
 bin_PROGRAMS = model$(EXEEXT)
 
-O := -O3 $(OPENMP_FCFLAGS)
+O := $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
-#libnc = -L$(NETDIR)/lib -lnetcdff
-libnc = @NETFLIBS@
-#includenc = $(FC_MODINC)$(NETDIR)/include
-includenc = $(FC_MODINC)@NETINCL@
-libud = -L$(UDDIR)/lib -ludunits2 -lexpat
-#include_dir = -Iinclude
-#include_h = -Iinclude -Ibuild
-#build_dir = build/
+libnc = @NCLIB@
+includenc = $(FC_MODINC)@NCINC@
 DOXYGEN = @DOXYGEN@
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
-VPATH = include:src:build:bin
+LDFLAGS = @LDFLAGS@ @LIBS@ $(libnc)
+
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(defClElSolv) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 # conditional modules
-#cl_elsolv := ElSolv_SOR # comment this line out if you don't want to use an elliptic solver in the calc_lib module
-ifneq ($(strip $(cl_elsolv)),)
-  $(info Elliptic solver used by calc_lib module: $(strip $(cl_elsolv)))
-  cl_elsolv.o := $(cl_elsolv:%=%.o)
-  defClElSolv := $(cl_elsolv:%=-D'CALC_LIB_ELLIPTIC_SOLVER=%')
-  defClElSolv += $(cl_elsolv:%=-D'CALC_LIB_ELLIPTIC_SOLVER_HEADER="%.h"')
+ifeq ($(strip @ELSOLV@), SOR)
+  $(info Elliptic solver used by calc_lib module: SOR)
+  cl_elsolv := ElSolv_SOR
+  cl_elsolv.$(OBJEXT) := ElSolv_SOR.$(OBJEXT)
+  defClElSolv := $(FC_DEFINE)'CALC_LIB_ELLIPTIC_SOLVER=ElSolv_SOR'
+  defClElSolv += $(FC_DEFINE)'CALC_LIB_ELLIPTIC_SOLVER_HEADER="ElSolv_SOR.h"'
 else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
 # don't use CUDA if directory is not specified
-ifneq ($(strip $(CUDADIR)),)
-  cl_cuda := cuda_memory cuda_c_module cuda_kernels cuda_module
-  cl_cuda_o := $(cl_cuda:%=%.o)
-  cl_nvcc := nvcc
-  cl_cuff := -arch='sm_21'
-  libcu := -L$(CUDADIR)/lib64 -lcudart
-  cl_defCudaEnabled = -D'CUDA_ENABLED'
-  CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
-endif
+#ifneq ($(strip $(CUDADIR)),)
+#  cl_cuda := cuda_memory cuda_c_module cuda_kernels cuda_module
+#  cl_cuda_o := $(cl_cuda:%=%.$(OBJEXT))
+#  cl_nvcc := nvcc
+#  cl_cuff := -arch='sm_21'
+#  libcu := -L$(CUDADIR)/lib64 -lcudart
+#  cl_defCudaEnabled = -D'CUDA_ENABLED'
+#  CUCOMPILE = $(cl_nvcc) $(cl_cuff) $(FC_MODINC)$(includedir) -c $< -o $(builddir)$@
+#endif
 
 modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module $(cl_cuda) types
 
-objects = $(modules:%=$(builddir)%.o)
+objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
 
 .PHONY: all clean clean-selfcheck clean-doc selfcheck doc distclean clean-conf
 
 all     : $(bin_PROGRAMS)
-#clean
 
-model$(EXEEXT)   : $(modules:%=%.o) model.o
-	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.o $(LDFLAGS) $(libnc) $(libud) $(libcu)
+$(builddir):
+	$(MKDIR) $(builddir)
 
-model.o : model.f90 io_module.o vars_module.o domain_module.o calc_lib.o diag_module.o dynFromFile_module.o swm_module.o tracer_module.o model.h io.h $(cl_cuda_o)
+$(bindir):
+	$(MKDIR) $(bindir)
+
+model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT) $(bindir)
+	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libcu)
+
+model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h $(cl_cuda_o)
 	$(COMPILE)
 
-types.o : types.f90 types.h
+types.$(OBJEXT) : types.f90 types.h
 	$(COMPILE)
 
-vars_module.o : vars_module.f90 generic_list.o domain_module.o str.o io.h
+vars_module.$(OBJEXT) : vars_module.f90 generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) io.h
 	$(COMPILE)
 
-time_integration_module.o : time_integration_module.f90 vars_module.o io.h types.o
+time_integration_module.$(OBJEXT) : time_integration_module.f90 vars_module.$(OBJEXT) io.h types.$(OBJEXT)
 	$(COMPILE)
 
-f_udunits_2.o : f_udunits_2.f90 f_udunits_2.inc
+f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
 	$(COMPILE)
 
-calendar_module.o : calendar_module.f90 f_udunits_2.o io.h types.o
+calendar_module.$(OBJEXT) : calendar_module.f90 f_udunits_2.$(OBJEXT) io.h types.$(OBJEXT)
 	$(COMPILE)
 
-swm_module.o : swm_module.f90 vars_module.o io_module.o swm_vars.o swm_forcing_module.o swm_timestep_module.o swm_damping_module.o domain_module.o types.o
+swm_module.$(OBJEXT) : swm_module.f90 vars_module.$(OBJEXT) io_module.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_timestep_module.$(OBJEXT) swm_damping_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-diag_module.o : diag_module.f90 vars_module.o diagTask.o model.h
+diag_module.$(OBJEXT) : diag_module.f90 vars_module.$(OBJEXT) diagTask.$(OBJEXT) model.h
 	$(COMPILE)
 
-diagTask.o : diagTask.f90 io.h io_module.o vars_module.o domain_module.o diagVar.o generic_list.o str.o types.o
+diagTask.$(OBJEXT) : diagTask.f90 io.h io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) diagVar.$(OBJEXT) generic_list.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-diagVar.o : diagVar.f90 vars_module.o io.h domain_module.o calc_lib.o generic_list.o types.o
+diagVar.$(OBJEXT) : diagVar.f90 vars_module.$(OBJEXT) io.h domain_module.$(OBJEXT) calc_lib.$(OBJEXT) generic_list.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-io_module.o : io_module.f90 io.h calendar_module.o grid_module.o str.o types.o
+io_module.$(OBJEXT) : io_module.f90 io.h calendar_module.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-ElSolv_SOR.o : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.o domain_module.o model.h types.o
+ElSolv_SOR.$(OBJEXT) : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h types.$(OBJEXT)
 	$(COMPILE)
 
-tracer_vars.o : tracer_vars.f90 tracer_module.h io.h generic_list.o io_module.o domain_module.o vars_module.o types.o
+tracer_vars.$(OBJEXT) : tracer_vars.f90 tracer_module.h io.h generic_list.$(OBJEXT) io_module.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-tracer_module.o : tracer_module.f90 model.h tracer_vars.o vars_module.o generic_list.o domain_module.o calc_lib.o time_integration_module.o types.o
+tracer_module.$(OBJEXT) : tracer_module.f90 model.h tracer_vars.$(OBJEXT) vars_module.$(OBJEXT) generic_list.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) time_integration_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-calc_lib.o : calc_lib.f90 calc_lib.h vars_module.o domain_module.o model.h $(cl_elsolv.o) types.o
-	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
-
-dynFromFile_module.o : dynFromFile_module.f90 vars_module.o calc_lib.o memchunk_module.o domain_module.o types.o
+calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT)
 	$(COMPILE)
 
-memchunk_module.o : memchunk_module.f90 io_module.o calc_lib.o domain_module.o types.o
+dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 vars_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-swm_vars.o : swm_vars.f90 vars_module.o domain_module.o memchunk_module.o
+memchunk_module.$(OBJEXT) : memchunk_module.f90 io_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-swm_forcing_module.o : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.o memchunk_module.o domain_module.o generic_list.o calc_lib.o
+swm_vars.$(OBJEXT) : swm_vars.f90 vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT)
 	$(COMPILE)
 
-swm_timestep_module.o : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.o swm_damping_module.o swm_forcing_module.o swm_lateralmixing_module.o vars_module.o memchunk_module.o calc_lib.o domain_module.o grid_module.o time_integration_module.o
+swm_forcing_module.$(OBJEXT) : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) generic_list.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-swm_damping_module.o : swm_damping_module.f90 model.h swm_module.h swm_vars.o vars_module.o domain_module.o memchunk_module.o str.o
+swm_timestep_module.$(OBJEXT) : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_lateralmixing_module.$(OBJEXT) vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) time_integration_module.$(OBJEXT)
 	$(COMPILE)
 
-swm_lateralmixing_module.o : swm_lateralmixing_module.f90 model.h vars_module.o swm_vars.o domain_module.o grid_module.o calc_lib.o
+swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h swm_vars.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
-domain_module.o : domain_module.f90 grid_module.o io_module.o io.h types.o
+swm_lateralmixing_module.$(OBJEXT) : swm_lateralmixing_module.f90 model.h vars_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-grid_module.o : grid_module.f90 model.h types.o
+domain_module.$(OBJEXT) : domain_module.f90 grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT)
 	$(COMPILE)
 
-cuda_memory.o : cuda_memory.cu cuda_memory.h
+grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT)
+	$(COMPILE)
+
+cuda_memory.$(OBJEXT) : cuda_memory.cu cuda_memory.h
 	$(CUCOMPILE)
 
-cuda_kernels.o : cuda_kernels.cu cuda_module.h cuda_memory.h cuda_kernels.h
+cuda_kernels.$(OBJEXT) : cuda_kernels.cu cuda_module.h cuda_memory.h cuda_kernels.h
 	$(CUCOMPILE)
 
-cuda_c_module.o : cuda_module.cu cuda_module.h cuda_memory.h cuda_kernels.h
+cuda_c_module.$(OBJEXT) : cuda_module.cu cuda_module.h cuda_memory.h cuda_kernels.h
 	$(CUCOMPILE)
 
-cuda_module.o : cuda_module.f90 cuda_c_module.o swm_vars.o domain_module.o vars_module.o swm_timestep_module.o swm_damping_module.o swm_forcing_module.o
+cuda_module.$(OBJEXT) : cuda_module.f90 cuda_c_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) swm_timestep_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT)
 	$(COMPILE)
 
-%.o : %.f90
+%.$(OBJEXT) : %.f90 $(builddir)
 	$(COMPILE)
 
 include $(selfcheck_dir)Makefile
