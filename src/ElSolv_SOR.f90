@@ -14,20 +14,21 @@
 !------------------------------------------------------------------
 MODULE ElSolv_SOR
 #include "ElSolv_SOR.h"
+  use types
   IMPLICIT NONE
   SAVE
   PRIVATE
   
   PUBLIC init_ElSolv_SOR,finish_ElSolv_SOR,main_ElSolv_SOR
 
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE :: ElSolvSOR_c         !< Spatial dependent coefficient matrix for elliptic solver SOR. Size: Nx, Ny, ElSolvSOR_Ncoeff
-  INTEGER(1), PARAMETER                  :: ElSolvSOR_Ncoeff=5  !< number of numerical coefficients of elliptic solver SOR
-  INTEGER, DIMENSION(:,:), ALLOCATABLE   :: i_odd               !< index spaces of odd grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
-  INTEGER, DIMENSION(:,:), ALLOCATABLE   :: i_even              !< index spaces of even grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
-  INTEGER, DIMENSION(:,:,:), ALLOCATABLE :: i_oe                !< index decomposition in odd and even indecies. Size: 2, Nx*Ny/2, 2
-  INTEGER                                :: n_odd               !< Number of odd grid points, i.e. i+j even
-  INTEGER                                :: n_even              !< Number of even grid points, i.e. i+j odd
-  INTEGER, DIMENSION(2)                  :: n_oe                !< Vector containing amount of odd and even grid points @todo There is some memory wasted here
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE :: ElSolvSOR_c         !< Spatial dependent coefficient matrix for elliptic solver SOR. Size: Nx, Ny, ElSolvSOR_Ncoeff
+  integer(KSHORT), PARAMETER                   :: ElSolvSOR_Ncoeff=5  !< number of numerical coefficients of elliptic solver SOR
+  integer(KINT), DIMENSION(:,:), ALLOCATABLE   :: i_odd               !< index spaces of odd grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
+  integer(KINT), DIMENSION(:,:), ALLOCATABLE   :: i_even              !< index spaces of even grid points (Checkerboard decomposition). Rough size: Nx*Ny/2, 2
+  integer(KINT), DIMENSION(:,:,:), ALLOCATABLE :: i_oe                !< index decomposition in odd and even indecies. Size: 2, Nx*Ny/2, 2
+  integer(KINT)                                :: n_odd               !< Number of odd grid points, i.e. i+j even
+  integer(KINT)                                :: n_even              !< Number of even grid points, i.e. i+j odd
+  integer(KINT), DIMENSION(2)                  :: n_oe                !< Vector containing amount of odd and even grid points @todo There is some memory wasted here
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -42,12 +43,12 @@ MODULE ElSolv_SOR
     SUBROUTINE init_ElSolv_SOR
       USE domain_module, ONLY : Nx, Ny, A, u_grid, v_grid, eta_grid, ip1, jp1, dLambda, dTheta
       IMPLICIT NONE
-      INTEGER  :: i,j, alloc_error
+      integer(KINT)  :: i,j, alloc_error
       ! allocate fields
       allocate(ElSolvSOR_c(1:Nx,1:Ny,1:ElSolvSOR_Ncoeff), stat=alloc_error)
       if(alloc_error .ne. 0)write(*,*)"Allocation error in initElSolv"
       ! initialise fields
-      ElSolvSOR_c = 0._8
+      ElSolvSOR_c = 0._KDOUBLE
       ! compute coefficients for elliptic solver at all ocean points of the eta grid
       COEFFICIENTS: FORALL (i=1:Nx, j=1:Ny)
         ElSolvSOR_c(i,j,1) = u_grid%ocean(ip1(i),j) / (A * eta_grid%cos_lat(j) * dLambda)**2
@@ -76,7 +77,7 @@ MODULE ElSolv_SOR
     SUBROUTINE init_oe_index_space
       USE domain_module, ONLY: Nx,Ny
       IMPLICIT NONE
-      INTEGER   :: i,j, alloc_error, odd_count, even_count
+      integer(KINT)   :: i,j, alloc_error, odd_count, even_count
       n_odd = CEILING((Nx*Ny)/2.)
       n_even = FLOOR((Nx*Ny)/2.)
       n_oe = (/n_odd,n_even/)
@@ -107,7 +108,7 @@ MODULE ElSolv_SOR
     !------------------------------------------------------------------
     SUBROUTINE finish_oe_index_space
       IMPLICIT NONE
-      INTEGER   :: alloc_error
+      integer(KINT)   :: alloc_error
       deallocate(i_odd,i_even,i_oe, STAT=alloc_error)
       if(alloc_error.ne.0) print *,"Deallocation failed"
     END SUBROUTINE finish_oe_index_space
@@ -120,7 +121,7 @@ MODULE ElSolv_SOR
     !------------------------------------------------------------------
     SUBROUTINE finish_ElSolv_SOR
       IMPLICIT NONE
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
       deallocate(ElSolvSOR_c, STAT=alloc_error)
       if(alloc_error.ne.0) print *,"Deallocation failed"
       ! deallocate odd/even index spaces
@@ -146,16 +147,16 @@ MODULE ElSolv_SOR
     SUBROUTINE main_ElSolv_SOR(ElSolvSOR_B,chi,epsilon, first_guess)
       USE domain_module, ONLY : Nx,Ny,im1,ip1,jm1,jp1,eta_grid
       IMPLICIT NONE
-      REAL(8), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B             !< rhs of PDE
-      REAL(8), INTENT(in)                        :: epsilon                 !< Threshold for terminating the iteration
-      LOGICAL, INTENT(in)                        :: first_guess             !< Flag if no initial guess exist
-      REAL(8), DIMENSION(Nx,Ny), INTENT(inout)   :: chi                     !< Variable to solve for. Also initial guess
-      REAL(8)                                    :: ElSolvSOR_res           !< residual term
-      REAL(8)                                    :: ElSolvSOR_rJacobi       !< estimate of spectral radius of Jacobi iteration matrix
-      REAL(8)                                    :: ElSolvSOR_relax         !< relaxation coefficient, adjusted during iteration using Chebyshev acceleration
-      REAL(8)                                    :: anorm                   !< norm of residual term
-      INTEGER                                    :: max_count               !< maximal number of iterations
-      INTEGER                                    :: l, i, j, oddeven, isw   !< Counter variables
+      real(KDOUBLE), DIMENSION(Nx,Ny), INTENT(in)      :: ElSolvSOR_B             !< rhs of PDE
+      real(KDOUBLE), INTENT(in)                        :: epsilon                 !< Threshold for terminating the iteration
+      LOGICAL, INTENT(in)                              :: first_guess             !< Flag if no initial guess exist
+      real(KDOUBLE), DIMENSION(Nx,Ny), INTENT(inout)   :: chi                     !< Variable to solve for. Also initial guess
+      real(KDOUBLE)                                    :: ElSolvSOR_res           !< residual term
+      real(KDOUBLE)                                    :: ElSolvSOR_rJacobi       !< estimate of spectral radius of Jacobi iteration matrix
+      real(KDOUBLE)                                    :: ElSolvSOR_relax         !< relaxation coefficient, adjusted during iteration using Chebyshev acceleration
+      real(KDOUBLE)                                    :: anorm                   !< norm of residual term
+      integer(KINT)                                    :: max_count               !< maximal number of iterations
+      integer(KINT)                                    :: l, i, j, oddeven, isw   !< Counter variables
       
       IF (first_guess) THEN
         max_count=NINT(1000.*MAX(Nx,Ny)) ! SOR requires O(max(Nx,Ny)) numbers of iterations to reduce error to order 1e-3
@@ -165,13 +166,13 @@ MODULE ElSolv_SOR
       ! compute spectral radius of Jacobi iteration matrix (taken from "Numerical Recepies, 2nd Edition, p. 858")
       ! TODO: Think about using a better spectral radius by guessing (or computation)
 !      ElSolvSOR_rJacobi = (cos(PI/Nx)+(MINVAL(cosTheta_u)*dLambda/dTheta)**2*cos(PI/Ny))&
-!                          /(1._8 + (MINVAL(cosTheta_u)*dLambda/dTheta)**2)
+!                          /(1._KDOUBLE + (MINVAL(cosTheta_u)*dLambda/dTheta)**2)
       ElSolvSOR_rJacobi = 9.9999178e-1!9999999994e-1
-      ElSolvSOR_relax = 1._8
+      ElSolvSOR_relax = 1._KDOUBLE
 
       ! Using odd-even separation makes openMP available
       ITERATION: DO l=1,max_count
-        anorm = 0._8
+        anorm = 0._KDOUBLE
         ODDEVEN_SEPERATION: DO oddeven=1,2
 #ifdef ELSOLV_SOR_PARALLEL
 !$OMP PARALLEL &
@@ -198,9 +199,9 @@ MODULE ElSolv_SOR
 #endif
           ! recompute omega
           IF(oddeven.EQ.1.AND.l.EQ.1) THEN
-            ElSolvSOR_relax = 1._8/(1._8-.5_8*ElSolvSOR_rJacobi**2)
+            ElSolvSOR_relax = 1._KDOUBLE/(1._KDOUBLE-.5_KDOUBLE*ElSolvSOR_rJacobi**2)
           ELSE
-            ElSolvSOR_relax = 1._8/(1._8-.25_8*ElSolvSOR_rJacobi**2*ElSolvSOR_relax)
+            ElSolvSOR_relax = 1._KDOUBLE/(1._KDOUBLE-.25_KDOUBLE*ElSolvSOR_rJacobi**2*ElSolvSOR_relax)
           ENDIF
         ENDDO ODDEVEN_SEPERATION
         ! Estimation of lambda_max

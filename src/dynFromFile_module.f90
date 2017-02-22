@@ -19,6 +19,7 @@
 !------------------------------------------------------------------
 MODULE dynFromFile_module
 #include "io.h"
+  use types
   USE memchunk_module, ONLY: memoryChunk
   IMPLICIT NONE
   SAVE
@@ -34,8 +35,8 @@ MODULE dynFromFile_module
   LOGICAL           :: DFF_v_input                      !< .TRUE. if dynFromFile_module::DFF_v_chunk is initialised
   LOGICAL           :: DFF_eta_input                    !< .TRUE. if dynFromFile_module::DFF_eta_chunk is initialised
   LOGICAL           :: DFF_psi_input                    !< .TRUE. if dynFromFile_module::DFF_psi_chunk is initialised
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_u   !< Zonal velocity computed from streamfunction
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_v   !< Meridional velocity computed from streamfunction
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_u   !< Zonal velocity computed from streamfunction
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: DFF_psi_v   !< Meridional velocity computed from streamfunction
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -59,8 +60,8 @@ MODULE dynFromFile_module
       IMPLICIT NONE
       CHARACTER(CHARLEN)    :: FileName_u="", FileName_v="", FileName_eta="", FileName_psi="",&
                                varname_eta=OVARNAMEETA, varname_u=OVARNAMEU, varname_v=OVARNAMEV, varname_psi=OVARNAMEPSI
-      INTEGER :: DFF_Nt_chunksize=DEF_NT_CHUNKSIZE
-      INTEGER :: alloc_error
+      integer(KINT) :: DFF_Nt_chunksize=DEF_NT_CHUNKSIZE
+      integer(KINT) :: alloc_error
       namelist / dynFromFile / &
         FileName_u, FileName_v, FileName_eta, FileName_psi, & ! Filenames of input files of dynamical variables
         varname_eta, varname_u, varname_v, varname_psi, & ! Variable names in input files
@@ -103,7 +104,7 @@ MODULE dynFromFile_module
     SUBROUTINE DFF_finishDynFromFile
       USE memchunk_module, ONLY : finishMemChunk
       IMPLICIT NONE
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
       IF(DFF_psi_input) THEN
         DEALLOCATE(DFF_psi_u,DFF_psi_v,stat=alloc_error)
         IF (alloc_error.NE.0) PRINT *,"Deallocation failed at ",__FILE__,__LINE__
@@ -139,10 +140,10 @@ MODULE dynFromFile_module
       USE domain_module, ONLY : eta_grid, u_grid, v_grid
       USE memchunk_module, ONLY : getChunkData
       IMPLICIT NONE
-      REAL(8)    :: model_time
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
-      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+      real(KDOUBLE)    :: model_time
+      integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      integer(KSHORT), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
 
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean
@@ -178,9 +179,9 @@ MODULE dynFromFile_module
       USE calc_lib, ONLY : evSF_zonal, evSF_meridional
       IMPLICIT NONE
       TYPE(memoryChunk), INTENT(inout)  :: memChunk   !< memory chunk pointing to a streamfunction dataset
-      REAL(8), INTENT(in)               :: time       !< Requested time in model calendar units (seconds since start)
-      REAL(8), DIMENSION(:,:,:), ALLOCATABLE  :: psi
-      INTEGER                           :: alloc_error
+      real(KDOUBLE), INTENT(in)               :: time       !< Requested time in model calendar units (seconds since start)
+      real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: psi
+      integer(KINT)                           :: alloc_error
       IF (.NOT.isConstant(memChunk).OR.itt.EQ.0) THEN
         IF (.NOT.ALLOCATED(psi)) ALLOCATE(psi(1:Nx,1:Ny,1),stat=alloc_error)
         IF (alloc_error.NE.0) THEN

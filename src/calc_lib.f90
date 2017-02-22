@@ -10,11 +10,13 @@
 !! CALC_LIB_ELLIPTIC_SOLVER_MODULE
 !------------------------------------------------------------------
 MODULE calc_lib
+  use types
 #include "calc_lib.h"
 #include "model.h"
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
   USE CALC_LIB_ELLIPTIC_SOLVER_MODULE
 #endif
+
   IMPLICIT NONE
 
   interface pder_meridional
@@ -76,29 +78,29 @@ MODULE calc_lib
   !> @brief  Weighting factors for bilinear interpolation
   !------------------------------------------------------------------
   type :: t_linInterp2D_weight
-    real(8)                 :: area=4    !< size of the grid box
-    real(8), dimension(2,2) :: factors=1 !< weighting factors
+    real(KDOUBLE)                 :: area=4    !< size of the grid box
+    real(KDOUBLE), dimension(2,2) :: factors=1 !< weighting factors
   end type
 
   type :: t_interpolater2point
-    integer, dimension(:, :, :), pointer :: iind => null()
-    integer, dimension(:, :, :), pointer :: jind => null()
-    integer(1), dimension(:,:), pointer  :: mask => null()
-    real(8), dimension(:, :, :), pointer :: weight_vec => null()
-    integer(1), dimension(:,:), pointer  :: to_mask => null()
+    integer(KINT), dimension(:, :, :), pointer :: iind => null()
+    integer(KINT), dimension(:, :, :), pointer :: jind => null()
+    integer(KSHORT), dimension(:,:), pointer  :: mask => null()
+    real(KDOUBLE), dimension(:, :, :), pointer :: weight_vec => null()
+    integer(KSHORT), dimension(:,:), pointer  :: to_mask => null()
   end type
 
   type :: t_interpolater4point
-    integer, dimension(:, :, :), pointer :: iind => null()
-    integer, dimension(:, :, :), pointer :: jind => null()
-    integer(1), dimension(:,:), pointer :: mask => null()
-    real(8), dimension(:, :, :), pointer :: weight_vec => null()
-    integer(1), dimension(:,:), pointer :: to_mask => null()
+    integer(KINT), dimension(:, :, :), pointer :: iind => null()
+    integer(KINT), dimension(:, :, :), pointer :: jind => null()
+    integer(KSHORT), dimension(:,:), pointer :: mask => null()
+    real(KDOUBLE), dimension(:, :, :), pointer :: weight_vec => null()
+    integer(KSHORT), dimension(:,:), pointer :: to_mask => null()
   end type
 
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
-  REAL(8), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE   :: chi                   !< Size Nx, Ny. Velocity correction potential
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE   :: u_nd                  !< Size Nx, Ny. Zonal component of the nondivergent part of the velocity field.
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE   :: v_nd                  !< Size Nx, Ny. Meridional component of the nondivergent part of the velocity field.
   LOGICAL                                :: chi_computed=.FALSE.  !< .TRUE. if veolcity correction potential is already computed at present timestep
   LOGICAL                                :: u_nd_computed=.FALSE. !< .TRUE. if the nondivergent velocity field is computed at present time step
   type(t_interpolater4point), save       :: eta2H, u2v, v2u, H2eta
@@ -126,16 +128,16 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE initCalcLib
       USE domain_module, ONLY : Nx,Ny, eta_grid, u_grid, v_grid, H_grid
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
       ALLOCATE(chi(1:Nx,1:Ny), u_nd(1:Nx, 1:Ny), v_nd(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in initCalcLib"
         STOP 1
       END IF
-      chi = 0._8
+      chi = 0._KDOUBLE
       chi_computed=.FALSE.
-      u_nd = 0._8
-      v_nd = 0._8
+      u_nd = 0._KDOUBLE
+      v_nd = 0._KDOUBLE
       ! Interpolators including land/coast points as zero
       call set2PointInterpolater(eta2u, eta_grid, "x", .false.)
       call set4PointInterpolater(eta2H, eta_grid, .false.)
@@ -177,7 +179,7 @@ MODULE calc_lib
     !! solver module, if such module is defined.
     !------------------------------------------------------------------
     SUBROUTINE finishCalcLib
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
 #ifdef CALC_LIB_ELLIPTIC_SOLVER_FINISH
       call CALC_LIB_ELLIPTIC_SOLVER_FINISH
 #endif
@@ -205,13 +207,13 @@ MODULE calc_lib
       logical, intent(in)      :: exclude_land
 
       type(grid_t), pointer :: out_grid
-      integer, dimension(:), pointer :: im => null()
-      integer, dimension(:), pointer :: ip => null()
-      integer, dimension(:), pointer :: jm => null()
-      integer, dimension(:), pointer :: jp => null()
-      integer, dimension(:), pointer :: ii, jj
-      integer :: i, j, stat, Nx, Ny
-      real(8) :: weight
+      integer(KINT), dimension(:), pointer :: im => null()
+      integer(KINT), dimension(:), pointer :: ip => null()
+      integer(KINT), dimension(:), pointer :: jm => null()
+      integer(KINT), dimension(:), pointer :: jp => null()
+      integer(KINT), dimension(:), pointer :: ii, jj
+      integer(KINT) :: i, j, stat, Nx, Ny
+      real(KDOUBLE) :: weight
 
       select case(direction)
         case("X", "x", "zonal", "lambda")
@@ -252,7 +254,7 @@ MODULE calc_lib
             ii => int_obj%iind(:, i, j)
             jj => int_obj%jind(:, i, j)
             weight = 1 / max(real(int_obj%mask(ii(1), jj(1)) + int_obj%mask(ii(2), jj(2))), &
-                             1._8)
+                             1._KDOUBLE)
             int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                              real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
@@ -262,7 +264,7 @@ MODULE calc_lib
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
             jj => int_obj%jind(:, i, j)
-            weight = .5_8
+            weight = .5_KDOUBLE
             int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
@@ -278,13 +280,13 @@ MODULE calc_lib
       logical, intent(in)      :: exclude_land
 
       type(grid_t), pointer :: out_intermediat, out_grid
-      integer, dimension(:), pointer :: im => null()
-      integer, dimension(:), pointer :: ip => null()
-      integer, dimension(:), pointer :: jm => null()
-      integer, dimension(:), pointer :: jp => null()
-      integer, dimension(:), pointer :: ii, jj
-      integer :: i, j, stat, Nx, Ny
-      real(8) :: weight
+      integer(KINT), dimension(:), pointer :: im => null()
+      integer(KINT), dimension(:), pointer :: ip => null()
+      integer(KINT), dimension(:), pointer :: jm => null()
+      integer(KINT), dimension(:), pointer :: jp => null()
+      integer(KINT), dimension(:), pointer :: ii, jj
+      integer(KINT) :: i, j, stat, Nx, Ny
+      real(KDOUBLE) :: weight
 
       call getOutGrid(from_grid, "x", out_intermediat, ip, im)
       call getOutGrid(out_intermediat, "y", out_grid, jp, jm)
@@ -315,7 +317,7 @@ MODULE calc_lib
             jj => int_obj%jind(:, i, j)
             weight = 1 / max(real(int_obj%mask(ii(1), jj(1)) + int_obj%mask(ii(2), jj(2)) &
                                   + int_obj%mask(ii(3), jj(3)) + int_obj%mask(ii(4), jj(4))), &
-                             1._8)
+                             1._KDOUBLE)
             int_obj%weight_vec(:, i, j) = (/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                              real(int_obj%mask(ii(2), jj(2))) * weight, &
                                              real(int_obj%mask(ii(3), jj(3))) * weight, &
@@ -327,7 +329,7 @@ MODULE calc_lib
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
             jj => int_obj%jind(:, i, j)
-            weight = .25_8
+            weight = .25_KDOUBLE
             int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight, &
                                           !   real(int_obj%mask(ii(3), jj(3))) * weight, &
@@ -350,12 +352,12 @@ MODULE calc_lib
     !!
     !! @return Ordinate of requested point.
     !------------------------------------------------------------------
-    ELEMENTAL REAL(8) FUNCTION interpLinear(y0,y1,x0,x1,x) RESULT(y)
-      REAL(8), INTENT(in)  :: y0 !< Ordinate of first point
-      REAL(8), INTENT(in)  :: y1 !< Ordinate of second point
-      REAL(8), INTENT(in)  :: x0 !< Abscissa of first point
-      REAL(8), INTENT(in)  :: x1 !< Abscissa of second point
-      REAL(8), INTENT(in)  :: x !< Abscissa of requested point
+    ELEMENTAL real(KDOUBLE) FUNCTION interpLinear(y0,y1,x0,x1,x) RESULT(y)
+      real(KDOUBLE), INTENT(in)  :: y0 !< Ordinate of first point
+      real(KDOUBLE), INTENT(in)  :: y1 !< Ordinate of second point
+      real(KDOUBLE), INTENT(in)  :: x0 !< Abscissa of first point
+      real(KDOUBLE), INTENT(in)  :: x1 !< Abscissa of second point
+      real(KDOUBLE), INTENT(in)  :: x !< Abscissa of requested point
       y = y0 + (x-x0)*(y1-y0)/(x1-x0)
     END FUNCTION interpLinear
 
@@ -374,11 +376,11 @@ MODULE calc_lib
       use grid_module, only : grid_t
       use domain_module, only : ip1, jp1
       type(t_linInterp2D_weight), intent(out) :: weight
-      integer, dimension(2,2), intent(out)    :: ind
-      real(8), intent(in)                     :: x_in
-      real(8), intent(in)                     :: y_in
+      integer(KINT), dimension(2,2), intent(out)    :: ind
+      real(KDOUBLE), intent(in)                     :: x_in
+      real(KDOUBLE), intent(in)                     :: y_in
       type(grid_t), intent(in)                :: grid
-      real(8), dimension(2)                   :: x_grid, y_grid
+      real(KDOUBLE), dimension(2)                   :: x_grid, y_grid
 
       !< get indices of surrounding points
       ind = reshape(&
@@ -406,30 +408,30 @@ MODULE calc_lib
     !! Interpolates the four values of var using the weighting object.
     !------------------------------------------------------------------
     function interp2d(var,weight) result(var_interp)
-      real(8), dimension(2,2), intent(in)  :: var
+      real(KDOUBLE), dimension(2,2), intent(in)  :: var
       type(t_linInterp2D_weight), intent(in) :: weight
-      real(8)                              :: var_interp
+      real(KDOUBLE)                              :: var_interp
       var_interp = weight%area * sum(var*weight%factors)
     end function interp2d
 
-    real(8) function interpolate_2point(var, interpolator, i, j) result(inter)
+    real(KDOUBLE) function interpolate_2point(var, interpolator, i, j) result(inter)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)    :: var
+      real(KDOUBLE), dimension(:,:), intent(in)    :: var
       type(t_interpolater2point), intent(in) :: interpolator
-      integer, intent(in)                    :: i, j
-      integer, dimension(:), pointer :: ii, jj
+      integer(KINT), intent(in)                    :: i, j
+      integer(KINT), dimension(:), pointer :: ii, jj
       ii => interpolator%iind(:, i, j)
       jj => interpolator%jind(:, i, j)
       inter = dot_product(interpolator%weight_vec(:, i, j), &
                           (/ var(ii(1), jj(1)), var(ii(2), jj(2))/))
     end function interpolate_2point
 
-    real(8) function interpolate_4point(var, interpolator, i, j) result(inter)
+    real(KDOUBLE) function interpolate_4point(var, interpolator, i, j) result(inter)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)    :: var
+      real(KDOUBLE), dimension(:,:), intent(in)    :: var
       type(t_interpolater4point), intent(in) :: interpolator
-      integer, intent(in)                    :: i, j
-      integer, dimension(:), pointer :: ii, jj
+      integer(KINT), intent(in)                    :: i, j
+      integer(KINT), dimension(:), pointer :: ii, jj
       ii => interpolator%iind(:, i, j)
       jj => interpolator%jind(:, i, j)
       inter = dot_product(interpolator%weight_vec(:, i, j), &
@@ -462,12 +464,12 @@ MODULE calc_lib
     subroutine computeVelocityPotential(u_in, v_in, chi_out)
       use vars_module, only : itt
       use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid
-      real(8), dimension(Nx, Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow
-      real(8), dimension(Nx, Ny), intent(in)             :: u_in    !< Zonal component of input flow
-      real(8), dimension(Nx, Ny), intent(in)             :: v_in    !< Meridional component of input flow
+      real(KDOUBLE), dimension(Nx, Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow
+      real(KDOUBLE), dimension(Nx, Ny), intent(in)             :: u_in    !< Zonal component of input flow
+      real(KDOUBLE), dimension(Nx, Ny), intent(in)             :: v_in    !< Meridional component of input flow
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
-      real(8), dimension(Nx,Ny)                   :: div_u
-      REAL(8)                                     :: epsilon !< Default Value EPS in calc_lib.h
+      real(KDOUBLE), dimension(Nx,Ny)                   :: div_u
+      real(KDOUBLE)                                     :: epsilon !< Default Value EPS in calc_lib.h
 #endif
 
       if (chi_computed) then
@@ -509,12 +511,12 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE computeNonDivergentFlowField(u_in, v_in, u_nd_out, v_nd_out)
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: u_in     !< Zonal component of 2D velocity field
-      REAL(8),DIMENSION(Nx,Ny),INTENT(in)            :: v_in     !< Meridional component of 2D velocity field
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out), optional :: u_nd_out !< Meridional component of 2D velocity field
-      REAL(8),DIMENSION(Nx,Ny),INTENT(out), optional :: v_nd_out !< Meridional component of 2D velocity field
+      real(KDOUBLE),DIMENSION(Nx,Ny),INTENT(in)            :: u_in     !< Zonal component of 2D velocity field
+      real(KDOUBLE),DIMENSION(Nx,Ny),INTENT(in)            :: v_in     !< Meridional component of 2D velocity field
+      real(KDOUBLE),DIMENSION(Nx,Ny),INTENT(out), optional :: u_nd_out !< Meridional component of 2D velocity field
+      real(KDOUBLE),DIMENSION(Nx,Ny),INTENT(out), optional :: v_nd_out !< Meridional component of 2D velocity field
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
-      REAL(8),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
+      real(KDOUBLE),DIMENSION(Nx,Ny)              :: div_u, u_corr, v_corr, res_div
 #endif
 
       if (u_nd_computed) then
@@ -526,8 +528,8 @@ MODULE calc_lib
       u_nd = u_in
       v_nd = v_in
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
-      u_corr = 0._8
-      v_corr = 0._8
+      u_corr = 0._KDOUBLE
+      v_corr = 0._KDOUBLE
       call computeVelocityPotential(u_in, v_in)
       ! compute non-rotational flow
       call computeGradient(chi,u_corr,v_corr, eta_grid)
@@ -563,14 +565,14 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE computeDivergence(CD_u,CD_v,div_u,grid_u,grid_v)
       USE grid_module, ONLY : grid_t
-      REAL(8), DIMENSION(:,:), INTENT(in)                        :: CD_u      !< Zonal component of input
-      REAL(8), DIMENSION(size(CD_u,1), size(CD_u,2)), INTENT(in) :: CD_v      !< Meridional component of input
+      real(KDOUBLE), DIMENSION(:,:), INTENT(in)                        :: CD_u      !< Zonal component of input
+      real(KDOUBLE), DIMENSION(size(CD_u,1), size(CD_u,2)), INTENT(in) :: CD_v      !< Meridional component of input
       TYPE(grid_t), INTENT(in)                                   :: grid_u    !< Grid of the 1st component
       TYPE(grid_t), INTENT(in)                                   :: grid_v    !< Grid of the 2nd component
-      REAL(8),DIMENSION(size(CD_u,1), size(CD_u,2)),INTENT(out)  :: div_u     !< Divergence of the input
+      real(KDOUBLE),DIMENSION(size(CD_u,1), size(CD_u,2)),INTENT(out)  :: div_u     !< Divergence of the input
       type(grid_t), pointer                                      :: grid_div => null()
 
-      div_u = 0._8
+      div_u = 0._KDOUBLE
       call getOutGrid(grid_v,"meridional", grid_div)
 
       div_u = pder_zonal(CD_u, grid_u) &
@@ -594,9 +596,9 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE computeGradient(GRAD_chi,GRAD_u,GRAD_v, grid_chi)
       USE grid_module, ONLY : grid_t
-      REAL(8), DIMENSION(:,:), INTENT(in)                                 :: GRAD_chi  !< Scalar field
-      REAL(8), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_u    !< Zonal component of gradient
-      REAL(8), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_v    !< Meridional component of gradient
+      real(KDOUBLE), DIMENSION(:,:), INTENT(in)                                 :: GRAD_chi  !< Scalar field
+      real(KDOUBLE), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_u    !< Zonal component of gradient
+      real(KDOUBLE), DIMENSION(size(GRAD_chi,1), size(GRAD_chi,2)), INTENT(out) :: GRAD_v    !< Meridional component of gradient
       type(grid_t), intent(in)                                            :: grid_chi  !< Grid of the input scalar field
 
       GRAD_u = pder_zonal(GRAD_chi, grid_chi)
@@ -619,11 +621,11 @@ MODULE calc_lib
     !------------------------------------------------------------------
     function vorticityFromVelocities2D(u_in,v_in,u_grid_in,v_grid_in) result(vort)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)                       :: u_in
-      real(8), dimension(size(u_in,1),size(u_in,2)), intent(in) :: v_in
+      real(KDOUBLE), dimension(:,:), intent(in)                       :: u_in
+      real(KDOUBLE), dimension(size(u_in,1),size(u_in,2)), intent(in) :: v_in
       type(grid_t), intent(in)                                  :: u_grid_in
       type(grid_t), intent(in)                                  :: v_grid_in
-      real(8), dimension(size(u_in,1),size(u_in,2))             :: vort
+      real(KDOUBLE), dimension(size(u_in,1),size(u_in,2))             :: vort
       type(grid_t), pointer                                     :: out_grid => null(), out_grid2=>null()
 
       call getOutGrid(u_grid_in,"theta",out_grid)
@@ -651,11 +653,11 @@ MODULE calc_lib
     !------------------------------------------------------------------
     function vorticityFromVelocities3D(u_in,v_in,u_grid_in,v_grid_in) result(vort)
       use grid_module, only : grid_t
-      real(8), dimension(:,:,:), intent(in)                                  :: u_in
-      real(8), dimension(size(u_in,1),size(u_in,2),size(u_in,3)), intent(in) :: v_in
+      real(KDOUBLE), dimension(:,:,:), intent(in)                                  :: u_in
+      real(KDOUBLE), dimension(size(u_in,1),size(u_in,2),size(u_in,3)), intent(in) :: v_in
       type(grid_t), intent(in)                                               :: u_grid_in
       type(grid_t), intent(in)                                               :: v_grid_in
-      real(8), dimension(size(u_in,1),size(u_in,2),size(u_in,3))                          :: vort
+      real(KDOUBLE), dimension(size(u_in,1),size(u_in,2),size(u_in,3))                          :: vort
       type(grid_t), pointer                                                  :: out_grid => null(), out_grid2=>null()
 
       call getOutGrid(u_grid_in, "theta", out_grid)
@@ -687,10 +689,10 @@ MODULE calc_lib
     !------------------------------------------------------------------
     SUBROUTINE computeStreamfunction(u_in, v_in, psi)
       USE domain_module, ONLY : A, jm1, im1, H_v, dLambda, H_u, dTheta, v_grid, u_grid
-      REAL(8),DIMENSION(:,:), intent(in)                          :: u_in  !< zonal velocity
-      REAL(8),DIMENSION(size(u_in, 1), size(u_in, 2)), intent(in) :: v_in  !< meridional velocity
-      REAL(8),DIMENSION(size(u_in, 1), size(u_in, 2)), INTENT(out):: psi   !< streamfunction to output
-      INTEGER  :: i,j, Nx, Ny                                !< spatial coordinate indices
+      real(KDOUBLE),DIMENSION(:,:), intent(in)                          :: u_in  !< zonal velocity
+      real(KDOUBLE),DIMENSION(size(u_in, 1), size(u_in, 2)), intent(in) :: v_in  !< meridional velocity
+      real(KDOUBLE),DIMENSION(size(u_in, 1), size(u_in, 2)), INTENT(out):: psi   !< streamfunction to output
+      integer(KINT)  :: i,j, Nx, Ny                                !< spatial coordinate indices
 
       Nx = size(u_in, 1)
       Ny = size(u_in, 2)
@@ -733,7 +735,7 @@ do i=1,Nx-1
                             H_u(i,1:jm1(j)) * &
 #endif
                             u_nd(i,1:jm1(j)))*A*dTheta &
-                     + psi(i,1)) / 2._8
+                     + psi(i,1)) / 2._KDOUBLE
         end do
       end do
 !$OMP END DO
@@ -750,13 +752,13 @@ do i=1,Nx-1
     !! @par Uses:
     !------------------------------------------------------------------
     SUBROUTINE evaluateStreamfunction3D(evSF_psi,evSF_u,evSF_v,evSF_eta)
-      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u   !< Zonal velocity
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_v   !< Meridional velocity
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
+      real(KDOUBLE), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_u   !< Zonal velocity
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out) :: evSF_v   !< Meridional velocity
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2),size(evSF_psi,3)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
       evSF_u = evSF_zonal(evSF_psi)
       evSF_v = evSF_meridional(evSF_psi)
-      IF (PRESENT(evSF_eta)) evSF_eta = 0._8
+      IF (PRESENT(evSF_eta)) evSF_eta = 0._KDOUBLE
     END SUBROUTINE evaluateStreamfunction3D
 
 
@@ -771,17 +773,17 @@ do i=1,Nx-1
     !! @todo Compute eta from streamfunction (if neccessary at all?) assuming geostrophy
     !------------------------------------------------------------------
     SUBROUTINE evaluateStreamfunction2D(evSF_psi,evSF_u,evSF_v,evSF_eta)
-      REAL(8), DIMENSION(:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_u   !< Zonal velocity
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_v   !< Meridional velocity
-      REAL(8), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
-      real(8), dimension(size(evSF_psi,1),size(evSF_psi,2),1)   :: zonal_temp, meridional_temp, psi_temp
+      real(KDOUBLE), DIMENSION(:,:), INTENT(in)  :: evSF_psi                                              !< Streamfunction to evaluate
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_u   !< Zonal velocity
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out) :: evSF_v   !< Meridional velocity
+      real(KDOUBLE), DIMENSION(size(evSF_psi,1),size(evSF_psi,2)), INTENT(out), OPTIONAL :: evSF_eta !< Interface displacement, set to zero at the moment
+      real(KDOUBLE), dimension(size(evSF_psi,1),size(evSF_psi,2),1)   :: zonal_temp, meridional_temp, psi_temp
       psi_temp = spread(evSF_psi,3,1)
       zonal_temp = evSF_zonal(psi_temp)
       meridional_temp = evSF_meridional(psi_temp)
       evSF_u = zonal_temp(:,:,1)
       evSF_v = meridional_temp(:,:,1)
-      if (present(evSF_eta)) evSF_eta = 0._8
+      if (present(evSF_eta)) evSF_eta = 0._KDOUBLE
     END SUBROUTINE evaluateStreamfunction2D
 
 
@@ -800,14 +802,14 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     FUNCTION evSF_zonal(evSF_psi) result(u_psi)
       USE domain_module, ONLY : u_grid, H_grid, H_u
-      REAL(8), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                    !< Streamfunction to process
-      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: u_psi !< Zonal velocity
-      INTEGER   :: i, j
+      real(KDOUBLE), DIMENSION(:,:,:), INTENT(in)  :: evSF_psi                                    !< Streamfunction to process
+      real(KDOUBLE), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: u_psi !< Zonal velocity
+      integer(KINT)   :: i, j
       u_psi = 0.
 
       u_psi = -pder_meridional(evSF_psi, H_grid)
 #ifdef BAROTROPIC
-      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), u_grid%ocean(i,j) .eq. 1_1) &
+      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), u_grid%ocean(i,j) .eq. 1_KSHORT) &
         u_psi(i,j,:) = u_psi(i,j,:)/H_u(i,j)
 #endif
     END FUNCTION evSF_zonal
@@ -827,13 +829,13 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     FUNCTION evSF_meridional(evSF_psi) result(v_psi)
       USE domain_module, ONLY : H_grid, v_grid, H_v
-      REAL(8), DIMENSION(:,:,:), INTENT(in)                                        :: evSF_psi !< Streamfunction to process
-      REAL(8), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: v_psi !< Meridional velocity computed
-      INTEGER   :: i, j
+      real(KDOUBLE), DIMENSION(:,:,:), INTENT(in)                                        :: evSF_psi !< Streamfunction to process
+      real(KDOUBLE), DIMENSION(1:size(evSF_psi,1),1:size(evSF_psi,2),1:size(evSF_psi,3)) :: v_psi !< Meridional velocity computed
+      integer(KINT)   :: i, j
       v_psi = 0.
       v_psi = pder_zonal(evSF_psi, H_grid)
 #ifdef BAROTROPIC
-      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), v_grid%ocean(i,j) .eq. 1_1) &
+      forall (i=1:size(evSF_psi,1), j=1:size(evSF_psi,2), v_grid%ocean(i,j) .eq. 1_KSHORT) &
         v_psi(i,j,:) = v_psi(i,j,:)/H_v(i,j)
 #endif
     END FUNCTION evSF_meridional
@@ -853,14 +855,14 @@ do i=1,Nx-1
     function pder_zonal3D(var, grid) result(var_lambda)
       use domain_module, only : A, dLambda
       use grid_module, only : grid_t
-      real(8), dimension(:,:,:), intent(in)                   :: var
+      real(KDOUBLE), dimension(:,:,:), intent(in)                   :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda
+      real(KDOUBLE), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda
       type(grid_t), pointer :: grid_out=>null()
-      integer, dimension(:), pointer  :: ind0=>null(), indm1=>null()
-      integer               :: i, j, l
+      integer(KINT), dimension(:), pointer  :: ind0=>null(), indm1=>null()
+      integer(KINT)               :: i, j, l
 
-      var_lambda = 0._8
+      var_lambda = 0._KDOUBLE
 
       !< get out grid
       call getOutGrid(grid,"lambda",grid_out, ind0, indm1)
@@ -873,7 +875,7 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_1) cycle
+            if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_KSHORT) cycle
             var_lambda(i,j,l) = grid_out%bc(i, j) / (A*grid_out%cos_lat(j)*dLambda) &
                                 *(var(ind0(i),j,l) - var(indm1(i),j,l))
           end do XSPACE
@@ -897,10 +899,10 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     function pder_zonal2D(var,grid) result(var_lambda)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)                     :: var
+      real(KDOUBLE), dimension(:,:), intent(in)                     :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2))             :: var_lambda
-      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+      real(KDOUBLE), dimension(size(var,1),size(var,2))             :: var_lambda
+      real(KDOUBLE), dimension(size(var,1),size(var,2),1)           :: var_temp
 
       var_temp = spread(var,3,1)
       var_temp = pder_zonal3D(var_temp,grid)
@@ -923,14 +925,14 @@ do i=1,Nx-1
     function pder_meridional3D(var,grid) result(var_theta)
       use domain_module, only : A, dTheta
       use grid_module, only : grid_t
-      real(8), dimension(:,:,:), intent(in)                   :: var
+      real(KDOUBLE), dimension(:,:,:), intent(in)                   :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta
+      real(KDOUBLE), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta
       type(grid_t), pointer :: grid_out=>null()
-      integer, dimension(:), pointer  :: ind0=>null(), indm1=>null()
-      integer               :: i, j, l
+      integer(KINT), dimension(:), pointer  :: ind0=>null(), indm1=>null()
+      integer(KINT)               :: i, j, l
 
-      var_theta = 0._8
+      var_theta = 0._KDOUBLE
 
       !< get out grid and index vectors
       call getOutGrid(grid,"theta",grid_out, ind0, indm1)
@@ -943,7 +945,7 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_1) cycle
+            if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_KSHORT) cycle
             var_theta(i,j,l) = grid_out%bc(i, j) * (var(i,ind0(j),l) - var(i,indm1(j),l)) / (A*dTheta)
           end do XSPACE
         end do YSPACE
@@ -966,10 +968,10 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     function pder_meridional2D(var,grid) result(var_theta)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)                     :: var
+      real(KDOUBLE), dimension(:,:), intent(in)                     :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2))             :: var_theta
-      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+      real(KDOUBLE), dimension(size(var,1),size(var,2))             :: var_theta
+      real(KDOUBLE), dimension(size(var,1),size(var,2),1)           :: var_temp
 
       var_temp = spread(var,3,1)
       var_temp = pder_meridional3D(var_temp,grid)
@@ -992,12 +994,12 @@ do i=1,Nx-1
     function pder2_zonal3D(var, grid) result(var_lambda2)
       use domain_module, only : A, dLambda, im1, ip1
       use grid_module, only : grid_t
-      real(8), dimension(:,:,:), intent(in)                   :: var
+      real(KDOUBLE), dimension(:,:,:), intent(in)                   :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda2
+      real(KDOUBLE), dimension(size(var,1),size(var,2),size(var,3)) :: var_lambda2
       type(grid_t), pointer          :: grid_d1
-      integer, dimension(:), pointer :: ip_d1, im_d1
-      integer                        :: i, j, l
+      integer(KINT), dimension(:), pointer :: ip_d1, im_d1
+      integer(KINT)                        :: i, j, l
 
       call getOutGrid(grid,"lambda2",grid_d1,ip_d1,im_d1)
 
@@ -1009,8 +1011,8 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(i, j) + grid%ocean(ip1(i), j) + grid%ocean(im1(i), j)) .eq. 1_1) cycle
-            var_lambda2(i,j,l) = 1._8 / (A*grid%cos_lat(j)*dLambda)**2 &
+            if ((grid%ocean(i, j) + grid%ocean(ip1(i), j) + grid%ocean(im1(i), j)) .eq. 1_KSHORT) cycle
+            var_lambda2(i,j,l) = 1._KDOUBLE / (A*grid%cos_lat(j)*dLambda)**2 &
                                 * (grid_d1%bc(ip_d1(i),j) * (var(ip1(i),j,l) - var(i,j,l))&
                                   -(grid_d1%bc(im_d1(i),j) * (var(i,j,l) - var(im1(i),j,l))))
           end do XSPACE
@@ -1035,10 +1037,10 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     function pder2_zonal2D(var,grid) result(var_lambda2)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)                     :: var
+      real(KDOUBLE), dimension(:,:), intent(in)                     :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2))             :: var_lambda2
-      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+      real(KDOUBLE), dimension(size(var,1),size(var,2))             :: var_lambda2
+      real(KDOUBLE), dimension(size(var,1),size(var,2),1)           :: var_temp
 
       var_temp = spread(var,3,1)
       var_temp = pder2_zonal3D(var_temp,grid)
@@ -1060,12 +1062,12 @@ do i=1,Nx-1
     function pder2_meridional3D(var, grid) result(var_theta2)
       use domain_module, only : A, dTheta, jp1, jm1
       use grid_module, only : grid_t
-      real(8), dimension(:,:,:), intent(in)                   :: var
+      real(KDOUBLE), dimension(:,:,:), intent(in)                   :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta2
+      real(KDOUBLE), dimension(size(var,1),size(var,2),size(var,3)) :: var_theta2
       type(grid_t), pointer          :: grid_d1
-      integer, dimension(:), pointer :: ip_d1, im_d1
-      integer               :: i, j, l
+      integer(KINT), dimension(:), pointer :: ip_d1, im_d1
+      integer(KINT)               :: i, j, l
 
       call getOutGrid(grid,"theta2",grid_d1,ip_d1,im_d1)
 
@@ -1077,8 +1079,8 @@ do i=1,Nx-1
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(i,j) + grid%ocean(i,jp1(j)) + grid%ocean(i,jm1(j))) .eq. 0_1) cycle
-            var_theta2(i,j,l) = 1._8 / (A*dTheta)**2 * &
+            if ((grid%ocean(i,j) + grid%ocean(i,jp1(j)) + grid%ocean(i,jm1(j))) .eq. 0_KSHORT) cycle
+            var_theta2(i,j,l) = 1._KDOUBLE / (A*dTheta)**2 * &
                                  (grid_d1%bc(i,ip_d1(j)) * (var(i,jp1(j),l) - var(i,j,l)) &
                                   - grid_d1%bc(i,im_d1(j))*(var(i,j,l) - var(i,jm1(j),l)))
           end do XSPACE
@@ -1103,10 +1105,10 @@ do i=1,Nx-1
     !------------------------------------------------------------------
     function pder2_meridional2D(var,grid) result(var_theta2)
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)                     :: var
+      real(KDOUBLE), dimension(:,:), intent(in)                     :: var
       type(grid_t), intent(in)                                :: grid
-      real(8), dimension(size(var,1),size(var,2))             :: var_theta2
-      real(8), dimension(size(var,1),size(var,2),1)           :: var_temp
+      real(KDOUBLE), dimension(size(var,1),size(var,2))             :: var_theta2
+      real(KDOUBLE), dimension(size(var,1),size(var,2),1)           :: var_temp
 
       var_temp = spread(var,3,1)
       var_temp = pder2_meridional3D(var_temp,grid)
@@ -1129,14 +1131,14 @@ do i=1,Nx-1
     function laplacian2D(var,grid) result(var_lap)
       use domain_module, only : A, dLambda, dTheta, ip1, im1, jp1, jm1
       use grid_module, only : grid_t
-      real(8), dimension(:,:), intent(in)         :: var
+      real(KDOUBLE), dimension(:,:), intent(in)         :: var
       type(grid_t), intent(in)                    :: grid
-      real(8), dimension(size(var,1),size(var,2)) :: var_lap
+      real(KDOUBLE), dimension(size(var,1),size(var,2)) :: var_lap
       type(grid_t), pointer           :: grid_d1x, grid_d1y
-      integer, dimension(:), pointer  :: ip_d1x,im_d1x,ip_d1y,im_d1y
-      integer :: i,j
+      integer(KINT), dimension(:), pointer  :: ip_d1x,im_d1x,ip_d1y,im_d1y
+      integer(KINT) :: i,j
 
-      var_lap = 0._8
+      var_lap = 0._KDOUBLE
 
       call getOutGrid(grid,"lambda2",grid_d1x,ip_d1x,im_d1x)
       call getOutGrid(grid,"theta2",grid_d1y,ip_d1y,im_d1y)
@@ -1147,7 +1149,7 @@ do i=1,Nx-1
 !$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(2)
       do j=1,size(var,2)
         do i=1,size(var,1)
-          if (grid%ocean(i,j).ne.1_1) cycle
+          if (grid%ocean(i,j).ne.1_KSHORT) cycle
           var_lap(i,j) = 1/(A * grid%cos_lat(j) * dLambda)**2 &
                           * (grid_d1x%bc(ip_d1x(i),j) * (var(ip1(i),j) - var(i,j)) &
                             - grid_d1x%bc(im_d1x(i),j) * (var(i,j) - var(im1(i),j))) &
@@ -1177,10 +1179,11 @@ do i=1,Nx-1
       use domain_module, only : u_grid, v_grid, H_grid, eta_grid, ip0, ip1, im1, jp0, jm1, jp1
       type(grid_t), intent(in)                              :: grid
       character(*), intent(in)                              :: direction
-      type(grid_t), pointer, intent(out)                    :: grid_out=>null()
-      integer, pointer, dimension(:), intent(out), optional :: ind0
-      integer, pointer, dimension(:), intent(out), optional :: indm1
-      integer, pointer, dimension(:)                        :: local_ind0, local_indm1
+      type(grid_t), pointer, intent(out)                    :: grid_out
+      integer(KINT), pointer, dimension(:), intent(out), optional :: ind0
+      integer(KINT), pointer, dimension(:), intent(out), optional :: indm1
+      integer(KINT), pointer, dimension(:)                        :: local_ind0, local_indm1
+      grid_out => null()
       local_ind0 => null()
       local_indm1 => null()
       select case(direction)

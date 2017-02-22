@@ -1,52 +1,53 @@
 MODULE domain_module
 #include "io.h"
 #include "model.h"
+  use types
   USE grid_module
   USE io_module, ONLY : fileHandle, initFH, readInitialCondition
   IMPLICIT NONE
-    real(8)               :: lbc = 2._8          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
-    REAL(8)               :: A = 6371000         !< Earth radius \f$[m]\f$
-    REAL(8)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
-    REAL(8)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
-    REAL(8)               :: H_overwrite = 0.    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+    real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
+    real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
+    real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
+    real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
+    real(KDOUBLE)               :: H_overwrite = 0.    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
     CHARACTER(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
     CHARACTER(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
-    REAL(8)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
-    REAL(8)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
-    REAL(8)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
-    REAL(8)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
-    INTEGER               :: Nx = 100            !< Number of grid points in zonal direction
-    INTEGER               :: Ny = 100            !< Number of grid points in meridional direction
-    REAL(8)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
-    REAL(8)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
+    real(KDOUBLE)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
+    integer(KINT)               :: Nx = 100            !< Number of grid points in zonal direction
+    integer(KINT)               :: Ny = 100            !< Number of grid points in meridional direction
+    real(KDOUBLE)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    real(KDOUBLE)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
     ! nearest neighbour indices, derived from domain specs
-    integer, dimension(:), allocatable, target :: ip0  !< Size Nx \n Index in zonal direction, i.e i+0.
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-    integer, dimension(:), allocatable, target :: jp0  !< Size Nx \n Index in meridional direction, i.e j+0.
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-    INTEGER, DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), dimension(:), allocatable, target :: ip0  !< Size Nx \n Index in zonal direction, i.e i+0.
+    integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), dimension(:), allocatable, target :: jp0  !< Size Nx \n Index in meridional direction, i.e j+0.
+    integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
     ! constant fieds H, allocated during initialization
-    REAL(8), DIMENSION(:,:), POINTER :: H     !< Size Nx,Ny \n Bathimetry on H grid.
-    REAL(8), DIMENSION(:,:), POINTER :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
-    REAL(8), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
-    REAL(8), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
+    real(KDOUBLE), DIMENSION(:,:), POINTER :: H     !< Size Nx,Ny \n Bathimetry on H grid.
+    real(KDOUBLE), DIMENSION(:,:), POINTER :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
+    real(KDOUBLE), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
+    real(KDOUBLE), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
 
-    REAL(8)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
+    real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
 
     TYPE(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
     CONTAINS
 
         SUBROUTINE initDomain
           IMPLICIT NONE
-          TYPE(fileHandle)                      :: FH_H
-          INTEGER                               :: i,j
-          real(8)                               :: lbc
-          INTEGER, DIMENSION(:,:), ALLOCATABLE  :: missmask, missmask_H
-          REAL(8), DIMENSION(:), POINTER        :: lat_H, lat_u, lat_v, lat_eta
-          REAL(8), DIMENSION(:), POINTER        :: lon_H, lon_u, lon_v, lon_eta
-          INTEGER(1), DIMENSION(:,:), POINTER   :: land_H, land_u, land_v, land_eta
-          INTEGER(1), DIMENSION(:,:), POINTER   :: ocean_H, ocean_u, ocean_v, ocean_eta
+          TYPE(fileHandle)                             :: FH_H
+          integer(KINT)                                :: i,j
+          real(KDOUBLE)                                :: lbc
+          integer(KSHORT), DIMENSION(:,:), ALLOCATABLE :: missmask, missmask_H
+          real(KDOUBLE), DIMENSION(:), POINTER         :: lat_H, lat_u, lat_v, lat_eta
+          real(KDOUBLE), DIMENSION(:), POINTER         :: lon_H, lon_u, lon_v, lon_eta
+          integer(KSHORT), DIMENSION(:,:), POINTER     :: land_H, land_u, land_v, land_eta
+          integer(KSHORT), DIMENSION(:,:), POINTER     :: ocean_H, ocean_u, ocean_v, ocean_eta
             namelist / domain_nl / &
               A, OMEGA, RHO0, &
               Nx, Ny, H_overwrite, &
@@ -108,51 +109,52 @@ MODULE domain_module
               !! Do not allow negative topography and set H=0 where H has missing values
               !! close N/S boundary (should be done anyway in input H field)
               !------------------------------------------------------------------
-              CALL initFH(in_file_H,in_varname_H,FH_H)
-              CALL readInitialCondition(FH_H,H,missmask)
+              CALL initFH(in_file_H, in_varname_H, FH_H)
+              CALL readInitialCondition(FH_H, H, missmask)
               missmask_H = missmask
-              WHERE(missmask_H .EQ. 1) H = 0._8
-              WHERE(H .LE. 0.) H = 0._8
+              WHERE(missmask_H .EQ. 1_KSHORT) H = 0._KDOUBLE
+              WHERE(H .LE. 0.) H = 0._KDOUBLE
             else
               !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
               !! create rectangular basin with closed boundaries and depth of
               !! 1 m. Use h_overwrite to set a different depth.
               !------------------------------------------------------------------
-              H = 1._8
-              H(1,:) = 0._8
-              H(Nx,:) = 0._8
+              H = 1._KDOUBLE
+              H(1,:) = 0._KDOUBLE
+              H(Nx,:) = 0._KDOUBLE
             end if
-            H(:,1)  = 0._8
-            H(:,Ny) = 0._8
+            H(:,1)  = 0._KDOUBLE
+            H(:,Ny) = 0._KDOUBLE
             
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create landmasks
             !------------------------------------------------------------------
-            land_H = 0_1
-            WHERE (H .EQ. 0._8) land_H = 1_1
-            land_u = 0_1
-            where ((land_H + cshift(land_H, 1, 2)) .eq. 2_1) land_u = 1_1
-            land_v = 0_1
-            where ((land_H + cshift(land_H, 1, 1)) .eq. 2_1) land_v = 1_1
-            land_eta = 0_1
-            where (land_H + cshift(land_H, 1, 2) + cshift(land_H, 1, 1) + cshift(cshift(land_H, 1, 1), 1, 2) .eq. 4_1) land_eta = 1_1
+            land_H = 0_KSHORT
+            WHERE (H .EQ. 0._KDOUBLE) land_H = 1_KSHORT
+            land_u = 0_KSHORT
+            where ((land_H + cshift(land_H, 1, 2)) .eq. 2_KSHORT) land_u = 1_KSHORT
+            land_v = 0_KSHORT
+            where ((land_H + cshift(land_H, 1, 1)) .eq. 2_KSHORT) land_v = 1_KSHORT
+            land_eta = 0_KSHORT
+            where (land_H + cshift(land_H, 1, 2) + cshift(land_H, 1, 1) + cshift(cshift(land_H, 1, 1), 1, 2) .eq. 4_KSHORT) &
+                  land_eta = 1_KSHORT
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create oceanmasks
             !------------------------------------------------------------------
-            ocean_H   = 1_1 - land_H
-            ocean_u   = 1_1 - land_u
-            ocean_v   = 1_1 - land_v
-            ocean_eta = 1_1 - land_eta
+            ocean_H   = 1_KSHORT - land_H
+            ocean_u   = 1_KSHORT - land_u
+            ocean_v   = 1_KSHORT - land_v
+            ocean_eta = 1_KSHORT - land_eta
 
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! interpolate topography on all grids
             !------------------------------------------------------------------
-            forall (i=1:Nx, j=1:Ny, ocean_u(i, j) .ne. 0_1) &
+            forall (i=1:Nx, j=1:Ny, ocean_u(i, j) .ne. 0_KSHORT) &
               H_u(i,j) = (H(i,j) + H(i,jp1(j))) / (ocean_H(i, j) + ocean_H(i, jp1(j)))
-            forall (i=1:Nx, j=1:Ny, ocean_v(i, j) .ne. 0_1) &
+            forall (i=1:Nx, j=1:Ny, ocean_v(i, j) .ne. 0_KSHORT) &
               H_v(i,j)   = (H(i,j) + H(ip1(i),j)) / (ocean_H(i, j) + ocean_H(ip1(i), j))
-            forall (i=1:Nx, j=1:Ny, ocean_eta(i, j) .ne. 0_1) &
+            forall (i=1:Nx, j=1:Ny, ocean_eta(i, j) .ne. 0_KSHORT) &
               H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i), jp1(j))) &
                            / (ocean_H(i, j) + ocean_H(ip1(i), j) + ocean_H(i, jp1(j)) + ocean_H(ip1(i), jp1(j)))
 
