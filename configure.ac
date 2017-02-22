@@ -10,7 +10,9 @@ AC_LANG([Fortran])
 
 AC_CONFIG_FILES([Makefile])
 
-AC_ARG_VAR([NFCONFIG], [Path to nf-config executable])
+AC_ARG_VAR([NCINC], [Path to the directory of the netcdf module file.])
+AC_ARG_VAR([NCLIB], [Path to the directory of the netcdf library.])
+AC_ARG_VAR([NFCONFIG], [Path to nf-config executable.])
 
 AC_ARG_ENABLE([elliptic-solver],
               [AS_HELP_STRING([--enable-elliptic-solver=@<:@SOR, no@:>@], [Use elliptic solver (default is no)])],
@@ -52,12 +54,28 @@ AC_FC_MODULE_OUTPUT_FLAG()
 AC_OPENMP()
 
 # Checks for library functions.
-#AC_SEARCH_LIBS([nf90_inq_libvers], [netcdff])
 AC_LANG_PUSH([C])
-AC_SEARCH_LIBS([ut_new_system], [udunits2])
+
+AC_SEARCH_LIBS([dirname], [gen], , 
+    AC_MSG_ERROR([cannot find function dirname]))
+
+AC_SEARCH_LIBS([XML_Parse], [expat], ,
+    AC_MSG_ERROR([cannot find function XML_Parse]))
+
+AC_SEARCH_LIBS([ut_new_system], [udunits2], ,
+    AC_MSG_ERROR([cannot find function ut_new_system]))
+
 AC_LANG_POP([C])
 
 # set output variables
-#AC_SUBST([NFCONFIG])
+AS_IF([test "X$NCINC" = "X" && test "X$NFCONFIG" = "X"],
+      [AC_MSG_ERROR([Need either to find nf-config / nc-config or to have NCINC defined!])]])
+AS_IF([test "X$NCINC" = "X"],
+      [NCINC=`$NFCONFIG --includedir`])
+
+AS_IF([test "X$NCLIB" = "X" && test "X$NFCONFIG" = "X"],
+      [AC_MSG_ERROR([Need either to find nf-config / nc-config or to have NCLIB defined!])]])
+AS_IF([test "X$NCLIB" = "X"],
+      [NCLIB=`$NFCONFIG --flibs`])
 
 AC_OUTPUT()

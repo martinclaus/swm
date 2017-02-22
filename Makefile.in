@@ -39,13 +39,13 @@ bin_PROGRAMS = model$(EXEEXT)
 O := $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
-libnc = $(shell @NFCONFIG@ --flibs)
-includenc = $(FC_MODINC)$(shell @NFCONFIG@ --includedir)
+libnc = @NCLIB@
+includenc = $(FC_MODINC)@NCINC@
 DOXYGEN = @DOXYGEN@
 
 LDFLAGS = @LDFLAGS@ @LIBS@ $(libnc)
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(defClElSolv) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 # conditional modules
 ifeq ($(strip @ELSOLV@), SOR)
@@ -127,7 +127,7 @@ tracer_module.$(OBJEXT) : tracer_module.f90 model.h tracer_vars.$(OBJEXT) vars_m
 	$(COMPILE)
 
 calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT))
-	$(FC) $(FFLAGS) $(defClElSolv) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+	$(COMPILE)
 
 dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 vars_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT)
 	$(COMPILE)
