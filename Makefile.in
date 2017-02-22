@@ -96,7 +96,7 @@ types.$(OBJEXT) : types.f90 types.h
 vars_module.$(OBJEXT) : vars_module.f90 generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) io.h
 	$(COMPILE)
 
-time_integration_module.$(OBJEXT) : time_integration_module.f90 vars_module.$(OBJEXT) io.h types.$(OBJEXT)
+time_integration_module.$(OBJEXT) : time_integration_module.f90 vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT) domain_module.$(OBJEXT)
 	$(COMPILE)
 
 f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
@@ -144,7 +144,7 @@ swm_vars.$(OBJEXT) : swm_vars.f90 vars_module.$(OBJEXT) domain_module.$(OBJEXT) 
 swm_forcing_module.$(OBJEXT) : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) generic_list.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-swm_timestep_module.$(OBJEXT) : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_lateralmixing_module.$(OBJEXT) vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) time_integration_module.$(OBJEXT)
+swm_timestep_module.$(OBJEXT) : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_lateralmixing_module.$(OBJEXT) vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) time_integration_module.$(OBJEXT) interp.inc
 	$(COMPILE)
 
 swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h swm_vars.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT) str.$(OBJEXT)

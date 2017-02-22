@@ -8,6 +8,7 @@
 !!
 !------------------------------------------------------------------
 MODULE time_integration_module
+#include "model.h"
 #include "io.h"
   use types
   implicit none
@@ -72,6 +73,7 @@ contains
 
   function integrate_AB_vec(A_N, G, impl, order) result(A_NP1)
     USE vars_module, ONLY : dt, itt
+    use domain_module, ONLY : Nx, Ny
     IMPLICIT NONE
     REAL(KDOUBLE), intent(in) :: G(:, :, :), A_N(size(G, 1), size(G, 2)), &
                                  impl(size(G, 1), size(G, 2))
