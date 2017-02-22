@@ -11,6 +11,7 @@
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
+  use types
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
   USE io_module, ONLY : fileHandle, initFH
@@ -18,40 +19,40 @@ MODULE vars_module
   IMPLICIT NONE
 
   ! Constants (default parameters), contained in model_nl
-  REAL(8)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
-  REAL(8)                :: r=0.                             !< linear friction parameter \f$[ms^{-1}]\f$
-  REAL(8)                :: k=0.                             !< quadratic friction parameter
-  REAL(8)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
-  REAL(8)                :: gamma_new=0.                     !< Newtonian cooling coefficient \f$[s^{-1}]\f$
-  REAL(8)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
-  REAL(8)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
+  real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
+  real(KDOUBLE)                :: r=0.                             !< linear friction parameter \f$[ms^{-1}]\f$
+  real(KDOUBLE)                :: k=0.                             !< quadratic friction parameter
+  real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
+  real(KDOUBLE)                :: gamma_new=0.                     !< Newtonian cooling coefficient \f$[s^{-1}]\f$
+  real(KDOUBLE)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
+  real(KDOUBLE)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
 
   CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
-  INTEGER, PARAMETER     :: Ndims = 3                   !< Number of dimensions
-  REAL(8)                :: run_length = 100000         !< Length of model run \f$[s]\f$
-  INTEGER                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
-  REAL(8)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
-  REAL(8)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
+  integer(KINT), PARAMETER     :: Ndims = 3                   !< Number of dimensions
+  real(KDOUBLE)                :: run_length = 100000         !< Length of model run \f$[s]\f$
+  integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
+  real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
+  real(KDOUBLE)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
 
   ! numerical parameters
-  INTEGER(1), PARAMETER   :: Ns = 2                     !< Max number of time steps stored in memory.
-  INTEGER(1), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
+  integer(KSHORT), PARAMETER   :: Ns = 2                     !< Max number of time steps stored in memory.
+  integer(KSHORT), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
 
   ! dynamic fields u, v, eta, allocated during initialization
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
   TYPE(fileHandle),SAVE       :: FH_eta
   TYPE(fileHandle),SAVE       :: FH_u
   TYPE(fileHandle),SAVE       :: FH_v
 
-  REAL(8)                :: diag_start
+  real(KDOUBLE)                :: diag_start
 
 
   ! runtime variables
-  INTEGER(8) :: itt                                     !< time step index
+  INTEGER(KINT_ITT) :: itt                                     !< time step index
 
   !< Register for variables
   TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
@@ -63,9 +64,9 @@ MODULE vars_module
   !! and a pointer to the grid, the variable is defined on.
   !------------------------------------------------------------------
   TYPE :: variable_t
-    REAL(8), DIMENSION(:,:,:), POINTER :: data3d => null()
-    REAL(8), DIMENSION(:,:), POINTER   :: data2d => null()
-    REAL(8), DIMENSION(:), POINTER     :: data1d => null()
+    real(KDOUBLE), DIMENSION(:,:,:), POINTER :: data3d => null()
+    real(KDOUBLE), DIMENSION(:,:), POINTER   :: data2d => null()
+    real(KDOUBLE), DIMENSION(:), POINTER     :: data1d => null()
     CHARACTER(CHARLEN) :: nam = ""
     TYPE(grid_t), POINTER              :: grid => null()
     type(t_grid_lagrange), pointer     :: grid_l => null()
@@ -167,7 +168,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE add3dToRegister(var, varname, grid)
       IMPLICIT NONE
-      REAL(8), DIMENSION(:,:,:), TARGET,  INTENT(in)  :: var
+      real(KDOUBLE), DIMENSION(:,:,:), TARGET,  INTENT(in)  :: var
       CHARACTER(*), INTENT(in)                        :: varname
       TYPE(variable_ptr)                              :: dat_ptr
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
@@ -204,7 +205,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE add2dToRegister(var, varname, grid)
       IMPLICIT NONE
-      REAL(8), DIMENSION(:,:), TARGET, INTENT(in)     :: var
+      real(KDOUBLE), DIMENSION(:,:), TARGET, INTENT(in)     :: var
       CHARACTER(*), INTENT(in)                        :: varname
       TYPE(variable_ptr)                              :: dat_ptr
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
@@ -239,7 +240,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE add1dToRegister(var, varname, grid)
       IMPLICIT NONE
-      REAL(8), DIMENSION(:), TARGET, INTENT(in)        :: var
+      real(KDOUBLE), DIMENSION(:), TARGET, INTENT(in)        :: var
       CHARACTER(*), INTENT(in)                         :: varname
       TYPE(variable_ptr)                               :: dat_ptr
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
@@ -273,7 +274,7 @@ MODULE vars_module
      !! converted to upper case.
      !----------------------------------------------------------------------------
      subroutine addLagrangeToRegister(var, varname, grid)
-      real(8), dimension(:), target, intent(in)          :: var
+      real(KDOUBLE), dimension(:), target, intent(in)          :: var
       character(*), intent(in)                           :: varname
       type(t_grid_lagrange), target, intent(in)          :: grid
       type(variable_ptr)                                 :: dat_ptr
@@ -349,7 +350,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE get3DFromRegister(varname, vardata, grid, grid_l)
       CHARACTER(*), INTENT(in)                                 :: varname
-      REAL(8), DIMENSION(:,:,:), POINTER, INTENT(out)          :: vardata
+      real(KDOUBLE), DIMENSION(:,:,:), POINTER, INTENT(out)          :: vardata
       TYPE(variable_t), POINTER                                :: var
       TYPE(grid_t), POINTER, INTENT(out), OPTIONAL             :: grid
       type(t_grid_lagrange), pointer, intent(out), optional    :: grid_l
@@ -373,7 +374,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE get2DFromRegister(varname, vardata, grid, grid_l)
       CHARACTER(*), INTENT(in)                              :: varname
-      REAL(8), DIMENSION(:,:), POINTER, INTENT(out)         :: vardata
+      real(KDOUBLE), DIMENSION(:,:), POINTER, INTENT(out)         :: vardata
       TYPE(variable_t), POINTER                             :: var
       TYPE(grid_t), POINTER, INTENT(out), OPTIONAL          :: grid
       type(t_grid_lagrange), pointer, intent(out), optional :: grid_l
@@ -396,7 +397,7 @@ MODULE vars_module
     !----------------------------------------------------------------------------
     SUBROUTINE get1DFromRegister(varname, vardata, grid, grid_l)
       CHARACTER(*), INTENT(in)                              :: varname
-      REAL(8), DIMENSION(:), POINTER, INTENT(out)           :: vardata
+      real(KDOUBLE), DIMENSION(:), POINTER, INTENT(out)           :: vardata
       TYPE(variable_t), POINTER                             :: var
       TYPE(grid_t), POINTER, INTENT(out), OPTIONAL          :: grid
       type(t_grid_lagrange), pointer, intent(out), optional :: grid_l

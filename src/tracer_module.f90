@@ -24,6 +24,7 @@
 !------------------------------------------------------------------
 MODULE tracer_module
 #include "model.h"
+  use types
   use tracer_vars
   USE time_integration_module, ONLY : integrate_AB
 #ifdef SWM
@@ -36,11 +37,11 @@ MODULE tracer_module
   PUBLIC :: TRC_initTracer, TRC_finishTracer, TRC_timestep, TRC_advance
 
 
-  integer, parameter                              :: TRC_NCOEFF=12 !< Number of coefficients use for coefficient matrix
-  real(8), dimension(:,:,:), allocatable, target  :: TRC_coeff     !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme. Size TRC_NCOEFF, Nx, Ny
-  real(8), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
-  real(8), dimension(:, :), pointer               :: h, h_u, h_v   !< Pointer to layer thickness of the shallow water component
-  real(8), dimension(:, :), pointer               :: u, v          !< horizontal velocity components
+  integer(KINT), parameter                              :: TRC_NCOEFF=12 !< Number of coefficients use for coefficient matrix
+  real(KDOUBLE), dimension(:,:,:), allocatable, target  :: TRC_coeff     !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme. Size TRC_NCOEFF, Nx, Ny
+  real(KDOUBLE), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
+  real(KDOUBLE), dimension(:, :), pointer               :: h, h_u, h_v   !< Pointer to layer thickness of the shallow water component
+  real(KDOUBLE), dimension(:, :), pointer               :: u, v          !< horizontal velocity components
 
   CONTAINS
 
@@ -55,10 +56,10 @@ MODULE tracer_module
     !------------------------------------------------------------------
     subroutine TRC_initTracer
       use vars_module, only: getFromRegister
-      integer :: alloc_error
+      integer(KINT) :: alloc_error
 
       call TRC_vars_init
-      if (.not. TRC_has_tracer()) write(*, *), "Warning: no tracer defined but running tracer module."
+      if (.not. TRC_has_tracer()) write(*, *) "Warning: no tracer defined but running tracer module."
 
       ! get pointer to layer thickness
       call getFromRegister("SWM_D", h)
@@ -82,7 +83,7 @@ MODULE tracer_module
     !! tracer_module::TRC_G_CH1
     !------------------------------------------------------------------
     subroutine TRC_finishTracer
-      integer       :: alloc_error
+      integer(KINT)       :: alloc_error
       call TRC_finishCoeffs
       nullify(h)
       nullify(h_u)
@@ -148,9 +149,9 @@ MODULE tracer_module
     subroutine TRC_tracer_incr(trc)
       use domain_module, only : eta_grid, Nx, Ny, ip1, im1, jp1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
-      real(8), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c
-      real(8)                           :: kappa_h
-      integer       :: i,j
+      real(KDOUBLE), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c
+      real(KDOUBLE)                           :: kappa_h
+      integer(KINT)       :: i,j
       CH => trc%CH(:, :, TRC_N0)
       C => trc%C
       GCH => trc%G_CH(:, :, TRC_NG0)
@@ -161,21 +162,19 @@ MODULE tracer_module
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
-          if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
-          GCH(i, j) = (DOT_PRODUCT( &
-                        (/CH(ip1(i), j     ) * u(ip1(i), j),&
-                          CH(im1(i), j     ) * u(i     , j),&
-                          CH(i     , jp1(j)) * v(i     , jp1(j)),&
-                          CH(i     , jm1(j)) * v(i     , j),&
-                          CH(i     , j     ) * u(ip1(i), j),&
-                          CH(i     , j     ) * u(i     , j),&
-                          CH(i     , j     ) * v(i     , jp1(j)),&
-                          CH(i     , j     ) * v(i     , j),&
-                          kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)),&
-                          kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)),&
-                          kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
-                          kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
-                        TRC_coeff(:, i ,j)) &
+          if (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle XSPACE
+          GCH(i, j) = (  CH(ip1(i), j     ) * u(ip1(i), j) * TRC_coeff(1, i ,j) &
+                       + CH(im1(i), j     ) * u(i     , j) * TRC_coeff(2, i ,j) &
+                       + CH(i     , jp1(j)) * v(i     , jp1(j)) * TRC_coeff(3, i ,j) &
+                       + CH(i     , jm1(j)) * v(i     , j) * TRC_coeff(4, i ,j) &
+                       + CH(i     , j     ) * u(ip1(i), j) * TRC_coeff(5, i ,j) &
+                       + CH(i     , j     ) * u(i     , j) * TRC_coeff(6, i ,j) &
+                       + CH(i     , j     ) * v(i     , jp1(j)) * TRC_coeff(7, i ,j) &
+                       + CH(i     , j     ) * v(i     , j) * TRC_coeff(8, i ,j) &
+                       + kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
+                       + kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)) * TRC_coeff(10, i ,j) &
+                       + kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )) * TRC_coeff(11, i ,j) &
+                       + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j) &
                       - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
 #ifdef SWM
                       + C(i, j) * F_eta(i, j) &
@@ -194,9 +193,9 @@ MODULE tracer_module
     subroutine TRC_tracer_integrate(trc)
       use domain_module, only: Nx, Ny
       type(TRC_tracer), pointer, intent(inout) :: trc
-      real(8), dimension(:, :), pointer :: CH1, CH2, GCH0, GCH1, impl
-      real(8), dimension(:, :, :), pointer :: GCH
-      integer :: i, j
+      real(KDOUBLE), dimension(:, :), pointer :: CH1, CH2, GCH0, GCH1, impl
+      real(KDOUBLE), dimension(:, :, :), pointer :: GCH
+      integer(KINT) :: i, j
 
       CH1 => trc%CH(:, :, TRC_N0)
       CH2 => trc%CH(:, :, TRC_N0p1)
@@ -205,13 +204,8 @@ MODULE tracer_module
       impl => trc%impl
       GCH => trc%G_CH
 
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
-      do j=1,Ny
-        do i=1,Nx
-          CH2(i, j) = integrate_AB(CH1(i, j), GCH(i, j, :), impl(i, j), TRC_NG)
-        end do
-      end do
-!$OMP end parallel do
+      CH2 = integrate_AB(CH1, GCH, impl, TRC_NG)
+
     end subroutine TRC_tracer_integrate
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -220,16 +214,22 @@ MODULE tracer_module
     subroutine TRC_tracer_advance(trc)
       use domain_module, only: eta_grid, Nx, Ny
       type(TRC_tracer), pointer, intent(inout) :: trc
-      integer :: i, j
+      integer(KINT) :: i, j, ti
+!CDIR NODEP
 !$OMP parallel do &
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j=1,Ny
+!CDIR NODEP
         do i=1,Nx
-          if (eta_grid%land(i, j) .eq. 1_1) cycle
-          !< Shift explicit increment vector
-          trc%G_CH(i, j, 1:TRC_NG-1) = trc%G_CH(i, j, 2:TRC_NG)
-          !< Shift prognostic variables
-          trc%CH(i, j, 1:TRC_NLEVEL_SCHEME-1) = trc%CH(i, j, 2:TRC_NLEVEL_SCHEME)
+          if (eta_grid%land(i, j) .eq. 1_KSHORT) cycle
+          do ti = 1, TRC_NG-1
+            !< Shift explicit increment vector
+            trc%G_CH(i, j, ti) = trc%G_CH(i, j, ti + 1)
+          end do
+          do ti = 1, TRC_NLEVEL_SCHEME-1
+            !< Shift prognostic variables
+            trc%CH(i, j, ti) = trc%CH(i, j, ti + 1)
+          end do
           !< compute diagnostic variables
           trc%C(i, j) = trc%CH(i, j, TRC_N0) / h(i, j)
         end do
@@ -250,10 +250,10 @@ MODULE tracer_module
       use vars_module, only: addToRegister
       use domain_module, only : Nx, Ny, dLambda, dTheta, ip1, im1, jp1, jm1, &
                                 eta_grid, u_grid, v_grid, A
-      integer       :: alloc_error
-      integer       :: i,j
-      integer(1), dimension(:, :), pointer :: ocean_eta, ocean_u, ocean_v
-      real(8), dimension(:), pointer :: cosTheta_u, cosTheta_v, cosTheta_eta
+      integer(KINT)       :: alloc_error
+      integer(KINT)       :: i,j
+      integer(KSHORT), dimension(:, :), pointer :: ocean_eta, ocean_u, ocean_v
+      real(KDOUBLE), dimension(:), pointer :: cosTheta_u, cosTheta_v, cosTheta_eta
 
       allocate(TRC_coeff(TRC_NCOEFF, Nx, Ny), stat=alloc_error)
       if (alloc_error .ne. 0) then
@@ -262,7 +262,7 @@ MODULE tracer_module
       end if
 
       call addToRegister(TRC_coeff,"TRC_COEFF")
-      TRC_coeff = 0._8
+      TRC_coeff = 0._KDOUBLE
 
       ocean_eta => eta_grid%ocean
       ocean_u => u_grid%ocean
@@ -302,7 +302,7 @@ MODULE tracer_module
     !! and Adams-Bashforth scheme
     !------------------------------------------------------------------
     SUBROUTINE TRC_finishCoeffs
-      INTEGER       :: alloc_error
+      integer(KINT)       :: alloc_error
       DEALLOCATE(TRC_coeff, STAT=alloc_error)
       IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
     END SUBROUTINE TRC_finishCoeffs

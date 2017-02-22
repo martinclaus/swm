@@ -2,6 +2,7 @@
 
 # arguments
 # $1 test directory
+# $2 model executable
 
 # Move to project dir, e.g. /home/zzz/model
 # Only works from model or selfcheck directory
@@ -16,11 +17,10 @@ if [ "$DIR" = "." ]; then
 fi
 
 # Save paths
-modelDir="$PWD"
-selfcheckDir="$modelDir/selfcheck"
+modelDir="$DIR"
+selfcheckDir="$DIR"
 testDir="$selfcheckDir/$1"
-buildDir="$modelDir/build"
-binDir="$modelDir/bin"
+model_bin="$2"
 
 # List of output files to compare:
 testOutputPrefix="$testDir/output/new_000000000001_"
@@ -32,7 +32,7 @@ rm -f $testOutputPrefix*
 
 # Execute model binary from test dir
 cd $testDir
-time $binDir/model
+time $model_bin
 
 # Compare results
 if [ $? -eq 0 ]

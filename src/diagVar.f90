@@ -15,6 +15,7 @@
 MODULE diagVar
 #include "io.h"
 #include "diag_module.h"
+  use types
   USE vars_module, ONLY : addToRegister
   USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid
   USE grid_module, only : grid_t
@@ -44,9 +45,9 @@ MODULE diagVar
   !------------------------------------------------------------------
   TYPE diagVar_t
     PRIVATE
-    REAL(8), DIMENSION(:,:), POINTER     :: data=>null()  !< Pointer to the variable data, Size(Nx,Ny)
-    CHARACTER(CHARLEN)                   :: name          !< Character string identifying the diagnostic variable.
-    LOGICAL                              :: computed      !< .TRUE. if the variable has already been computed at the present timestep
+    real(KDOUBLE), DIMENSION(:,:), POINTER     :: data=>null()  !< Pointer to the variable data, Size(Nx,Ny)
+    CHARACTER(CHARLEN)                         :: name          !< Character string identifying the diagnostic variable.
+    LOGICAL                                    :: computed      !< .TRUE. if the variable has already been computed at the present timestep
   END TYPE diagVar_t
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -69,8 +70,8 @@ MODULE diagVar
     !------------------------------------------------------------------
     SUBROUTINE initDiagVar(self, name)
       TYPE(diagVar_t), POINTER, INTENT(inout)   :: self
-      CHARACTER(*), INTENT(in), OPTIONAL  :: name
-      INTEGER :: alloc_error, strlen
+      CHARACTER(*), INTENT(in), OPTIONAL        :: name
+      integer(KINT)                             :: alloc_error, strlen
       IF(ASSOCIATED(self%data)) THEN
         DEALLOCATE(self%data)
         NULLIFY(self%data)
@@ -80,7 +81,7 @@ MODULE diagVar
         PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      self%data = 0.
+      self%data = 0._KDOUBLE
       self%name=""
       if (PRESENT(name)) THEN
         strlen = MIN(len(name),CHARLEN)
@@ -96,7 +97,7 @@ MODULE diagVar
     !------------------------------------------------------------------
     SUBROUTINE finishDiagVar(self)
       TYPE(diagVar_t), POINTER, INTENT(inout) :: self
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
       IF(ASSOCIATED(self%data)) THEN
         DEALLOCATE(self%data)
         NULLIFY(self%data)
@@ -155,8 +156,8 @@ MODULE diagVar
     !> @brief  Set data of a diagnosic variable
     !------------------------------------------------------------------
     SUBROUTINE setData(self,data)
-      TYPE(diagVar_t), POINTER, INTENT(inout) :: self
-      REAL(8), DIMENSION(:,:), INTENT(in)     :: data
+      TYPE(diagVar_t), POINTER, INTENT(inout)       :: self
+      real(KDOUBLE), DIMENSION(:,:), INTENT(in)     :: data
       IF(ASSOCIATED(self).AND.ASSOCIATED(self%data)) self%data = data
     END SUBROUTINE setData
 
@@ -166,8 +167,8 @@ MODULE diagVar
     !! If the variable has no associated data, the pointer returned will be null.
     !------------------------------------------------------------------
     FUNCTION getData(self) RESULT(data)
-      TYPE(diagVar_t), POINTER, INTENT(in) :: self
-      REAL(8), DIMENSION(:,:), POINTER     :: data
+      TYPE(diagVar_t), POINTER, INTENT(in)       :: self
+      real(KDOUBLE), DIMENSION(:,:), POINTER     :: data
       nullify(data)
       IF(ASSOCIATED(self).AND.ASSOCIATED(self%data)) data => self%data
     END FUNCTION getData
@@ -326,7 +327,7 @@ MODULE diagVar
     !------------------------------------------------------------------
     SUBROUTINE printVarSummary
       TYPE(list_node_t), POINTER :: currentNode
-      TYPE(diagVar_ptr)         :: var_ptr
+      TYPE(diagVar_ptr)          :: var_ptr
       PRINT *,"Diag Variable Summary:"
       currentNode => diagVarList
       DO WHILE (ASSOCIATED(currentNode))

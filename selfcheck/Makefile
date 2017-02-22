@@ -11,8 +11,8 @@ test_nonlinear : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nonlinear/
 test_nl_tracer : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nl_tracer/
 test_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
 test% : clean model
-	@echo $@
-	$(SHELL) $(selfcheck_dir)runselfcheck.sh $@
+	@echo run $@ with $(bindir)model
+	$(SHELL) $(selfcheck_dir)runselfcheck.sh $@ $(bindir)model
 
 utest_str : $(selfcheck_dir)utest_str/utest_str.f90 str.o
 	$(FC) $(FFLAGS) $(CPPFLAGS) $(FC_MODINC)$(builddir) $(builddir)str.o $< -o $(selfcheck_dir)$@/$@

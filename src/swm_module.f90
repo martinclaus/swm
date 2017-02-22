@@ -12,6 +12,7 @@
 !! swm_timestep_module\n
 !------------------------------------------------------------------
 MODULE swm_module
+  use types
   use swm_vars
   USE swm_damping_module
   USE swm_forcing_module
@@ -33,7 +34,7 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
       IMPLICIT NONE
-      INTEGER :: alloc_error ! return status
+      integer(KINT) :: alloc_error ! return status
       call swm_vars_init
       print *, "	swm_vars_init done"
       CALL SWM_damping_init
@@ -118,9 +119,9 @@ MODULE swm_module
                               N0p1
       USE domain_module, ONLY : eta_grid, u_grid, v_grid
       IMPLICIT NONE
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
-      INTEGER(1), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
+      integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
+      integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
+      integer(KSHORT), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
 
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean

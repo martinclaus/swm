@@ -5,6 +5,7 @@
 !------------------------------------------------------------------
 module swm_vars
 #include "model.h"
+  use types
   use memchunk_module, ONLY : memoryChunk
   implicit none
   private
@@ -15,27 +16,31 @@ module swm_vars
          D, Dh, Du, Dv, EDens, Pot, zeta, MV, MU, &
          psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
 
-  INTEGER, PARAMETER                             :: NG=3          !< maximal level of timestepping. Increments stored in memory
-  INTEGER, PARAMETER                             :: NG0=NG        !< Index of newest increment
-  INTEGER, PARAMETER                             :: NG0m1=NG0-1   !< Index of n-1 level
-  real(8), dimension(:,:,:), allocatable, target :: SWM_u         !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  real(8), dimension(:,:,:), allocatable, target :: SWM_v         !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
-  real(8), dimension(:,:,:), allocatable, target :: SWM_eta       !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u           !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v           !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,NG
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta         !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,NG
-  REAL(8), DIMENSION(:,:), pointer               :: D, Dh, Du, Dv
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: EDens
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: Pot
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: zeta
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MV
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MU
-  real(8)                                        :: minD=1._8     !< Minimum layer thickness
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: psi_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: u_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: v_bs
-  REAL(8), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: zeta_bs
-  TYPE(memoryChunk), SAVE                        :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
+  integer(KINT), PARAMETER                                   :: NG=3        !< maximal level of timestepping. Increments stored in memory
+  integer(KINT), PARAMETER                                   :: NG0=NG      !< Index of newest increment
+  integer(KINT), PARAMETER                                   :: NG0m1=NG0-1 !< Index of n-1 level
+  real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_u       !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_v       !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
+  real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_eta     !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_u         !< Explicit increment vector of tendency equation for zonal momentum, Size Nx,Ny,NG
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_v         !< Explicit increment vector of tendency equation for meridional momentum, Size Nx,Ny,NG
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: G_eta       !< Explicit increment vectors of tendency equation for interface displacement, Size Nx,Ny,NG
+  real(KDOUBLE), DIMENSION(:,:), pointer               :: D           !< Layer thickness at eta grid point
+  real(KDOUBLE), DIMENSION(:,:), pointer               :: Dh          !< Layer thickness at h grid point
+  real(KDOUBLE), DIMENSION(:,:), pointer               :: Du          !< Layer thickness at u grid point
+  real(KDOUBLE), DIMENSION(:,:), pointer               :: Dv          !< Layer thickness at v grid point
+
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: EDens       !< Bernoulli potential
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: Pot         !< potential vorticity
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: zeta        !< relative vorticity
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MV          !< meridional mass flux
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: MU          !< zonal mass flux
+  real(KDOUBLE)                                        :: minD=1._KDOUBLE !< Minimum layer thickness
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: psi_bs      !< backround state streamfunction
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: u_bs        !< zonal velocity of background state
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: v_bs        !< meridional velocity of background state
+  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET :: zeta_bs     !< relative vorticity of background state
+  TYPE(memoryChunk), SAVE                              :: SWM_MC_bs_psi !< Memorychunk associated with a streamfunction dataset defining the basic state
 
   contains
 
@@ -49,7 +54,7 @@ module swm_vars
     subroutine SWM_vars_init()
       use vars_module, only : Ns, addToRegister, N0
       use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
-      integer   :: alloc_error
+      integer(KINT)   :: alloc_error
 
       allocate(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
       if (alloc_error .ne. 0) then
@@ -134,7 +139,7 @@ module swm_vars
     !> @brief  Frees memory allocated for the free variables of the shallow water model
     !------------------------------------------------------------------
     subroutine SWM_vars_finish()
-      integer  :: alloc_error
+      integer(KINT)  :: alloc_error
       deallocate(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, EDens, Pot, zeta, MV, MU, stat=alloc_error)
       if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
 #ifdef FULLY_NONLINEAR

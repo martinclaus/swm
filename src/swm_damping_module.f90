@@ -13,6 +13,7 @@ MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
+  use types
   IMPLICIT NONE
   PRIVATE
 
@@ -20,11 +21,11 @@ MODULE swm_damping_module
             impl_u, impl_v, impl_eta, &
             gamma_sq_u, gamma_sq_v
 
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_u      !< Implicit damping term of the zonal momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_v      !< Implicit damping term of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_eta    !< Implicit damping term of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
-  REAL(8), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_u      !< Implicit damping term of the zonal momentum budged
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_v      !< Implicit damping term of the meridional momentum budged
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_eta    !< Implicit damping term of the meridional momentum budged
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
+  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -45,12 +46,12 @@ MODULE swm_damping_module
                               addToRegister
       USE domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
       IMPLICIT NONE
-      INTEGER :: alloc_error
-      REAL(8), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
-                                          gamma_lin_v => null(), &
-                                          gamma_lin_eta => null()
-      INTEGER(1), DIMENSION(SIZE(u_grid%ocean,1), SIZE(u_grid%ocean,2)) :: ocean_u
-      INTEGER(1), DIMENSION(SIZE(v_grid%ocean,1), SIZE(v_grid%ocean,2)) :: ocean_v
+      integer(KINT) :: alloc_error
+      real(KDOUBLE), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
+                                                gamma_lin_v => null(), &
+                                                gamma_lin_eta => null()
+      integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1), SIZE(u_grid%ocean,2)) :: ocean_u
+      integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1), SIZE(v_grid%ocean,2)) :: ocean_v
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean
       ! allocate memory
@@ -156,15 +157,15 @@ MODULE swm_damping_module
       USE vars_module, ONLY : r, k, gamma_new
       use str, only : to_upper
       USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
-      CHARACTER(*), INTENT(in)                         :: coefName    !< String naming the requested coefficient
-      INTEGER, DIMENSION(2), INTENT(in)                :: shapeOfCoef !< Shape of the metrix to be returned
-      REAL(8), DIMENSION(shapeOfCoef(1),shapeOfCoef(2)):: coef        !< coefficient matrix
-      TYPE(memoryChunk)                                :: memChunk    !< memory chunk to load data from file
-      CHARACTER(CHARLEN)                               :: filename="" !< Filename of dataset
-      CHARACTER(CHARLEN)                               :: varname=""  !< Variable of coefficient in dataset
-      CHARACTER(CHARLEN)                               :: type=""     !< Name of coefficient to compare with coefName
-      INTEGER                                          :: chunkSize=1 !< Chunksize of memory chunk. 1, because it is constant in time
-      INTEGER                                          :: io_stat=0   !< io status of namelist read call
+      CHARACTER(*), INTENT(in)                               :: coefName    !< String naming the requested coefficient
+      integer(KINT), DIMENSION(2), INTENT(in)                :: shapeOfCoef !< Shape of the metrix to be returned
+      real(KDOUBLE), DIMENSION(shapeOfCoef(1),shapeOfCoef(2)):: coef        !< coefficient matrix
+      TYPE(memoryChunk)                                      :: memChunk    !< memory chunk to load data from file
+      CHARACTER(CHARLEN)                                     :: filename="" !< Filename of dataset
+      CHARACTER(CHARLEN)                                     :: varname=""  !< Variable of coefficient in dataset
+      CHARACTER(CHARLEN)                                     :: type=""     !< Name of coefficient to compare with coefName
+      integer(KINT)                                          :: chunkSize=1 !< Chunksize of memory chunk. 1, because it is constant in time
+      integer(KINT)                                          :: io_stat=0   !< io status of namelist read call
       NAMELIST / swm_damping_nl / filename, varname, type             !< namelist of damping coefficient dataset
 
       ! read input namelists
@@ -194,7 +195,7 @@ MODULE swm_damping_module
           PRINT *,"ERROR loading damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!"
           STOP 1
         ELSE
-          coef = getChunkData(memChunk,0._8)
+          coef = getChunkData(memChunk, 0._KDOUBLE)
         END IF
         CALL finishMemChunk(memChunk)
       END IF
@@ -243,15 +244,15 @@ MODULE swm_damping_module
       !! - "S" for southern boundary
       !! - "E" for eastern boundary
       !! - "W" for western boundary
-      CHARACTER(len=*), INTENT(in)       :: posString
-      REAL(8)                            :: gamma(Nx,Ny) !< Field of damping coefficients related to the sponge layers
-      REAL(8)                            :: lat(Ny), lon(Nx), spongeCoefficient
-      INTEGER                            :: iGrid, iBoundary, iSponge(4,3)
-      REAL(8), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
-      REAL(8), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
-      iSponge = RESHAPE((/1,Ny-1,2,Nx-1,&
-                          2,Ny-1,1,Nx-1,&
-                          1,Ny-1,1,Nx-1/),SHAPE(iSponge))
+      CHARACTER(len=*), INTENT(in)             :: posString
+      real(KDOUBLE)                            :: gamma(Nx,Ny) !< Field of damping coefficients related to the sponge layers
+      real(KDOUBLE)                            :: lat(Ny), lon(Nx), spongeCoefficient
+      integer(KINT)                            :: iGrid, iBoundary, iSponge(4,3)
+      real(KDOUBLE), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
+      real(KDOUBLE), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
+      iSponge = RESHAPE((/1_KINT, Ny-1, 2_KINT, Nx-1,&
+                          2_KINT, Ny-1, 1_KINT, Nx-1,&
+                          1_KINT, Ny-1, 1_KINT, Nx-1/),SHAPE(iSponge))
       gamma = 0.
       SELECT CASE(gString(1:1))
         CASE("u","U")
@@ -331,7 +332,7 @@ MODULE swm_damping_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_damping_finish
       IMPLICIT NONE
-      INTEGER :: alloc_error
+      integer(KINT) :: alloc_error
       IF (ALLOCATED(gamma_sq_u)) THEN
         DEALLOCATE(gamma_sq_u,stat=alloc_error)
         IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
