@@ -152,13 +152,15 @@ MODULE tracer_module
     subroutine TRC_tracer_incr(trc)
       use domain_module, only : eta_grid, Nx, Ny, ip1, im1, jp1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
-      real(8), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c
+      real(8), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c, diff, forcing
       real(8)                           :: kappa_h
       integer       :: i,j
       CH => trc%CH(:, :, TRC_N0)
       C => trc%C
       GCH => trc%G_CH(:, :, TRC_NG0)
       C0 => trc%C0
+      diff => trc%diff
+      forcing => trc%forcing
       gamma_c => trc%gamma_C
       kappa_h = trc%kappa_h
 !$OMP parallel do &
@@ -166,6 +168,16 @@ MODULE tracer_module
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
           if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
+          diff(i, j) = (DOT_PRODUCT( &
+                         (/kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)),&
+                           kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)),&
+                           kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
+                           kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
+                         TRC_coeff(9:12, i, j)) &
+                       )
+#ifdef SWM
+          forcing(i, j) = C(i, j) * F_eta(i, j)
+#endif
           GCH(i, j) = (DOT_PRODUCT( &
                         (/CH(ip1(i), j     ) * u(ip1(i), j),&
                           CH(im1(i), j     ) * u(i     , j),&
@@ -174,16 +186,15 @@ MODULE tracer_module
                           CH(i     , j     ) * u(ip1(i), j),&
                           CH(i     , j     ) * u(i     , j),&
                           CH(i     , j     ) * v(i     , jp1(j)),&
-                          CH(i     , j     ) * v(i     , j),&
-                          kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)),&
-                          kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)),&
-                          kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
-                          kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
-                        TRC_coeff(:, i ,j)) &
+                          CH(i     , j     ) * v(i     , j)/) ,&
+                          !kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)),&
+                          !kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)),&
+                          !kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )),&
+                          !kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j)))/), &
+                        TRC_coeff(:8, i ,j)) &
+                      + diff(i, j) &
                       - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
-#ifdef SWM
-                      + C(i, j) * F_eta(i, j) &
-#endif
+                      + forcing(i, j) &
                       )
         END DO XSPACE
       END DO YSPACE
