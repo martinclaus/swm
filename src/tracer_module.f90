@@ -41,7 +41,7 @@ MODULE tracer_module
   real(KDOUBLE), dimension(:,:,:), allocatable, target  :: TRC_coeff     !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme. Size TRC_NCOEFF, Nx, Ny
   real(KDOUBLE), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
   real(KDOUBLE), dimension(:, :), pointer               :: h, h_u, h_v   !< Pointer to layer thickness of the shallow water component
-  real(KDOUBLE), dimension(:, :), pointer               :: u, v          !< horizontal velocity components
+  real(KDOUBLE), dimension(:, :), pointer               :: u, v, mu, mv  !< horizontal velocity components
 
   CONTAINS
 
@@ -69,6 +69,10 @@ MODULE tracer_module
       ! get pointer to u, v (TODO: implement alternative computation of divergence-free velocity, if model is not non-linear)
       call getFromRegister("U", u)
       call getFromRegister("V", v)
+
+      ! get pointer to mass flux vector components
+      call getFromRegister("SWM_MU", mu)
+      call getFromRegister("SWM_MV", mv)
 
       ! Setup coefficients for forward schemes
       call TRC_initCoeffs
@@ -149,36 +153,41 @@ MODULE tracer_module
     subroutine TRC_tracer_incr(trc)
       use domain_module, only : eta_grid, Nx, Ny, ip1, im1, jp1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
-      real(KDOUBLE), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c
+      real(KDOUBLE), dimension(:, :), pointer :: CH, C, GCH, C0, gamma_c, diff, forcing
       real(KDOUBLE)                           :: kappa_h
       integer(KINT)       :: i,j
       CH => trc%CH(:, :, TRC_N0)
       C => trc%C
       GCH => trc%G_CH(:, :, TRC_NG0)
       C0 => trc%C0
+      diff => trc%diff
+      forcing => trc%forcing
       gamma_c => trc%gamma_C
       kappa_h = trc%kappa_h
 !$OMP parallel do &
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
-          if (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle XSPACE
-          GCH(i, j) = (  CH(ip1(i), j     ) * u(ip1(i), j) * TRC_coeff(1, i ,j) &
-                       + CH(im1(i), j     ) * u(i     , j) * TRC_coeff(2, i ,j) &
-                       + CH(i     , jp1(j)) * v(i     , jp1(j)) * TRC_coeff(3, i ,j) &
-                       + CH(i     , jm1(j)) * v(i     , j) * TRC_coeff(4, i ,j) &
-                       + CH(i     , j     ) * u(ip1(i), j) * TRC_coeff(5, i ,j) &
-                       + CH(i     , j     ) * u(i     , j) * TRC_coeff(6, i ,j) &
-                       + CH(i     , j     ) * v(i     , jp1(j)) * TRC_coeff(7, i ,j) &
-                       + CH(i     , j     ) * v(i     , j) * TRC_coeff(8, i ,j) &
-                       + kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
+          if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
+          diff(i, j) =   kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
                        + kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)) * TRC_coeff(10, i ,j) &
                        + kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )) * TRC_coeff(11, i ,j) &
                        + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j) &
-                      - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
+
 #ifdef SWM
-                      + C(i, j) * F_eta(i, j) &
+          forcing(i, j) = C(i, j) * F_eta(i, j)
 #endif
+          GCH(i, j) = ( CH(ip1(i), j     ) * u(ip1(i), j) * TRC_coeff(1, i ,j) &
+                      + CH(im1(i), j     ) * u(i     , j) * TRC_coeff(2, i ,j) &
+                      + CH(i     , jp1(j)) * v(i     , jp1(j)) * TRC_coeff(3, i ,j) &
+                      + CH(i     , jm1(j)) * v(i     , j) * TRC_coeff(4, i ,j) &
+                      + CH(i     , j     ) * u(ip1(i), j) * TRC_coeff(5, i ,j) &
+                      + CH(i     , j     ) * u(i     , j) * TRC_coeff(6, i ,j) &
+                      + CH(i     , j     ) * v(i     , jp1(j)) * TRC_coeff(7, i ,j) &
+                      + CH(i     , j     ) * v(i     , j) * TRC_coeff(8, i ,j) &
+                      + diff(i, j) &
+                      - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
+                      + forcing(i, j) &
                       )
         END DO XSPACE
       END DO YSPACE
@@ -212,7 +221,7 @@ MODULE tracer_module
     !> @brief Advancing routine of an individual tracer object
     !------------------------------------------------------------------
     subroutine TRC_tracer_advance(trc)
-      use domain_module, only: eta_grid, Nx, Ny
+      use domain_module, only: eta_grid, Nx, Ny, im1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
       integer(KINT) :: i, j, ti
 !CDIR NODEP
@@ -232,6 +241,8 @@ MODULE tracer_module
           end do
           !< compute diagnostic variables
           trc%C(i, j) = trc%CH(i, j, TRC_N0) / h(i, j)
+          trc%uhc(i, j) = mu(i, j) * .5 * (trc%C(i, j) + trc%C(im1(i), j))
+          trc%vhc(i, j) = mv(i, j) * .5 * (trc%C(i, j) + trc%C(i, jm1(j)))
         end do
       end do
 !$OMP end parallel do
