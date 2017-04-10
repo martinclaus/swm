@@ -349,7 +349,6 @@ MODULE swm_timestep_module
                                + (interpolate(SWM_v(:,:,N0), v2u, i, j)**2)) & ! averaging v on u grid
                              *SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
-
 #ifdef LATERAL_MIXING
                              + SWM_LateralMixing(i, j, N0, u_grid) &  !
 #endif
