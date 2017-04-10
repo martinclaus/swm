@@ -9,6 +9,7 @@
 module tracer_vars
 #include "tracer_module.h"
 #include "io.h"
+  use types
   use generic_list, only: list_node_t
   implicit none
   save
@@ -18,28 +19,32 @@ module tracer_vars
             TRC_NLEVEL_SCHEME, TRC_N0, TRC_N0p1, TRC_N0m1, TRC_NG, TRC_NG0, TRC_NG0m1, &
             TRC_vars_init, TRC_vars_finish, TRC_has_tracer
 
-  integer(4), PARAMETER                           :: TRC_NLEVEL_SCHEME=TRC_NLEVEL !< Number of time levels used
-  integer(4), PARAMETER                           :: TRC_N0=TRC_NLEVEL0           !< Index of the present time step
-  integer(4), PARAMETER                           :: TRC_N0p1=TRC_N0+1            !< Index of the next time step
-  integer(4), PARAMETER                           :: TRC_N0m1=TRC_N0-1            !< Index of the previous time step
-  integer(4), PARAMETER                           :: TRC_NG=TRC_GLEVEL            !< Number of increments to hold in memory
-  integer(4), PARAMETER                           :: TRC_NG0=TRC_NG               !< Index of present increment
-  integer(4), PARAMETER                           :: TRC_NG0m1=TRC_NG0-1          !< Index of youngest passed increment
+  integer(KINT), PARAMETER                          :: TRC_NLEVEL_SCHEME=TRC_NLEVEL !< Number of time levels used
+  integer(KINT), PARAMETER                          :: TRC_N0=TRC_NLEVEL0           !< Index of the present time step
+  integer(KINT), PARAMETER                          :: TRC_N0p1=TRC_N0+1            !< Index of the next time step
+  integer(KINT), PARAMETER                          :: TRC_N0m1=TRC_N0-1            !< Index of the previous time step
+  integer(KINT), PARAMETER                          :: TRC_NG=TRC_GLEVEL            !< Number of increments to hold in memory
+  integer(KINT), PARAMETER                          :: TRC_NG0=TRC_NG               !< Index of present increment
+  integer(KINT), PARAMETER                          :: TRC_NG0m1=TRC_NG0-1          !< Index of youngest passed increment
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Object containing the data associated with a tracer field and
   !! additional information, parsed from the namelist
   !------------------------------------------------------------------
   type :: TRC_tracer
-    character(CHARLEN)                        :: varid    !< String used to prefix tracer variables for diagnostics
-    real(8), dimension(:, :, :), allocatable  :: CH       !< Layer-integrated Tracer concentration, Size, Nx, Ny, TRC_NLEVEL_SCHEME
-    real(8), dimension(:, :, :), allocatable  :: G_CH     !< Explicit increment vector. Size Nx, Ny, NG
-    real(8), dimension(:, :), allocatable     :: C        !< Tracer concentration. Size Nx,Ny
-    real(8), dimension(:, :), allocatable     :: gamma_C  !< Relaxation coefficient. Size Nx,Ny
-    real(8), dimension(:, :), allocatable     :: cons     !< Consumption rate. Size Nx,Ny
-    real(8), dimension(:, :), allocatable     :: C0       !< Tracer concentration to relax to. Size Nx,Ny
-    real(8), dimension(:, :), allocatable     :: impl     !< Implicit damping term, dependent on relaxation and consumption
-    real(8)                                   :: kappa_h=0._8 !< Horizontal diffusivity
+    character(CHARLEN)                              :: varid    !< String used to prefix tracer variables for diagnostics
+    real(KDOUBLE), dimension(:, :, :), allocatable  :: CH       !< Layer-integrated Tracer concentration, Size, Nx, Ny, TRC_NLEVEL_SCHEME
+    real(KDOUBLE), dimension(:, :, :), allocatable  :: G_CH     !< Explicit increment vector. Size Nx, Ny, NG
+    real(KDOUBLE), dimension(:, :), allocatable     :: C        !< Tracer concentration. Size Nx,Ny
+    real(KDOUBLE), dimension(:, :), allocatable     :: gamma_C  !< Relaxation coefficient. Size Nx,Ny
+    real(KDOUBLE), dimension(:, :), allocatable     :: cons     !< Consumption rate. Size Nx,Ny
+    real(KDOUBLE), dimension(:, :), allocatable     :: C0       !< Tracer concentration to relax to. Size Nx,Ny
+    real(KDOUBLE), dimension(:, :), allocatable     :: impl     !< Implicit damping term, dependent on relaxation and consumption
+    real(KDOUBLE)                                   :: kappa_h=0._KDOUBLE !< Horizontal diffusivity
+    real(KDOUBLE), dimension(:, :), allocatable     :: uhc       !< u* h * C for tracer budged diagnostics
+    real(KDOUBLE), dimension(:, :), allocatable     :: vhc       !< v* h * C for tracer budged diagnostics
+    real(KDOUBLE), dimension(:, :), allocatable     :: diff      !< kappa_h * h * del(C) Tracer diffusion
+    real(KDOUBLE), dimension(:, :), allocatable     :: forcing   !< term in tracer equation due to forcing in the continuity equation
   end type TRC_tracer
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -62,10 +67,10 @@ module tracer_vars
     !! Read forcing namelists, populate tracer list
     !------------------------------------------------------------------
     subroutine TRC_vars_init
-      integer            :: stat
+      integer(KINT)            :: stat
       character(CHARLEN) :: filename_C0, filename_C, filename_gamma_C, filename_cons, &
                             varname_C0, varname_C, varname_gamma_C, varname_cons, varid
-      real(8)            :: kappa_h, cons, gamma_C
+      real(KDOUBLE)            :: kappa_h, cons, gamma_C
 
       !< namelist definition of tracer
       namelist / trc_tracer_nl / &
@@ -87,9 +92,9 @@ module tracer_vars
         varname_C = ""
         varname_gamma_C = ""
         varname_cons = ""
-        kappa_h = 0._8
-        cons = 0._8
-        gamma_C = 0._8
+        kappa_h = 0._KDOUBLE
+        cons = 0._KDOUBLE
+        gamma_C = 0._KDOUBLE
         varid = ""
         read(UNIT_TRACER_NL, nml=trc_tracer_nl, iostat=stat)
         if (stat .ne. 0) exit
@@ -118,16 +123,16 @@ module tracer_vars
     subroutine TRC_add_to_list(varid, kappa_h, cons, gamma_C, &
                                filename_C, filename_C0, filename_gamma_C, filename_cons, &
                                varname_C, varname_C0, varname_gamma_C, varname_cons)
-      use domain_module, only: Nx, Ny, eta_grid
+      use domain_module, only: Nx, Ny, eta_grid, u_grid, v_grid
       use vars_module, only: addToRegister, getFromRegister, dt
       use generic_list, only: list_init, list_insert, list_data
       character(CHARLEN), intent(in) :: filename_C0, filename_C, filename_gamma_C, filename_cons, &
                                         varname_C0, varname_C, varname_gamma_C, varname_cons, varid
-      real(8), intent(in)            :: kappa_h, cons, gamma_C
+      real(KDOUBLE), intent(in)            :: kappa_h, cons, gamma_C
       type(TRC_tracer_list_node)        :: trc_listnode
       type(TRC_tracer), pointer         :: tracer
-      real(8), dimension(:, :), pointer :: swm_d
-      integer                           :: stat
+      real(KDOUBLE), dimension(:, :), pointer :: swm_d
+      integer(KINT)                           :: stat
 
       call getFromRegister("SWM_D", swm_d)
 
@@ -142,21 +147,26 @@ module tracer_vars
 
       allocate(tracer%C(1:Nx, 1:Ny), tracer%CH(1:Nx, 1:Ny, 1:TRC_NLEVEL_SCHEME), tracer%G_CH(1:Nx, 1:Ny, 1:TRC_NG), &
                tracer%gamma_C(1:Nx, 1:Ny), tracer%cons(1:Nx, 1:Ny), tracer%C0(1:Nx, 1:Ny), tracer%impl(1:Nx, 1:Ny), &
+               tracer%uhc(1:Nx, 1:Ny), tracer%vhc(1:Nx, 1:Ny), tracer%diff(1:Nx, 1:Ny), tracer%forcing(1:Nx, 1:Ny), &
                stat=stat)
       if (stat .ne. 0) then
         write (*,*) "Allocation error in TRC_add_to_list"
         stop 1
       end if
 
-      call TRC_init_field(tracer%C, 0._8, filename_C, varname_C)
-      call TRC_init_field(tracer%C0, 0._8, filename_C0, varname_C0)
+      call TRC_init_field(tracer%C, 0._KDOUBLE, filename_C, varname_C)
+      call TRC_init_field(tracer%C0, 0._KDOUBLE, filename_C0, varname_C0)
       call TRC_init_field(tracer%cons, cons, filename_cons, varname_cons)
       call TRC_init_field(tracer%gamma_C, gamma_C, filename_gamma_C, varname_gamma_C)
 
-      tracer%CH = 0._8
+      tracer%CH = 0._KDOUBLE
       tracer%CH(:, :, TRC_N0) = swm_d * tracer%C
-      tracer%G_CH = 0._8
-      tracer%impl = 1._8 + dt * tracer%cons
+      tracer%G_CH = 0._KDOUBLE
+      tracer%impl = 1._KDOUBLE + dt * tracer%cons
+      tracer%uhc = 0._KDOUBLE
+      tracer%vhc = 0._KDOUBLE
+      tracer%diff = 0._KDOUBLE
+      tracer%forcing = 0._KDOUBLE
 
       call addToRegister(tracer%C, trim(tracer%varid) // "_C", eta_grid)
       call addToRegister(tracer%CH(:, :, TRC_N0), trim(tracer%varid) // "_CH", eta_grid)
@@ -165,6 +175,10 @@ module tracer_vars
       call addToRegister(tracer%gamma_C, trim(tracer%varid) // "_gamma_C", eta_grid)
       call addToRegister(tracer%G_CH(:, :, TRC_NG0), trim(tracer%varid) // "_G_CH", eta_grid)
       call addToRegister(tracer%impl, trim(tracer%varid) // "_impl", eta_grid)
+      call addToRegister(tracer%uhc, trim(tracer%varid) // "_uhc", u_grid)
+      call addToRegister(tracer%vhc, trim(tracer%varid) // "_vhc", v_grid)
+      call addToRegister(tracer%diff, trim(tracer%varid) // "_diff", eta_grid)
+      call addToRegister(tracer%forcing, trim(tracer%varid) // "_forcing", eta_grid)
 
       trc_listnode%tracer => tracer
       if (.NOT. TRC_has_tracer()) then
@@ -184,8 +198,8 @@ module tracer_vars
     !------------------------------------------------------------------
     subroutine TRC_init_field(dat, def_val, filename, varname)
       use io_module, only: fileHandle, initFH, readInitialCondition
-      real(8), dimension(:, :), intent(out) :: dat
-      real(8), intent(in)                   :: def_val
+      real(KDOUBLE), dimension(:, :), intent(out) :: dat
+      real(KDOUBLE), intent(in)                   :: def_val
       character(CHARLEN), intent(in)        :: filename, varname
       type(fileHandle) :: fh
 
@@ -221,9 +235,10 @@ module tracer_vars
     !------------------------------------------------------------------
     subroutine TRC_tracer_finish(tracer)
       type(TRC_tracer), pointer, intent(inout) :: tracer
-      integer :: alloc_stat
+      integer(KINT) :: alloc_stat
       deallocate(tracer%C, tracer%C0, tracer%CH, tracer%cons, &
                  tracer%gamma_C, tracer%G_CH, tracer%impl, &
+                 tracer%uhc, tracer%vhc, &
                  stat=alloc_stat)
       if (alloc_stat .NE. 0) print *, "Deallocation failed in ", __FILE__, __LINE__, alloc_stat
       nullify(tracer)

@@ -10,6 +10,7 @@
 !!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
+    use types
     use f_udunits_2
     implicit none
 #include "io.h"
@@ -33,8 +34,10 @@ MODULE calendar_module
     TYPE(UT_SYSTEM_PTR)    :: utSystem           !< C pointer to the udunits2 units system object
 
     interface convertTime
-        module procedure convertTimeArray
-        module procedure convertTimeScalar
+        module procedure convertTimeArrayFloat
+        module procedure convertTimeScalarFloat
+        module procedure convertTimeArrayDouble
+        module procedure convertTimeScalarDouble
     end interface convertTime
 
     CONTAINS
@@ -119,11 +122,11 @@ MODULE calendar_module
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Converts an array of time values from one calendar to another
         !------------------------------------------------------------------
-        SUBROUTINE convertTimeArray(fromCal,toCal,time)
+        SUBROUTINE convertTimeArrayDouble(fromCal,toCal,time)
           IMPLICIT NONE
           TYPE(calendar), INTENT(in)           :: fromCal
           TYPE(calendar), INTENT(in)           :: toCal
-          REAL(8), DIMENSION(:), INTENT(inout) :: time
+          real(8), DIMENSION(:), INTENT(inout) :: time
           type(CV_CONVERTER_PTR) :: converter
           integer :: junk
           character (len=128) :: buffer1, buffer2
@@ -140,12 +143,12 @@ MODULE calendar_module
             junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
             print *, "Units are not convertible ", trim(buffer1), trim(buffer2)
           end if
-        END SUBROUTINE convertTimeArray
+        END SUBROUTINE convertTimeArrayDouble
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Converts a time scalar from one calendar to another
         !------------------------------------------------------------------
-        subroutine convertTimeScalar(fromCal, toCal, time)
+        subroutine convertTimeScalarDouble(fromCal, toCal, time)
           type(calendar), intent(in)  :: fromCal
           type(calendar), intent(in)  :: toCal
           real(8), intent(inout)      :: time
@@ -156,6 +159,48 @@ MODULE calendar_module
           call ut_check_status("cv_convert_double")
           call f_cv_free(converter)
           call ut_check_status("cv_free")
-        end subroutine convertTimeScalar
+        end subroutine convertTimeScalarDouble
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Converts an array of time values from one calendar to another
+        !------------------------------------------------------------------
+        SUBROUTINE convertTimeArrayFloat(fromCal,toCal,time)
+          IMPLICIT NONE
+          TYPE(calendar), INTENT(in)           :: fromCal
+          TYPE(calendar), INTENT(in)           :: toCal
+          real(4), DIMENSION(:), INTENT(inout) :: time
+          type(CV_CONVERTER_PTR) :: converter
+          integer :: junk
+          character (len=128) :: buffer1, buffer2
+
+          if (f_ut_are_convertible(fromCal%unit, toCal%unit)) then
+            converter = f_ut_get_converter(fromCal%unit, toCal%unit)
+            call ut_check_status("ut_get_converter")
+            call f_cv_convert_floats(converter, time, size(time), time)
+            call ut_check_status("ut_convert_doubles")
+            call f_cv_free(converter)
+            call ut_check_status("cv_free")
+          else
+            junk = f_ut_format(toCal%unit, buffer1, UT_NAMES)
+            junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
+            print *, "Units are not convertible ", trim(buffer1), trim(buffer2)
+          end if
+        END SUBROUTINE convertTimeArrayFloat
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Converts a time scalar from one calendar to another
+        !------------------------------------------------------------------
+        subroutine convertTimeScalarFloat(fromCal, toCal, time)
+          type(calendar), intent(in)  :: fromCal
+          type(calendar), intent(in)  :: toCal
+          real(4), intent(inout)      :: time
+          type(CV_CONVERTER_PTR)  :: converter
+          converter = f_ut_get_converter(fromCal%unit, toCal%unit)
+          call ut_check_status("ut_get_converter")
+          time = f_cv_convert_float(converter, time)
+          call ut_check_status("cv_convert_double")
+          call f_cv_free(converter)
+          call ut_check_status("cv_free")
+        end subroutine convertTimeScalarFloat
 
 END MODULE calendar_module
