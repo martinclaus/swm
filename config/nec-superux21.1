@@ -18,8 +18,8 @@ if test "X-" = "X-$CC"; then
 fi
 
 # set default flags
-FCFLAGS=${FCFLAGS:-"-C vopt -size_t64 -pi,auto,max_size=500,times=15 -dir,inline"}
-CFLAGS=${CFLAGS:-"-C vopt -size_t64"}
+FCFLAGS=${FCFLAGS:-"-C vopt -size_t64 -pi,auto,max_size=500,times=15 -dir,inline -DSHORT_KIND=4"}
+CFLAGS=${CFLAGS:-"-C vopt -size_t64 -DSHORT_KIND=4"}
 
 # define compiler switches
 ac_cv_fc_pp_define="-D"
