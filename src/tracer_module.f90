@@ -172,7 +172,7 @@ MODULE tracer_module
           diff(i, j) =   kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
                        + kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)) * TRC_coeff(10, i ,j) &
                        + kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )) * TRC_coeff(11, i ,j) &
-                       + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j) &
+                       + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j)
 
 #ifdef SWM
           forcing(i, j) = C(i, j) * F_eta(i, j)
@@ -343,6 +343,3 @@ MODULE tracer_module
     END SUBROUTINE TRC_getVelocity
 
 END MODULE tracer_module
-
-
-
