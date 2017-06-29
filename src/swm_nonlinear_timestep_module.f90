@@ -217,7 +217,7 @@ MODULE swm_timestep_module
       real(KDOUBLE)  :: pD   !< positive-definite layer thickness
       eps = epsilon(eps)
 !$OMP parallel do &
-!$OMP private(i,j) &
+!$OMP private(i,j, pD) &
 !$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
