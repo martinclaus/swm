@@ -213,21 +213,25 @@ MODULE swm_timestep_module
       USE domain_module, ONLY: H_grid, Nx, Ny, eta_grid
       IMPLICIT NONE
       integer(KINT)  :: i,j
+      real(KDOUBLE)  :: eps  !< smallest possible positive number
+      real(KDOUBLE)  :: pD   !< positive-definite layer thickness
+      eps = epsilon(eps)
 !$OMP parallel do &
 !$OMP private(i,j) &
 !$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
         do i = 1, Nx
+          pD = max(Dh(i, j), eps)
           !if (H_grid%land(i, j) .eq. 1_KSHORT) cycle ! compute vorticity also on land points (needed for no-slip boundary condition)
 #if defined FULLY_NONLINEAR
           !potential vorticity Pot = (f + zeta)/interpolate(D,{x,y})
-          Pot(i, j) = (H_grid%f(j) + zeta(i,j)) / Dh(i, j)
+          Pot(i, j) = (H_grid%f(j) + zeta(i,j)) / pD
 #elif defined LINEARISED_MEAN_STATE
           !potential vorticity Pot = (f + Z)/D
-          Pot(i, j) = (H_grid%f(j) + zeta_bs(i,j,1)) / Dh(i, j)
+          Pot(i, j) = (H_grid%f(j) + zeta_bs(i,j,1)) / pD
 #elif defined LINEARISED_STATE_OF_REST
           !potential vorticity Pot = f/D
-          Pot(i, j) = H_grid%f(j) / Dh(i, j)
+          Pot(i, j) = H_grid%f(j) / pD
 #endif
         end do
       end do
