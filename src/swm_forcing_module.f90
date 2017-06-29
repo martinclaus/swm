@@ -259,13 +259,14 @@ MODULE swm_forcing_module
     !! memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC \n
     !! vars_module, ONLY : ocean_u, ocean_v, H_u, H_v, RHO0, itt, dt
     !!
-    !! @note If the model is not defined as BAROTROPIC, the windstress will
+    !! @note If the model is linear and not defined as BAROTROPIC, the windstress will
     !! not be scaled with the depth
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processWindstress(iStream)
       USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
       USE vars_module, ONLY : itt, dt
-      USE domain_module, ONLY : H_u, H_v, u_grid, v_grid, RHO0
+      USE domain_module, ONLY : u_grid, v_grid, RHO0
+      USE swm_vars, ONLY : Du, Dv
       TYPE(SWM_forcingStream), INTENT(inout)   :: iStream      !< Forcing stream to process
       real(KDOUBLE), DIMENSION(:,:), POINTER   :: forcingTerm
       integer(KSHORT), DIMENSION(:,:), POINTER :: oceanMask
@@ -284,7 +285,7 @@ MODULE swm_forcing_module
             forcingTerm => F_x
           END IF
           oceanMask => ocean_u
-          H => H_u
+          H => Du
         CASE("M","m")
           IF (iStream%isConstant) THEN
             forcingTerm => F_y_const
@@ -292,7 +293,7 @@ MODULE swm_forcing_module
             forcingTerm => F_y
           END IF
           oceanMask => ocean_v
-          H => H_v
+          H => Dv
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(getFileNameMC(iStream%memChunk)),&
@@ -305,8 +306,8 @@ MODULE swm_forcing_module
         TAU_SCALE * &
 #endif
         getChunkData(iStream%memChunk,itt*dt)/(RHO0 &
-#ifdef BAROTROPIC
-       *H &
+#if defined(BAROTROPIC) || defined(FULLY_NONLINEAR)
+       * H &
 #endif
         ))
     END SUBROUTINE SWM_forcing_processWindstress
