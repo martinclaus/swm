@@ -18,9 +18,6 @@ MODULE diagTask
   USE generic_list
   USE diagVar
   USE str
-#ifdef CUDA_ENABLED
-  USE cuda_module, ONLY : CUDA_getValues
-#endif
   IMPLICIT NONE
 #include "io.h"
 #include "diag_module.h"
