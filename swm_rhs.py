@@ -50,27 +50,21 @@ def rhs(u,v,eta,k,omega):
     # bidiff_u = param['nu_B']*LLu.dot(u)
     # bidiff_v = param['nu_B']*LLv.dot(v)
 
-    """
-    # symmetric stress tensor S = (S11, S12, S12, -S11), store only S11, S12
-    S = (Gux.dot(u) - Gvy.dot(v),G2vx.dot(v) + G2uy.dot(u))
-    hS = (h*S[0],h_q*S[1])
-
-    diff_u = (GTx*hS[0] + Gqy*hS[1]) / h_u
-    diff_v = (Gqx*hS[1] - GTy*hS[0]) / h_v
-
-    # biharmonic stress tensor R = (R11, R12, R12, -R11), store only R11, R12
-    R = (Gux.dot(diff_u) - Gvy.dot(diff_v), G2vx.dot(diff_v) + G2uy.dot(diff_u))
-    nuhR = (param['nu_B']*h*R[0],param['nu_B']*h_q*R[1])
-
-    bidiff_u = (GTx.dot(nuhR[0]) + Gqy.dot(nuhR[1])) / h_u
-    bidiff_v = (Gqx.dot(nuhR[1]) - GTy.dot(nuhR[0])) / h_v
-    """
-
-
     ## K-OMEGA MODEL
     # constants
     beta_star = 9/100.
     c_lim = 7/8.
+    nu_ref = 135.
+    sig_star = 3/5.
+    sig_do = 1/8.
+    alpha = 13/25.
+    beta0 = 0.0708
+
+    # precompute
+    dkdx = GTx.dot(k)
+    dkdy = GTy.dot(k)
+    domdx = GTx.dot(omega)
+    domdy = GTx.dot(omega)
 
     # Sij = (S11,S12,S22), S12 = S21, Sij is symmetric do not store twice
     Sij = (Gux.dot(u),0.5*(G2uy.dot(u)+G2vx.dot(v)),Gvy.dot(v))
@@ -80,16 +74,29 @@ def rhs(u,v,eta,k,omega):
     nu_T = k/omega_bar
     tij = (2*nu_T*Sij[0]-2/3.*k,2*nu_T*Sij[1],2*nu_T*Sij[2]-2/3.*k)
 
-    # diffusion term - harmonic
+    # momentum diffusion term - harmonic
     diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h*tij[1])) / h_u
     diff_v = (Gqx.dot(h*tij[1]) - GTy.dot(h*tij[2])) / h_v
+
+    # turbulent kinetic energy k
+    k_adv = -(IuT.dot(u*dkdx) + IvT.dot(v*dkdy))
+    k_stress =
+    k_diss = -beta_star*k*omega
+    k_diff =
+
+    # specific dissipation rate omega
+    om_adv = -(IuT.dot(u*domdx) + IvT.dot(v*domdy))
+    om_stress =
+    om_diss = -beta*omega**2
+    om_k = (sig_do*(IuT.dot(dkdx*domdx) + IvT.dot(dkdy*domdy)).clip(0,1e30)/omega
+    om_diff =
 
     ## RIGHT-HAND SIDE: ADD TERMS
     rhs_u = adv_u - GTx.dot(p) + Fx/h_u + diff_u - bfric_u
     rhs_v = adv_v - GTy.dot(p) + diff_v - bfric_v
     rhs_eta = -(Gux.dot(U) + Gvy.dot(V))
-    rhs_k = np.zeros(param['NT'])
-    rhs_omega = np.zeros(param['NT'])
+    rhs_k = k_adv + k_stress + k_diss + k_diff
+    rhs_omega = om_adv + om_stress + om_diss + om_k + om_diff
 
     return rhs_u, rhs_v, rhs_eta, rhs_k, rhs_omega
 
