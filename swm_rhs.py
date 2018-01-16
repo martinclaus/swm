@@ -57,17 +57,23 @@ def rhs(u,v,eta,k,omega):
     nu_ref = 135.
     sig_star = 3/5.
     sig_do = 1/8.
+    sig = 1/2.
     alpha = 13/25.
     beta0 = 0.0708
 
     # precompute
+    dudx = Gux.dot(u)
+    dudy = G2uy.dot(u)
+    dvdx = G2vx.dot(v)
+    dvdy = Gvy.dot(v)
+
     dkdx = GTx.dot(k)
     dkdy = GTy.dot(k)
     domdx = GTx.dot(omega)
     domdy = GTx.dot(omega)
 
     # Sij = (S11,S12,S22), S12 = S21, Sij is symmetric do not store twice
-    Sij = (Gux.dot(u),0.5*(G2uy.dot(u)+G2vx.dot(v)),Gvy.dot(v))
+    Sij = (dudx,0.5*(dudy+dvdx),dvdy)
     Sij_square = Sij[0]**2 + 2*IqT.dot(Sij[1]**2) + Sij[2]**2
 
     omega_bar = np.maximum(omega,c_lim*np.sqrt(2/beta_star*Sij_square))
@@ -78,18 +84,22 @@ def rhs(u,v,eta,k,omega):
     diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h*tij[1])) / h_u
     diff_v = (Gqx.dot(h*tij[1]) - GTy.dot(h*tij[2])) / h_v
 
-    # turbulent kinetic energy k
+    # turbulent kinetic energy k, advection adv, stress term, dissipation diss, diffusion diff
     k_adv = -(IuT.dot(u*dkdx) + IvT.dot(v*dkdy))
-    k_stress =
+    k_stress = tij[0]*dudx + IqT.dot(tij[1]*(dudy + dvdx)) + tij[2]*dvdy
     k_diss = -beta_star*k*omega
-    k_diff =
 
-    # specific dissipation rate omega
+    k_visc = nu_ref + sig_star*k/omega  # the viscosity that appears within the diffusion of k
+    k_diff = GTx.dot(ITu.dot(k_visc)*dkdx) + GTy.dot(ITv.dot(k_visc)*dkdy)
+
+    # specific dissipation rate omega, naming as above
     om_adv = -(IuT.dot(u*domdx) + IvT.dot(v*domdy))
-    om_stress =
+    om_stress = alpha*omega/k*k_stress
     om_diss = -beta*omega**2
     om_k = (sig_do*(IuT.dot(dkdx*domdx) + IvT.dot(dkdy*domdy)).clip(0,1e30)/omega
-    om_diff =
+
+    om_visc = nu_ref + sig*k/omega
+    om_diff = GTx.dot(ITu.dot(om_visc)*domdx) + GTy.dot(ITv.dot(om_visc)*domdy)
 
     ## RIGHT-HAND SIDE: ADD TERMS
     rhs_u = adv_u - GTx.dot(p) + Fx/h_u + diff_u - bfric_u
