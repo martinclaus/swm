@@ -14,22 +14,24 @@ def time_integration(u,v,eta,k,omega):
     rk_b = np.array([0.5,0.5,1.])
 
     # trigger deep copy through [:]
-    u0[:],v0[:],eta0[:],k0[:],omega0[:] = u,v,eta,k,omega
+    u0,v0,eta0,k0,omega0 = u.copy(),v.copy(),eta.copy(),k.copy(),omega.copy()
+    u1,v1,eta1,k1,omega1 = u.copy(),v.copy(),eta.copy(),k.copy(),omega.copy()
 
     global i
     for i in range(param['Nt']):
 
+        # trigger deep copy through [:]
         u1[:],v1[:],eta1[:],k1[:],omega1[:] = u,v,eta,k,omega
 
         for rki in range(4):
             du,dv,deta,dk,domega = rhs(u1,v1,eta1,k1,omega1)
 
             if rki < 3: # RHS update for the next RK-step
-                u1 += rk_b[rki]*dt*du
-                v1 += rk_b[rki]*dt*dv
-                eta1 += rk_b[rki]*dt*deta
-                k1 += rk_b[rki]*dt*dk
-                omega1 += rk_b[rki]*dt*domega
+                u1 = u + rk_b[rki]*dt*du
+                v1 = v + rk_b[rki]*dt*dv
+                eta1 = eta + rk_b[rki]*dt*deta
+                k1 = k + rk_b[rki]*dt*dk
+                omega1 = omega + rk_b[rki]*dt*domega
 
             # Summing all the RHS on the go
             u0 += rk_a[rki]*dt*du
@@ -38,7 +40,7 @@ def time_integration(u,v,eta,k,omega):
             k0 += rk_a[rki]*dt*dk
             omega0 += rk_a[rki]*dt*domega
 
-        # rename as deep copy through [:]
+        # deep copy through [:]
         u[:],v[:],eta[:],k[:],omega[:] = u0,v0,eta0,k0,omega0
 
         t += dt
@@ -78,6 +80,7 @@ def feedback_ini(u,v,eta,k,omega,t):
         output_nc(u,v,eta,k,omega,t)  # store initial conditions
         output_param()      # store the param dictionnary as .npy
         output_param_txt()  # store the param dictionnary easily readable as .txt
+        
 
         # Store information in txt file
         output_txt('Integrating %.1f days with dt=%.2f min in %i time steps' % (param['Ndays'],dt/60.,param['Nt']))

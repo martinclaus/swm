@@ -181,7 +181,7 @@ def output_param():
         # filter out 'output_txtfile' as this is a unsaveable textwrapper
         dict_tmp = {key:param[key] for key in param.keys() if key != 'output_txtfile'}
         np.save(param['output_runpath']+'/param.npy',dict_tmp)
-        output_txt('Param dictionary stored.\n')
+        output_txt('Param dictionary stored.')
 
 def output_param_txt():
     """ Stores a simple overview of the params in a textfile for a quick look."""
@@ -189,5 +189,7 @@ def output_param_txt():
         param_txtfile = open(param['output_runpath']+'/param.txt','w')
 
         for pkey in param.keys():
-            if pkey not in ['x_T','y_T','x_u','y_u','x_v','y_v','output_txtfile']:
-                param_txtfile.write(pkey + ' ' + param[pkey])
+            if pkey not in ['x_T','y_T','x_u','y_u','x_v','y_v','x_q','y_q','output_txtfile']:
+                param_txtfile.write(pkey + ' ' + str(param[pkey])+'\n')
+        
+        output_txt('Param textfile stored.\n')
