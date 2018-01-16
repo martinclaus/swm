@@ -72,7 +72,7 @@ def rhs(u,v,eta,k,omega):
     beta_star = 9/100.
     c_lim = 7/8.
 
-    # Sij = (S11,S12,S22), S12 = S21 do not store twice
+    # Sij = (S11,S12,S22), S12 = S21, Sij is symmetric do not store twice
     Sij = (Gux.dot(u),0.5*(G2uy.dot(u)+G2vx.dot(v)),Gvy.dot(v))
     Sij_square = Sij[0]**2 + 2*IqT.dot(Sij[1]**2) + Sij[2]**2
 
@@ -80,10 +80,13 @@ def rhs(u,v,eta,k,omega):
     nu_T = k/omega_bar
     tij = (2*nu_T*Sij[0]-2/3.*k,2*nu_T*Sij[1],2*nu_T*Sij[2]-2/3.*k)
 
+    # diffusion term - harmonic
+    diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h*tij[1])) / h_u
+    diff_v = (Gqx.dot(h*tij[1]) - GTy.dot(h*tij[2])) / h_v
 
     ## RIGHT-HAND SIDE: ADD TERMS
-    rhs_u = adv_u - GTx.dot(p) + Fx/h_u - bidiff_u - bfric_u
-    rhs_v = adv_v - GTy.dot(p) - bidiff_v - bfric_v
+    rhs_u = adv_u - GTx.dot(p) + Fx/h_u + diff_u - bfric_u
+    rhs_v = adv_v - GTy.dot(p) + diff_v - bfric_v
     rhs_eta = -(Gux.dot(U) + Gvy.dot(V))
     rhs_k = np.zeros(param['NT'])
     rhs_omega = np.zeros(param['NT'])
