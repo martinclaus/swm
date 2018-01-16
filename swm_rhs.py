@@ -50,6 +50,7 @@ def rhs(u,v,eta,k,omega):
     # bidiff_u = param['nu_B']*LLu.dot(u)
     # bidiff_v = param['nu_B']*LLv.dot(v)
 
+    """
     # symmetric stress tensor S = (S11, S12, S12, -S11), store only S11, S12
     S = (Gux.dot(u) - Gvy.dot(v),G2vx.dot(v) + G2uy.dot(u))
     hS = (h*S[0],h_q*S[1])
@@ -63,6 +64,22 @@ def rhs(u,v,eta,k,omega):
 
     bidiff_u = (GTx.dot(nuhR[0]) + Gqy.dot(nuhR[1])) / h_u
     bidiff_v = (Gqx.dot(nuhR[1]) - GTy.dot(nuhR[0])) / h_v
+    """
+
+
+    ## K-OMEGA MODEL
+    # constants
+    beta_star = 9/100.
+    c_lim = 7/8.
+
+    # Sij = (S11,S12,S22), S12 = S21 do not store twice
+    Sij = (Gux.dot(u),0.5*(G2uy.dot(u)+G2vx.dot(v)),Gvy.dot(v))
+    Sij_square = Sij[0]**2 + 2*IqT.dot(Sij[1]**2) + Sij[2]**2
+
+    omega_bar = np.maximum(omega,c_lim*np.sqrt(2/beta_star*Sij_square))
+    nu_T = k/omega_bar
+    tij = (2*nu_T*Sij[0]-2/3.*k,2*nu_T*Sij[1],2*nu_T*Sij[2]-2/3.*k)
+
 
     ## RIGHT-HAND SIDE: ADD TERMS
     rhs_u = adv_u - GTx.dot(p) + Fx/h_u - bidiff_u - bfric_u
