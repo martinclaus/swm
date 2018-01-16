@@ -13,15 +13,19 @@ def output_nc_ini():
     ncu = dict()
     ncv = dict()
     nceta = dict()
+    nck = dict()
+    ncomega = dict()
 
     # creating the netcdf files
     ncformat = 'NETCDF4'
     ncu['file'] = Dataset(param['output_runpath']+'/u.nc','w',format=ncformat)
     ncv['file'] = Dataset(param['output_runpath']+'/v.nc','w',format=ncformat)
     nceta['file'] = Dataset(param['output_runpath']+'/eta.nc','w',format=ncformat)
+    nck['file'] = Dataset(param['output_runpath']+'/k.nc','w',format=ncformat)
+    ncomega['file'] = Dataset(param['output_runpath']+'/omega.nc','w',format=ncformat)
 
     # write general attributes
-    for ncfile in [ncu,ncv,nceta]:
+    for ncfile in [ncu,ncv,nceta,nck,ncomega]:
         ncfile['file'].history = 'Created ' + tictoc.ctime(tictoc.time())
         ncfile['file'].description = 'Data from: Shallow-water model in double gyre configuration.'
         ncfile['file'].details = 'Cartesian coordinates, beta-plane approximation, Arakawa C-grid'
@@ -44,17 +48,26 @@ def output_nc_ini():
     nceta['ydim'] = nceta['file'].createDimension('y',param['ny'])
     nceta['tdim'] = nceta['file'].createDimension('t',param['output_tlen'])
 
+    # prognostic variables k and omega are outputted on the same grid as eta
+    nck['xdim'] = nck['file'].createDimension('x',param['nx'])
+    nck['ydim'] = nck['file'].createDimension('y',param['ny'])
+    nck['tdim'] = nck['file'].createDimension('t',param['output_tlen'])
+
+    ncomega['xdim'] = ncomega['file'].createDimension('x',param['nx'])
+    ncomega['ydim'] = ncomega['file'].createDimension('y',param['ny'])
+    ncomega['tdim'] = ncomega['file'].createDimension('t',param['output_tlen'])
+
     # create variables
     p = 'f4' # 32-bit precision storing, or f8 for 64bit
-    for ncfile,var in zip([ncu,ncv,nceta],['u','v','eta']):
+    for ncfile,var in zip([ncu,ncv,nceta,nck,ncomega],['u','v','eta','k','omega']):
         # store time as integers as measured in seconds and gets large
         ncfile['t'] = ncfile['file'].createVariable('t','i8',('t',),zlib=True,fletcher32=True)
         ncfile['x'] = ncfile['file'].createVariable('x','f8',('x',),zlib=True,fletcher32=True)
         ncfile['y'] = ncfile['file'].createVariable('y','f8',('y',),zlib=True,fletcher32=True)
         ncfile[var] = ncfile['file'].createVariable(var,p,('t','y','x'),zlib=True,fletcher32=True)
 
-    # write units
-    for ncfile in [ncu,ncv,nceta]:
+    # write units of dimensions
+    for ncfile in [ncu,ncv,nceta,nck,ncomega]:
         ncfile['t'].units = 's'
         ncfile['t'].long_name = 'time'
         ncfile['x'].units = 'm'
@@ -62,23 +75,26 @@ def output_nc_ini():
         ncfile['y'].units = 'm'
         ncfile['y'].long_name = 'y'
 
+    # write units of prognostic variables
     ncu['u'].units = 'm/s'
     ncv['v'].units = 'm/s'
     nceta['eta'].units = 'm'
+    nck['k'].units = '??'   #TODO what are the units of k and omega?
+    ncomega['omega'].units = '??'
 
-    # write dimensions
-    for ncfile,var in zip([ncu,ncv,nceta],['u','v','T']):
+    # write dimensions, use T for eta-grid, k-grid and omega-grid
+    for ncfile,var in zip([ncu,ncv,nceta],['u','v','T','T','T']):
         ncfile['x'][:] = param['x_'+var]
         ncfile['y'][:] = param['y_'+var]
 
     # make globally available
     global ncfiles
-    ncfiles = [ncu,ncv,nceta]
+    ncfiles = [ncu,ncv,nceta,nck,ncomega]
 
     output_txt('Output will be stored in '+param['outputpath']+param['runfolder']+' every %i hours.' % (param['output_dt']/3600.))
 
 
-def output_nc(u,v,eta,t):
+def output_nc(u,v,eta,k,omega,t):
     """ Writes u,v,eta fields on every nth time step """
     # output index j
     j = param['output_j']   # for convenience
@@ -90,6 +106,8 @@ def output_nc(u,v,eta,t):
     ncfiles[0]['u'][j,:,:] = u2mat(u)
     ncfiles[1]['v'][j,:,:] = v2mat(v)
     ncfiles[2]['eta'][j,:,:] = h2mat(eta)
+    ncfiles[3]['k'][j,:,:] = h2mat(k)
+    ncfiles[4]['omega'][j,:,:] = h2mat(omega)
 
     param['output_j'] += 1
 
@@ -164,3 +182,12 @@ def output_param():
         dict_tmp = {key:param[key] for key in param.keys() if key != 'output_txtfile'}
         np.save(param['output_runpath']+'/param.npy',dict_tmp)
         output_txt('Param dictionary stored.\n')
+
+def output_param_txt():
+    """ Stores a simple overview of the params in a textfile for a quick look."""
+    if param['output']:
+        param_txtfile = open(param['output_runpath']+'/param.txt','w')
+
+        for pkey in param.keys():
+            if pkey not in ['x_T','y_T','x_u','y_u','x_v','y_v','output_txtfile']:
+                param_txtfile.write(pkey + ' ' + param[pkey])

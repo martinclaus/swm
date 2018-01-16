@@ -7,8 +7,8 @@ def set_param():
     param = dict()
 
     ## parameters
-    param['nx'] = 128               # number of grid points in x-direction
-    param['ny'] = 128               # number of grid points in y-direction
+    param['nx'] = 64               # number of grid points in x-direction
+    param['ny'] = 64               # number of grid points in y-direction
 
     param['Lx'] = 3840e3            # basin width L [meters]
     param['Ly'] = 3840e3            # north-south basin extent [meters]
@@ -29,7 +29,9 @@ def set_param():
     # boundary conditions
     param['lbc'] = 2                         # no-slip: lbc=2, free-slip: lbc=0, 0<lbc<2 means partial-slip
 
-    # time stepping allowed: RK3 (max cfl .6), RK4 (max cfl .9, best performance!), AB1-5 (max cfl .2 or less)
+    # k-omega turbulence model parameters and constants
+
+    # time stepping allowed only RK4 currently (max cfl .9, best performance!)
     param['scheme'] = 'RK4'
 
     # OUTPUT - of netcdf4, info_txt, parameters and scripts
@@ -234,7 +236,9 @@ def initial_conditions():
     if param['initial_conditions'] == 'rest':
         u_0 = np.zeros(param['Nu']).astype(param['dat_type'])
         v_0 = np.zeros(param['Nv']).astype(param['dat_type'])
-        eta_0 = (np.zeros(param['NT'])).astype(param['dat_type'])
+        eta_0 = np.zeros(param['NT']).astype(param['dat_type'])
+        k_0 = np.zeros(param['NT']).astype(param['dat_type'])
+        omega_0 = np.zeros(param['NT']).astype(param['dat_type'])
         param['t0'] = 0
 
     elif param['initial_conditions'] == 'ncfile':
@@ -242,14 +246,19 @@ def initial_conditions():
         init_ncu = Dataset(initpath+'/u.nc')
         init_ncv = Dataset(initpath+'/v.nc')
         init_nceta = Dataset(initpath+'/eta.nc')
+        init_nck = Dataset(initpath+'/k.nc')
+        init_ncomega = Dataset(initpath+'/omega.nc')
 
+        # pick last time step, i.e. -1 for loading from ncfile
         u_0 = init_ncu['u'][-1,:,:]
         v_0 = init_ncv['v'][-1,:,:]
         eta_0 = init_nceta['eta'][-1,:,:]
+        k_0 = init_nck['k'][-1,:,:]
+        omega_0 = init_ncomega['omega'][-1,:,:]
         param['t0'] = init_nceta['t'][-1]
         output_txt('Starting from last state of run %04i' % param['init_run_id'])
 
-        if param['init_interpolation']:
+        if param['init_interpolation']: #NOT ALLOWED YET
             param_old = dict()
             param_old['lbc'] = init_ncu.lbc     # get boundary condition
 
@@ -275,8 +284,10 @@ def initial_conditions():
             u_0 = u_0.flatten().astype(param['dat_type'])
             v_0 = v_0.flatten().astype(param['dat_type'])
             eta_0 = eta_0.flatten().astype(param['dat_type'])
+            k_0 = k_0.flatten().astype(param['dat_type'])
+            omega_0 = omega_0.flatten().astype(param['dat_type'])
 
-    return u_0,v_0,eta_0
+    return u_0,v_0,eta_0,k_0,omega_0
 
 def init_interpolation(u_0,v_0,eta_0,param_old):
     """ Performs an initial interpolation in case the grids do not match. """
