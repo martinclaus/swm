@@ -80,7 +80,7 @@ def feedback_ini(u,v,eta,k,omega,t):
         output_nc(u,v,eta,k,omega,t)  # store initial conditions
         output_param()      # store the param dictionnary as .npy
         output_param_txt()  # store the param dictionnary easily readable as .txt
-        
+
 
         # Store information in txt file
         output_txt('Integrating %.1f days with dt=%.2f min in %i time steps' % (param['Ndays'],dt/60.,param['Nt']))

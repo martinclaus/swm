@@ -51,16 +51,6 @@ def rhs(u,v,eta,k,omega):
     # bidiff_v = param['nu_B']*LLv.dot(v)
 
     ## K-OMEGA MODEL
-    # constants
-    beta_star = 9/100.
-    c_lim = 7/8.
-    nu_ref = 135.
-    sig_star = 3/5.
-    sig_do = 1/8.
-    sig = 1/2.
-    alpha = 13/25.
-    beta0 = 0.0708
-
     # precompute
     dudx = Gux.dot(u)
     dudy = G2uy.dot(u)
@@ -76,29 +66,30 @@ def rhs(u,v,eta,k,omega):
     Sij = (dudx,0.5*(dudy+dvdx),dvdy)
     Sij_square = Sij[0]**2 + 2*IqT.dot(Sij[1]**2) + Sij[2]**2
 
-    omega_bar = np.maximum(omega,c_lim*np.sqrt(2/beta_star*Sij_square))
+    omega_bar = np.maximum(omega,param['ko_c_lim']*np.sqrt(2/param['ko_beta_star']*Sij_square))
     nu_T = k/omega_bar
-    tij = (2*nu_T*Sij[0]-2/3.*k,2*nu_T*Sij[1],2*nu_T*Sij[2]-2/3.*k)
+    tij = (2*nu_T*Sij[0]-2/3.*k,2*IqT.dot(nu_T)*Sij[1],2*nu_T*Sij[2]-2/3.*k)
 
     # momentum diffusion term - harmonic
-    diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h*tij[1])) / h_u
-    diff_v = (Gqx.dot(h*tij[1]) - GTy.dot(h*tij[2])) / h_v
+    diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h_q*tij[1])) / h_u
+    diff_v = (Gqx.dot(h_q*tij[1]) - GTy.dot(h*tij[2])) / h_v
 
     # turbulent kinetic energy k, advection adv, stress term, dissipation diss, diffusion diff
     k_adv = -(IuT.dot(u*dkdx) + IvT.dot(v*dkdy))
     k_stress = tij[0]*dudx + IqT.dot(tij[1]*(dudy + dvdx)) + tij[2]*dvdy
-    k_diss = -beta_star*k*omega
+    k_diss = -param['ko_beta_star']*k*omega
 
-    k_visc = nu_ref + sig_star*k/omega  # the viscosity that appears within the diffusion of k
+    k_visc = param['ko_nu_ref'] + param['ko_sig_star']*k/omega  # the viscosity that appears within the diffusion of k
     k_diff = GTx.dot(ITu.dot(k_visc)*dkdx) + GTy.dot(ITv.dot(k_visc)*dkdy)
 
     # specific dissipation rate omega, naming as above
     om_adv = -(IuT.dot(u*domdx) + IvT.dot(v*domdy))
-    om_stress = alpha*omega/k*k_stress
+    om_stress = param['ko_alpha']*omega/k*k_stress
     om_diss = -beta*omega**2
-    om_k = (sig_do*(IuT.dot(dkdx*domdx) + IvT.dot(dkdy*domdy)).clip(0,1e30)/omega
+    # set all negatives to zero via clip, use 1e30 as a large number which is not going to be reached.
+    om_k = (param['ko_sig_do']*(IuT.dot(dkdx*domdx) + IvT.dot(dkdy*domdy)).clip(0,1e30))/omega
 
-    om_visc = nu_ref + sig*k/omega
+    om_visc = param['ko_nu_ref'] + param['ko_sig']*k/omega
     om_diff = GTx.dot(ITu.dot(om_visc)*domdx) + GTy.dot(ITv.dot(om_visc)*domdy)
 
     ## RIGHT-HAND SIDE: ADD TERMS
@@ -107,6 +98,10 @@ def rhs(u,v,eta,k,omega):
     rhs_eta = -(Gux.dot(U) + Gvy.dot(V))
     rhs_k = k_adv + k_stress + k_diss + k_diff
     rhs_omega = om_adv + om_stress + om_diss + om_k + om_diff
+
+    # testing
+    rhs_k = 0.
+    rhs_omega = 0.
 
     return rhs_u, rhs_v, rhs_eta, rhs_k, rhs_omega
 

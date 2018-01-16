@@ -17,7 +17,7 @@ def set_param():
     param['H'] = 500.               # water depth [m]
 
     param['cfl'] = .9               # desired CFL-criterion
-    param['Ndays'] = 5              # number of days to integrate
+    param['Ndays'] = 10              # number of days to integrate
 
     param['dat_type'] = np.float32  # single/double precision use np.float32 or np.float64
 
@@ -30,12 +30,20 @@ def set_param():
     param['lbc'] = 2                         # no-slip: lbc=2, free-slip: lbc=0, 0<lbc<2 means partial-slip
 
     # k-omega turbulence model parameters and constants
+    param['ko_beta_star'] = 9/100.
+    param['ko_c_lim'] = 7/8.
+    param['ko_nu_ref'] = 135.
+    param['ko_sig_star'] = 3/5.
+    param['ko_sig_do'] = 1/8.
+    param['ko_sig'] = 1/2.
+    param['ko_alpha'] = 13/25.
+    param['ko_beta0'] = 0.0708
 
     # time stepping allowed only RK4 currently (max cfl .9, best performance!)
     param['scheme'] = 'RK4'
 
     # OUTPUT - of netcdf4, info_txt, parameters and scripts
-    param['output'] = 1             # or 0 for no data storage
+    param['output'] = 0             # or 0 for no data storage
     param['output_dt'] = 24*3600    # every hours*3600 therefore in seconds
     param['outputpath'] = '' # sets the path for netcdf output, else choose ''
 
