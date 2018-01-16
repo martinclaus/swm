@@ -68,7 +68,6 @@ def rhs(u,v,eta,k,omega):
     rhs_u = adv_u - GTx.dot(p) + Fx/h_u - bidiff_u - bfric_u
     rhs_v = adv_v - GTy.dot(p) - bidiff_v - bfric_v
     rhs_eta = -(Gux.dot(U) + Gvy.dot(V))
-
     rhs_k = np.zeros(param['NT'])
     rhs_omega = np.zeros(param['NT'])
 
