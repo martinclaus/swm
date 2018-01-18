@@ -47,9 +47,10 @@ def rhs(u,v,eta,k,omega):
 
     ## LATERAL MIXING OPERATOR
     # simple bi-harmonic mixing
-    # bidiff_u = param['nu_B']*LLu.dot(u)
-    # bidiff_v = param['nu_B']*LLv.dot(v)
+    bidiff_u = param['nu_B']*LLu.dot(u)
+    bidiff_v = param['nu_B']*LLv.dot(v)
 
+    """
     ## K-OMEGA MODEL
     # precompute
     dudx = Gux.dot(u)
@@ -60,7 +61,7 @@ def rhs(u,v,eta,k,omega):
     dkdx = GTx.dot(k)
     dkdy = GTy.dot(k)
     domdx = GTx.dot(omega)
-    domdy = GTx.dot(omega)
+    domdy = GTy.dot(omega)
 
     # Sij = (S11,S12,S22), S12 = S21, Sij is symmetric do not store twice
     Sij = (dudx,0.5*(dudy+dvdx),dvdy)
@@ -68,7 +69,7 @@ def rhs(u,v,eta,k,omega):
 
     omega_bar = np.maximum(omega,param['ko_c_lim']*np.sqrt(2/param['ko_beta_star']*Sij_square))
     nu_T = k/omega_bar
-    tij = (2*nu_T*Sij[0]-2/3.*k,2*IqT.dot(nu_T)*Sij[1],2*nu_T*Sij[2]-2/3.*k)
+    tij = (2*nu_T*Sij[0]-2/3.*k,2*ITq.dot(nu_T)*Sij[1],2*nu_T*Sij[2]-2/3.*k)
 
     # momentum diffusion term - harmonic
     diff_u = (GTx.dot(h*tij[0]) + Gqy.dot(h_q*tij[1])) / h_u
@@ -80,28 +81,27 @@ def rhs(u,v,eta,k,omega):
     k_diss = -param['ko_beta_star']*k*omega
 
     k_visc = param['ko_nu_ref'] + param['ko_sig_star']*k/omega  # the viscosity that appears within the diffusion of k
-    k_diff = GTx.dot(ITu.dot(k_visc)*dkdx) + GTy.dot(ITv.dot(k_visc)*dkdy)
+    k_diff = Gux.dot(ITu.dot(k_visc)*dkdx) + Gvy.dot(ITv.dot(k_visc)*dkdy)
 
     # specific dissipation rate omega, naming as above
     om_adv = -(IuT.dot(u*domdx) + IvT.dot(v*domdy))
     om_stress = param['ko_alpha']*omega/k*k_stress
-    om_diss = -beta*omega**2
+    om_diss = -param['ko_beta0']*omega**2
     # set all negatives to zero via clip, use 1e30 as a large number which is not going to be reached.
     om_k = (param['ko_sig_do']*(IuT.dot(dkdx*domdx) + IvT.dot(dkdy*domdy)).clip(0,1e30))/omega
 
     om_visc = param['ko_nu_ref'] + param['ko_sig']*k/omega
-    om_diff = GTx.dot(ITu.dot(om_visc)*domdx) + GTy.dot(ITv.dot(om_visc)*domdy)
+    om_diff = Gux.dot(ITu.dot(om_visc)*domdx) + Gvy.dot(ITv.dot(om_visc)*domdy)
+    
+    """
 
     ## RIGHT-HAND SIDE: ADD TERMS
-    rhs_u = adv_u - GTx.dot(p) + Fx/h_u + diff_u - bfric_u
-    rhs_v = adv_v - GTy.dot(p) + diff_v - bfric_v
+    rhs_u = adv_u - GTx.dot(p) + Fx/h_u - bfric_u - bidiff_u
+    rhs_v = adv_v - GTy.dot(p) - bfric_v - bidiff_v
     rhs_eta = -(Gux.dot(U) + Gvy.dot(V))
-    rhs_k = k_adv + k_stress + k_diss + k_diff
-    rhs_omega = om_adv + om_stress + om_diss + om_k + om_diff
-
-    # testing
-    rhs_k = 0.
-    rhs_omega = 0.
+    
+    rhs_k = 0.#k_adv + k_stress + k_diss + k_diff
+    rhs_omega = 0.#om_adv + om_stress + om_diss + om_k + om_diff
 
     return rhs_u, rhs_v, rhs_eta, rhs_k, rhs_omega
 

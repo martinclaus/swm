@@ -1,5 +1,5 @@
-## SET PARAMETERS
-#
+c## SET PARAMETERS
+
 def set_param():
     """ seting up everything necessary for: parameters, grid, coriolis, forcing, initial conditions
         param = set_param() returns a parameter dictionary."""
@@ -7,8 +7,8 @@ def set_param():
     param = dict()
 
     ## parameters
-    param['nx'] = 64               # number of grid points in x-direction
-    param['ny'] = 64               # number of grid points in y-direction
+    param['nx'] = 128               # number of grid points in x-direction
+    param['ny'] = 128               # number of grid points in y-direction
 
     param['Lx'] = 3840e3            # basin width L [meters]
     param['Ly'] = 3840e3            # north-south basin extent [meters]
@@ -17,7 +17,7 @@ def set_param():
     param['H'] = 500.               # water depth [m]
 
     param['cfl'] = .9               # desired CFL-criterion
-    param['Ndays'] = 10              # number of days to integrate
+    param['Ndays'] = 100              # number of days to integrate
 
     param['dat_type'] = np.float32  # single/double precision use np.float32 or np.float64
 
@@ -43,7 +43,7 @@ def set_param():
     param['scheme'] = 'RK4'
 
     # OUTPUT - of netcdf4, info_txt, parameters and scripts
-    param['output'] = 0             # or 0 for no data storage
+    param['output'] = 1             # or 0 for no data storage
     param['output_dt'] = 24*3600    # every hours*3600 therefore in seconds
     param['outputpath'] = '' # sets the path for netcdf output, else choose ''
 
@@ -245,8 +245,8 @@ def initial_conditions():
         u_0 = np.zeros(param['Nu']).astype(param['dat_type'])
         v_0 = np.zeros(param['Nv']).astype(param['dat_type'])
         eta_0 = np.zeros(param['NT']).astype(param['dat_type'])
-        k_0 = np.zeros(param['NT']).astype(param['dat_type'])
-        omega_0 = np.zeros(param['NT']).astype(param['dat_type'])
+        k_0 = np.ones(param['NT']).astype(param['dat_type'])*1e-3
+        omega_0 = np.ones(param['NT']).astype(param['dat_type'])*1e-6
         param['t0'] = 0
 
     elif param['initial_conditions'] == 'ncfile':
