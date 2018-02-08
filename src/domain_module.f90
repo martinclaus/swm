@@ -33,6 +33,7 @@ MODULE domain_module
     real(KDOUBLE), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
     real(KDOUBLE), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
 
+    integer(KSHORT)             :: coriolis_approx = CORIOLIS_SPHERICALGEOMETRY
     real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
 
     TYPE(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
@@ -53,7 +54,7 @@ MODULE domain_module
               Nx, Ny, H_overwrite, &
               lon_s, lon_e, lat_s, lat_e, &
               in_file_H, in_varname_H, &
-              theta0, lbc
+              theta0, lbc, coriolis_approx
 
             open(UNIT_DOMAIN_NL, file = DOMAIN_NL)
             read(UNIT_DOMAIN_NL, nml = domain_nl)
@@ -125,7 +126,7 @@ MODULE domain_module
             end if
             H(:,1)  = 0._KDOUBLE
             H(:,Ny) = 0._KDOUBLE
-            
+
             !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             !! create landmasks
             !------------------------------------------------------------------
