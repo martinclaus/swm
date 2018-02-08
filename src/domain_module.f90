@@ -165,7 +165,7 @@ MODULE domain_module
       H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i), jp1(j))) &
                    / (ocean_H(i, j) + ocean_H(ip1(i), j) + ocean_H(i, jp1(j)) + ocean_H(ip1(i), jp1(j)))
 
-    if (H_overwrite .ne. 0) then
+    if (H_overwrite .ne. H_OVERWRITE_DEF) then
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! overwrite bathimetry of all grids with constant value
         !------------------------------------------------------------------
