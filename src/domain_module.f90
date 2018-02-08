@@ -35,8 +35,12 @@ MODULE domain_module
   real(KDOUBLE), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
   real(KDOUBLE), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
 
-  integer(KSHORT)             :: coriolis_approx = CORIOLIS_SPHERICALGEOMETRY
-  real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter
+  integer(KSHORT)             :: coriolis_approx = CORIOLIS_SPHERICALGEOMETRY  !< Type of approximation used for the coriolis parameter.
+                                                                               !< 0: no rotation
+                                                                               !< 1: f-plane
+                                                                               !< 2: beta-plane (also set theta0)
+                                                                               !< 3: spherical geometry, i.e. f = 2 * OMEGA * sin(theta)
+  real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter on a beta-plane
 
   TYPE(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
   CONTAINS
