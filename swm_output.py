@@ -3,8 +3,16 @@
 # PART2: STORE INFO in txt file (output_txt_ini, ...
 # PART3: STORE PARAMETERS IN .NPY FILE
 
+import numpy as np
+import zipfile
+from netCDF4 import Dataset
+import time as tictoc
+import glob
+
+from swm_operators import u2mat, v2mat, h2mat
+
 ## STORE DATA
-def output_nc_ini():
+def output_nc_ini(param):
     """ Initialise the netCDF4 file."""
 
     param['output_j'] = 0   # output index
@@ -77,10 +85,10 @@ def output_nc_ini():
     global ncfiles
     ncfiles = [ncu,ncv,nceta]
 
-    output_txt('Output will be stored in '+param['outputpath']+param['runfolder']+' every %i hours.' % (param['output_dt']/3600.))
+    output_txt('Output will be stored in '+param['outputpath']+param['runfolder']+' every %i hours.' % (param['output_dt']/3600.), param)
 
 
-def output_nc(u,v,eta,t):
+def output_nc(u,v,eta,t, param):
     """ Writes u,v,eta fields on every nth time step """
     # output index j
     j = param['output_j']   # for convenience
@@ -89,19 +97,19 @@ def output_nc(u,v,eta,t):
         ncfile['t'][j] = t
 
     #TODO issue, use unlimited time dimension or not?
-    ncfiles[0]['u'][j,:,:] = u2mat(u)
-    ncfiles[1]['v'][j,:,:] = v2mat(v)
-    ncfiles[2]['eta'][j,:,:] = h2mat(eta)
+    ncfiles[0]['u'][j,:,:] = u2mat(u, param)
+    ncfiles[1]['v'][j,:,:] = v2mat(v, param)
+    ncfiles[2]['eta'][j,:,:] = h2mat(eta, param)
 
     param['output_j'] += 1
 
-def output_nc_fin():
+def output_nc_fin(param):
     """ Finalise the output netCDF4 file."""
 
     for ncfile in ncfiles:
         ncfile['file'].close()
 
-    output_txt('All output written in '+param['runfolder']+'.')
+    output_txt('All output written in '+param['runfolder']+'.', param)
 
 ## STORE INFO in TXT FILE
 def readable_secs(secs):
@@ -121,7 +129,7 @@ def readable_secs(secs):
     else:
         return ("%.2fs" % secs)
 
-def duration_est(tic):
+def duration_est(tic, i, param):
     """ Saves an estimate for the total time the model integration will take in the output txt file. """
     time_togo = (tictoc.time()-tic) / (i+1) * param['Nt']
     str1 = 'Model integration will take approximately '+readable_secs(time_togo)+', '
@@ -129,38 +137,38 @@ def duration_est(tic):
 
     if param['output']:
         str2 = 'and is hopefully done on '+tictoc.asctime(tictoc.localtime(tic + time_togo))
-        output_txt(str1+str2)
+        output_txt(str1+str2, param)
         print(str2)
 
-def output_txt_ini():
+def output_txt_ini(param):
     """ Initialise the output txt file for information about the run."""
     if param['output']:
         param['output_txtfile'] = open(param['output_runpath']+'/info.txt','w')
         s = ('Shallow water model run %i initialised on ' % param['run_id'])+tictoc.asctime()+'\n'
         param['output_txtfile'].write(s)
 
-def output_scripts():
+def output_scripts(param):
     """Save all model scripts into a zip file."""
     if param['output']:
         zf = zipfile.ZipFile(param['output_runpath']+'/scripts.zip','w')
         all_scripts = glob.glob('swm_*.py')
         [zf.write(script) for script in all_scripts]
         zf.close()
-        output_txt('All model scripts stored in a zipped file.')
+        output_txt('All model scripts stored in a zipped file.', param)
 
-def output_txt(s,end='\n'):
+def output_txt(s, param, end='\n'):
     """ Write into the output txt file."""
     if param['output']:
         param['output_txtfile'].write(s+end)
         param['output_txtfile'].flush()
 
-def output_txt_fin():
+def output_txt_fin(param):
     """ Finalise the output txt file."""
     if param['output']:
         param['output_txtfile'].close()
 
 ## STORE PARAMETERS
-def output_param():
+def output_param(param):
     """ Stores the param dictionary in a .npy file """
     if param['output']:
         # filter out 'output_txtfile' as this is a unsaveable textwrapper
@@ -174,4 +182,4 @@ def output_param():
                 param_txtfile.write(key + 2*'\t' + str(dict_tmp[key]) + '\n')
 
         param_txtfile.close()
-        output_txt('Param dictionary stored as txt and zip.\n')
+        output_txt('Param dictionary stored as txt and zip.\n', param)

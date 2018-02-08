@@ -1,9 +1,22 @@
-## SET PARAMETERS
+import numpy as np
+import os
+from netCDF4 import Dataset  # version 1.2.4-py36, hdf5 version 1.8.17-py36, hdf4 version 4.2.12-py36
+import glob
+
+
+from swm_output import output_txt_ini, output_txt, output_scripts
+from swm_operators import (set_grad_mat, set_lapl_mat,
+                           set_interp_mat, set_arakawa_mat)
+
+
+f_q = Fx = None
+
+# SET PARAMETERS
 #
 def set_param():
     """ seting up everything necessary for: parameters, grid, coriolis, forcing, initial conditions
         param = set_param() returns a parameter dictionary."""
-    global param
+    # global param   ## try to avoid global variables
     param = dict()
 
     ## parameters
@@ -17,7 +30,7 @@ def set_param():
     param['H'] = 500.               # water depth [m]
 
     param['cfl'] = .9               # desired CFL-criterion, recommended 0.9, uses RK4
-    param['Ndays'] = 200             # number of days to integrate
+    param['Ndays'] = 10.             # number of days to integrate
 
     param['dat_type'] = np.float32  # single/double precision use np.float32 or np.float64
 
@@ -40,25 +53,26 @@ def set_param():
     param['output_dt'] = 6*3600    # every hours*3600 therefore in seconds
     param['outputpath'] = '' # sets the path for netcdf output, else choose ''
 
-    ## SET UP derived parameters
-    set_grid()
-    set_viscosity()
-    set_coriolis()
-    set_timestep()
-    set_output()
+    # SET UP derived parameters
+    set_grid(param)
+    set_viscosity(param)
+    set_coriolis(param)
+    set_timestep(param)
+    set_output(param)
 
     ## SET UP OPERATORS and FORCING
-    set_grad_mat()      # set up the gradient matrices and make them globally available
-    set_lapl_mat()      # set up harmonic and biharmonic diffusion (laplacians)
-    set_interp_mat()    # set up the interpolation matrices and make them globally available
-    set_arakawa_mat()   # set up the interpolation matrices for the Arakawa and Lamb scheme
-    set_forcing()       # sets the wind forcing
+    set_grad_mat(param)      # set up the gradient matrices and make them globally available
+    set_lapl_mat(param)      # set up harmonic and biharmonic diffusion (laplacians)
+    set_interp_mat(param)    # set up the interpolation matrices and make them globally available
+    set_arakawa_mat(param)   # set up the interpolation matrices for the Arakawa and Lamb scheme
+    set_forcing(param)       # sets the wind forcing
 
-    u,v,eta = initial_conditions()
-    return u,v,eta
+    u,v,eta = initial_conditions(param)
+    return u,v,eta, param
 
-## grid parameters
-def set_grid():
+
+#  grid parameters
+def set_grid(param):
     """ The model is based on an Arakawa C-grid, with 4 staggered grids:
 
         T-grid: for eta, sits in the middle of a grid cell.
@@ -99,8 +113,9 @@ def set_grid():
     param['x_q'] = np.arange(0,param['Lx']+param['dx']/2.,param['dx'])
     param['y_q'] = np.arange(0,param['Ly']+param['dy']/2.,param['dy'])
 
-## SET UP THE CORIOLIS MATRICES
-def set_coriolis():
+
+# SET UP THE CORIOLIS MATRICES
+def set_coriolis(param):
     """Sets up the coriolis parameter with beta-plane approximation as vector on the u-, v-, T- and q-grid."""
 
     global f_u,f_v,f_q,f_T
@@ -133,8 +148,9 @@ def set_coriolis():
     f_q = (f_0 + beta*yy_q.flatten()).astype(param['dat_type'])
     f_T = (f_0 + beta*yy_T.flatten()).astype(param['dat_type'])
 
-## FORCING FIELDS
-def set_forcing():
+
+# FORCING FIELDS
+def set_forcing(param):
     """ Sets up the forcing field Fx of shape Nu and makes them globally available.
     This forcing is constant in time and x-direction, zero in y-direction, and varies only with y.
     Resembles trade winds and westerlies for a double gyre set up taken from Cooper and Zanna, 2015, Ocean Modelling.
@@ -143,7 +159,7 @@ def set_forcing():
     """
     global Fx
 
-    Lx,Ly = param['Lx'],param['Ly']     # for convenience
+    Lx, Ly = param['Lx'], param['Ly']     # for convenience
     param['rho'] = 1e3                  # density
 
     xx_u,yy_u = np.meshgrid(param['x_u'],param['y_u'])
@@ -154,8 +170,9 @@ def set_forcing():
     # from matrix to vector and set data type to have single/double precision
     Fx = Fx.flatten().astype(param['dat_type'])
 
-## SET TIME STEPPING
-def set_timestep():
+
+# SET TIME STEPPING
+def set_timestep(param):
     # shallow water gravity wave phase speed
     param['c_phase'] = np.sqrt(param['g']*param['H'])
 
@@ -166,11 +183,12 @@ def set_timestep():
     # number of time steps to integrate
     param['Nt'] = np.ceil((param['Ndays'] * 3600. * 24.) / param['dt']).astype(np.int64)
 
-## SET OUTPUT
-def set_output():
+
+# SET OUTPUT
+def set_output(param):
     """ Creates folder for ouput. Initializes the nc-files etc. """
 
-    param['path'] = path
+    param['path'] = os.getcwd() + '/'
 
     # output every n time steps
     # due to int the output time step might be a bit less than desired
@@ -187,7 +205,7 @@ def set_output():
         if param['outputpath'] == '': # no specific outputpath provided
             try:
                 os.chdir(param['path']+'/data')
-            except:
+            except FileNotFoundError:
                 os.mkdir(param['path']+'/data')
                 os.chdir(param['path']+'/data')
         else:
@@ -209,22 +227,22 @@ def set_output():
         os.chdir(cwd)       # switch back to old directory
 
         # Save grid information in txt file
-        output_txt_ini()
+        output_txt_ini(param)
         str_tmp1 = (param['Lx']/1e3,param['Ly']/1e3)
         str_tmp2 = (param['Lx']/param['a_at_lat0'],param['Ly']/param['a'],param['lat_0'])
         str_tmp3 = (param['dx']/1e3,param['dy']/1e3)
         str_tmp4 = (param['dx']/param['a_at_lat0'],param['dy']/param['a'])
 
-        output_txt('Domain is %ikm x %ikm (approx. %.1fdeg x %.1fdeg) centred at %.1fdegN' % (str_tmp1+str_tmp2))
-        output_txt('with %i x %i grid points' % (param['nx'],param['ny']))
-        output_txt('at resolution %.2fkm x %.2fkm (approx. %.2fdeg x %.2fdeg)' % (str_tmp3+str_tmp4))
-        output_txt('')
+        output_txt('Domain is %ikm x %ikm (approx. %.1fdeg x %.1fdeg) centred at %.1fdegN' % (str_tmp1+str_tmp2), param)
+        output_txt('with %i x %i grid points' % (param['nx'],param['ny']), param)
+        output_txt('at resolution %.2fkm x %.2fkm (approx. %.2fdeg x %.2fdeg)' % (str_tmp3+str_tmp4), param)
+        output_txt('', param)
 
         # Save all scripts as zipped file
-        output_scripts()
+        output_scripts(param)
 
 ## INITIALIZE PROGNOSTIC VARIABLES u,v,eta
-def initial_conditions():
+def initial_conditions(param):
     """ Preallocates and sets the initial conditions for u,v,eta. """
 
     if param['initial_conditions'] == 'rest':
@@ -247,7 +265,7 @@ def initial_conditions():
         v_0 = init_ncv['v'][-1,:,:]
         eta_0 = init_nceta['eta'][-1,:,:]
         param['t0'] = init_nceta['t'][-1]
-        output_txt('Starting from last state of run %04i' % param['init_run_id'])
+        output_txt('Starting from last state of run %04i' % param['init_run_id'], param)
 
         u_0 = u_0.flatten().astype(param['dat_type'])
         v_0 = v_0.flatten().astype(param['dat_type'])
@@ -255,7 +273,7 @@ def initial_conditions():
 
     return u_0,v_0,eta_0
 
-def set_viscosity():
+def set_viscosity(param):
     """ linear scaling of constant viscosity coefficients based on
 
         nu_A = 540 m**2/s at dx = 30km."""
