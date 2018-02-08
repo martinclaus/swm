@@ -112,12 +112,13 @@ MODULE grid_module
         gr%ocean => ocean
     END SUBROUTINE setOcean
 
-    SUBROUTINE setf(gr, theta0, OMEGA)
+    SUBROUTINE setf(gr, coriolis_approx, theta0, OMEGA)
       IMPLICIT NONE
-        TYPE(grid_t), INTENT(inout)     :: gr
+        TYPE(grid_t), INTENT(inout)           :: gr
+        integer(KSHORT), INTENT(in)           :: coriolis_approx
+        real(KDOUBLE), INTENT(in)             :: theta0
         real(KDOUBLE), INTENT(in)             :: OMEGA
         real(KDOUBLE), DIMENSION(:), POINTER  :: f, rtheta
-        real(KDOUBLE), INTENT(in)             :: theta0
         real(KDOUBLE)                         :: rtheta0
         integer(KINT)                         :: siz
 
@@ -125,16 +126,20 @@ MODULE grid_module
         ALLOCATE(f(1:siz), rtheta(1:siz))
         rtheta0 = theta0 * D2R
 
-#if CORIOLIS == FPLANE
-        f = 2 * OMEGA * sin(rtheta0)
-#elif CORIOLIS == BETAPLANE
-        rtheta = D2R * gr%lat
-        f = 2 * OMEGA * sin(rtheta0) + 2 * OMEGA * cos(rtheta0) * rtheta
-#elif CORIOLIS == SPHERICALGEOMETRY
-        f = 2 * OMEGA * gr%sin_lat
-#elif CORIOLIS == NOF
-        f = 0.
-#endif
+        select case (coriolis_approx)
+          case (CORIOLIS_FPLANE)
+            f = 2 * OMEGA * sin(rtheta0)
+          case (CORIOLIS_BETAPLANE)
+            rtheta = D2R * gr%lat
+            f = 2 * OMEGA * sin(rtheta0) + 2 * OMEGA * cos(rtheta0) * rtheta
+          case (CORIOLIS_SPHERICALGEOMETRY)
+            f = 2 * OMEGA * gr%sin_lat
+          case (CORIOLIS_NOF)
+            f = 0.
+          case default
+            WRITE(*,*) "ERROR: Invalid value of coriolis_approx in domain_nl."
+            STOP 2
+        end select
 
         gr%f => f
     END SUBROUTINE setf
@@ -191,7 +196,7 @@ MODULE grid_module
       where (ocean .eq. 1_KSHORT)
         gr%bc = 1._KDOUBLE
       elsewhere
-        gr%bc = lbc_fac 
+        gr%bc = lbc_fac
       end where
     END SUBROUTINE setGridEuler
 

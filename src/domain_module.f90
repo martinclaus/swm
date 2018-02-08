@@ -182,9 +182,9 @@ MODULE domain_module
     CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v, H_v, lbc)
     CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, lbc)
 
-    CALL setf(H_grid, theta0, OMEGA)
-    CALL setf(u_grid, theta0, OMEGA)
-    CALL setf(v_grid, theta0, OMEGA)
-    CALL setf(eta_grid, theta0, OMEGA)
+    CALL setf(H_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(u_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(v_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(eta_grid, coriolis_approx, theta0, OMEGA)
   END SUBROUTINE initDomain
 END MODULE domain_module
