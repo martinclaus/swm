@@ -28,4 +28,12 @@ Header file for shallow water model. Meant to set different physics.
 !#define DYNFROMFILE
 
 #define H_OVERWRITE
+
+/* Possible calculation of Coriolis-Parameter */
+#define CORIOLIS_NOF 0
+#define CORIOLIS_FPLANE 1
+#define CORIOLIS_BETAPLANE 2
+#define CORIOLIS_SPHERICALGEOMETRY 3
+
+
 #endif

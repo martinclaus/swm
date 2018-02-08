@@ -34,7 +34,7 @@ Header file for shallow water model. Meant to set different physics.
 /* Possible calculation of Coriolis-Parameter */
 #define CORIOLIS_NOF 0
 #define CORIOLIS_FPLANE 1
-#define CORIOLIST_BETAPLANE 2
+#define CORIOLIS_BETAPLANE 2
 #define CORIOLIS_SPHERICALGEOMETRY 3
 
 #endif
