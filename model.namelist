@@ -28,6 +28,11 @@
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
+  coriolis_approx = 3 ! approximation used for the Coriolis parameter:
+                      ! 0: no rotation
+                      ! 1: f-plane
+                      ! 2: beta-plane (also set theta0)
+                      ! 3: spherical geometry, i.e. f = 2 * OMEGA * sin(theta)
   theta0 = 20.
   lbc=2.              ! lateral boundary condition (0. = free-slip, 2. = no-slip)
 &end
