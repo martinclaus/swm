@@ -13,5 +13,5 @@ from swm_integration import time_integration
 #exec(open(path+'swm_output.py').read())
 
 ## set all parameters and initial conditions, and run model
-u,v,eta, param = set_param()
-u,v,eta = time_integration(u,v,eta, param)
+u,v,eta = set_param()
+u,v,eta = time_integration(u,v,eta)

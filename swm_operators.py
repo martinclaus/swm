@@ -7,10 +7,9 @@ import numpy as np
 # TODO set up some operators without 1/dx,1/dy to avoid division by large number
 # TODO and then multiplication of it again (single precision issue)
 
-ITu = ITv = ITq = IuT = IvT = Gux = Gvx = Gvy = Guy = G2vx = G2uy = GTx = GTy = Gqx = Gqy = AL1 = AL2 = ALeur = ALeul = ALpvu = ALpvd = Seur = Sau = Seul = Sbu = Scu = Sdu = Spvu = Spvd = Sav = Sbv = Scv = Sdv = indx_au = indx_bu = indx_cu = indx_du = indx_av = indx_bv = indx_cv = indx_dv = None
+from global_var import param, gvar
 
-
-def set_grad_mat(param):
+def set_grad_mat():
     """ Sets up the gradient matrices and makes them available as global variables.
     All matrices are set up as column sparse row.
 
@@ -24,8 +23,8 @@ def set_grad_mat(param):
     See the shallow water model documentation for further information.
     """
 
-    global GTx,GTy,Gux,Guy,Gvx,Gvy,Gqy,Gqx
-    global G2vx,G2uy  # as above but with higher order stencils on the boundary
+    #global GTx,GTy,Gux,Guy,Gvx,Gvy,Gqy,Gqx
+    #global G2vx,G2uy  # as above but with higher order stencils on the boundary
 
     # for readability unpack the param dictionary
     dx,dy = param['dx'],param['dy']
@@ -127,23 +126,23 @@ def set_grad_mat(param):
     G2uy = sparse.csr_matrix((data,(row_ind,col_ind)),shape=(Nq,Nu)) / dy
 
     # set data type
-    Gux = Gux.astype(param['dat_type'])
-    Guy = Guy.astype(param['dat_type'])
-    Gvx = Gvx.astype(param['dat_type'])
-    Gvy = Gvy.astype(param['dat_type'])
-    GTx = GTx.astype(param['dat_type'])
-    GTy = GTy.astype(param['dat_type'])
-    Gqx = Gqx.astype(param['dat_type'])
-    Gqy = Gqy.astype(param['dat_type'])
-    G2uy = G2uy.astype(param['dat_type'])
-    G2vx = G2vx.astype(param['dat_type'])
+    gvar['GTx'] = GTx.astype(param['dat_type'])
+    gvar['GTy'] = GTy.astype(param['dat_type'])
+    gvar['Gux'] = Gux.astype(param['dat_type'])
+    gvar['Guy'] = Guy.astype(param['dat_type'])
+    gvar['Gvx'] = Gvx.astype(param['dat_type'])
+    gvar['Gvy'] = Gvy.astype(param['dat_type'])
+    gvar['Gqx'] = Gqx.astype(param['dat_type'])
+    gvar['Gqy'] = Gqy.astype(param['dat_type'])
+    gvar['G2uy'] = G2uy.astype(param['dat_type'])
+    gvar['G2vx'] = G2vx.astype(param['dat_type'])
 
     if lbc != 2:    # higher order stencil is only for no-slip
-        G2uy = Guy
-        G2vx = Gvx
+        gvar['G2uy'] = gvar['Guy']
+        gvar['G2vx'] = gvar['Gvx']
 
 
-def set_lapl_mat(param):
+def set_lapl_mat():
     """ Sets up the horizontal Laplacian (harmonic diffusion) and also the
     biharmonic diffusion operator LL.
 
@@ -158,23 +157,24 @@ def set_lapl_mat(param):
     similar for LLv, LLT. The lateral boundary conditions are taken into account
     as they are contained in the G-matrices."""
 
-    global Lu, Lv, Lq, LT
-    global LLu, LLv, LLT, LLq
+    #global Lu, Lv, Lq, LT
+    #global LLu, LLv, LLT, LLq
 
     # harmonic operators
-    Lu = GTx.dot(Gux) + Gqy.dot(G2uy)
-    Lv = Gqx.dot(G2vx) + GTy.dot(Gvy)
-    LT = Gux.dot(GTx) + Gvy.dot(GTy)
-    Lq = G2vx.dot(Gqx) + G2uy.dot(Gqy)
+    gvar['Lu'] = gvar['GTx'].dot(gvar['Gux']) + gvar['Gqy'].dot(gvar['G2uy'])
+    gvar['Lv'] = gvar['Gqx'].dot(gvar['G2vx']) + gvar['GTy'].dot(gvar['Gvy'])
+    gvar['LT'] = gvar['Gux'].dot(gvar['GTx']) + gvar['Gvy'].dot(gvar['GTy'])
+    gvar['Lq'] = gvar['G2vx'].dot(gvar['Gqx']) + gvar['G2uy'].dot(gvar['Gqy'])
 
     # biharmonic operators
-    LLu = Lu.dot(Lu)
-    LLv = Lv.dot(Lv)
-    LLT = LT.dot(LT)
-    LLq = Lq.dot(Lq)
+    gvar['LLu'] = gvar['Lu'].dot(gvar['Lu'])
+    gvar['LLv'] = gvar['Lv'].dot(gvar['Lv'])
+    gvar['LLT'] = gvar['LT'].dot(gvar['LT'])
+    gvar['LLq'] = gvar['Lq'].dot(gvar['Lq'])
+
 
 ## SET UP INTERPOLATION MATRICES ON ARAKAWA C-grid
-def set_interp_mat(param):
+def set_interp_mat():
     """Sets up all 2- or 4-point interpolation between the u-,v-,T- and q-grid
     and makes them available as global matrices.
 
@@ -188,7 +188,7 @@ def set_interp_mat(param):
 
     """
 
-    global Ivu, Iuv, IqT, IuT, IvT, ITu, ITv, Iqu, Iqv, Iuq, Ivq, ITq
+    #global Ivu, Iuv, IqT, IuT, IvT, ITu, ITv, Iqu, Iqv, Iuq, Ivq, ITq
 
     # for readability unpack the param dictionary
     dx,dy = param['dx'],param['dy']
@@ -220,16 +220,16 @@ def set_interp_mat(param):
     sparse.dia_matrix((d,nx+2),shape=((NT+ny-1,Nq))))[indx2,:]
 
     # interpolate u-points to T-points, 2-point average
-    IuT = abs(Gux*dx/2.)
+    IuT = abs(gvar['Gux']*dx/2.)
 
     # interpolate v-points to T-points, 2-point average
-    IvT = abs(Gvy*dy/2.)
+    IvT = abs(gvar['Gvy']*dy/2.)
 
     # interpolate T-points to u-points, 2-point average
-    ITu = abs(GTx*dx/2.)
+    ITu = abs(gvar['GTx']*dx/2.)
 
     # interpolate T-points to v-points, 2-point average
-    ITv = abs(GTy*dy/2.)
+    ITv = abs(gvar['GTy']*dy/2.)
 
     # interpolate q-points to u-points, 2-point average
     d = np.ones(Nq)/2.
@@ -271,18 +271,18 @@ def set_interp_mat(param):
     ITq.data = d
 
     # set data type, single/double precision
-    IuT = IuT.astype(param['dat_type'])
-    Iuv = Iuv.astype(param['dat_type'])
-    Iuq = Iuq.astype(param['dat_type'])
-    IvT = IvT.astype(param['dat_type'])
-    Ivu = Ivu.astype(param['dat_type'])
-    Ivq = Ivq.astype(param['dat_type'])
-    ITu = ITu.astype(param['dat_type'])
-    ITv = ITv.astype(param['dat_type'])
-    ITq = ITq.astype(param['dat_type'])
-    IqT = IqT.astype(param['dat_type'])
-    Iqu = Iqu.astype(param['dat_type'])
-    Iqv = Iqv.astype(param['dat_type'])
+    gvar['IuT'] = IuT.astype(param['dat_type'])
+    gvar['Iuv'] = Iuv.astype(param['dat_type'])
+    gvar['Iuq'] = Iuq.astype(param['dat_type'])
+    gvar['IvT'] = IvT.astype(param['dat_type'])
+    gvar['Ivu'] = Ivu.astype(param['dat_type'])
+    gvar['Ivq'] = Ivq.astype(param['dat_type'])
+    gvar['ITu'] = ITu.astype(param['dat_type'])
+    gvar['ITv'] = ITv.astype(param['dat_type'])
+    gvar['ITq'] = ITq.astype(param['dat_type'])
+    gvar['IqT'] = IqT.astype(param['dat_type'])
+    gvar['Iqu'] = Iqu.astype(param['dat_type'])
+    gvar['Iqv'] = Iqv.astype(param['dat_type'])
 
 ## RESHAPE FUNCTIONS
 """ reshape functions are used to get from vector representation to matrix
@@ -295,20 +295,20 @@ representation mostly for plotting or output purposes. Note on the grid numberin
 
     where physically i represents the y-axis and j the x-axis."""
 
-def h2mat(eta, param):
+def h2mat(eta):
     return eta.reshape((param['ny'],param['nx']))
 
-def u2mat(u, param):
+def u2mat(u):
     return u.reshape((param['ny'],param['nx']-1))
 
-def v2mat(v, param):
+def v2mat(v):
     return v.reshape((param['ny']-1,param['nx']))
 
-def q2mat(q, param):
+def q2mat(q):
     return q.reshape((param['ny']+1,param['nx']+1))
 
 ## ARAKAWA and LAMB 1981 matrices
-def set_arakawa_mat(param):
+def set_arakawa_mat():
     """ Set up the linear combinations of potential vorticity as in
         Arakawa and Lamb 1981, eq. (3.34) as matrices. For the U-comp the arrangment is as follows
 
@@ -334,15 +334,15 @@ def set_arakawa_mat(param):
     #TODO think about whether the S-matrices can also be written as index
     #TODO may involve the need of another ghost point though
 
-    global AL1, AL2 # general matrices for the only two different stencils
-    global indx_au, indx_bu, indx_cu, indx_du   # indices to pick the right rows of AL1 or 2
-    global indx_av, indx_bv, indx_cv, indx_dv
+    #global AL1, AL2 # general matrices for the only two different stencils
+    #global indx_au, indx_bu, indx_cu, indx_du   # indices to pick the right rows of AL1 or 2
+    #global indx_av, indx_bv, indx_cv, indx_dv
 
-    global ALeur, ALeul #U-components lin comb of q
-    global Seul, Seur, Sau, Sbu, Scu, Sdu   #U-components shift operators
+    #global ALeur, ALeul #U-components lin comb of q
+    #global Seul, Seur, Sau, Sbu, Scu, Sdu   #U-components shift operators
 
-    global ALpvu, ALpvd #V-components lin comb of q
-    global Spvu, Spvd, Sav, Sbv, Scv, Sdv   #V-components shift operators
+    #global ALpvu, ALpvd #V-components lin comb of q
+    #global Spvu, Spvd, Sav, Sbv, Scv, Sdv   #V-components shift operators
 
     # for readability unpack the param dictionary
     nx,ny = param['nx'],param['ny']
@@ -367,15 +367,22 @@ def set_arakawa_mat(param):
     indx_av = np.array(indx_av)     # convert to numpy array for speed up
     indx_dv = np.array(indx_dv)
 
+    gvar['indx_au'] = indx_au
+    gvar['indx_du'] = indx_du
+    gvar['indx_av'] = indx_av
+    gvar['indx_dv'] = indx_dv
+    gvar['indx_av'] = indx_av     # convert to numpy array for speed up
+    gvar['indx_dv'] = indx_dv
+
     AL2 = (sparse.dia_matrix((d,0),shape=(Nq+nx,Nq)) +\
         sparse.dia_matrix((2*d,1),shape=(Nq+nx,Nq)) +\
         sparse.dia_matrix((2*d,nx+1),shape=(Nq+nx,Nq)) +\
         sparse.dia_matrix((d,nx+2),shape=(Nq+nx,Nq)))[indx1,:]
 
-    indx_bu = indx_du
-    indx_cu = indx_au
-    indx_bv = indx_dv
-    indx_cv = indx_av
+    gvar['indx_bu'] = indx_du
+    gvar['indx_cu'] = indx_au
+    gvar['indx_bv'] = indx_dv
+    gvar['indx_cv'] = indx_av
 
     ## U-component of advection
     # ALeur is the epsilon linear combination to the right of the associated u-point
@@ -438,23 +445,23 @@ def set_arakawa_mat(param):
     Sdv = sparse.dia_matrix((ones,1),shape=(Nv+nx,Nv)).tocsr()[indx7,:].T.tocsr()
 
     # set data type single/double precision
-    AL1 = AL1.astype(param['dat_type'])
-    AL2 = AL2.astype(param['dat_type'])
+    gvar['AL1'] = AL1.astype(param['dat_type'])
+    gvar['AL2'] = AL2.astype(param['dat_type'])
 
-    ALeur = ALeur.astype(param['dat_type'])
-    ALeul = ALeul.astype(param['dat_type'])
-    Seul = Seul.astype(param['dat_type'])
-    Seur = Seur.astype(param['dat_type'])
-    Sau = Sau.astype(param['dat_type'])
-    Sbu = Sbu.astype(param['dat_type'])
-    Scu = Scu.astype(param['dat_type'])
-    Sdu = Sdu.astype(param['dat_type'])
+    gvar['ALeur'] = ALeur.astype(param['dat_type'])
+    gvar['ALeul'] = ALeul.astype(param['dat_type'])
+    gvar['Seul'] = Seul.astype(param['dat_type'])
+    gvar['Seur'] = Seur.astype(param['dat_type'])
+    gvar['Sau'] = Sau.astype(param['dat_type'])
+    gvar['Sbu'] = Sbu.astype(param['dat_type'])
+    gvar['Scu'] = Scu.astype(param['dat_type'])
+    gvar['Sdu'] = Sdu.astype(param['dat_type'])
 
-    ALpvu = ALpvu.astype(param['dat_type'])
-    ALpvd = ALpvd.astype(param['dat_type'])
-    Spvu = Spvu.astype(param['dat_type'])
-    Spvd = Spvd.astype(param['dat_type'])
-    Sav = Sav.astype(param['dat_type'])
-    Sbv = Sbv.astype(param['dat_type'])
-    Scv = Scv.astype(param['dat_type'])
-    Sdv = Sdv.astype(param['dat_type'])
+    gvar['ALpvu'] = ALpvu.astype(param['dat_type'])
+    gvar['ALpvd'] = ALpvd.astype(param['dat_type'])
+    gvar['Spvu'] = Spvu.astype(param['dat_type'])
+    gvar['Spvd'] = Spvd.astype(param['dat_type'])
+    gvar['Sav'] = Sav.astype(param['dat_type'])
+    gvar['Sbv'] = Sbv.astype(param['dat_type'])
+    gvar['Scv'] = Scv.astype(param['dat_type'])
+    gvar['Sdv'] = Sdv.astype(param['dat_type'])

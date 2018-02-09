@@ -10,9 +10,10 @@ import time as tictoc
 import glob
 
 from swm_operators import u2mat, v2mat, h2mat
+from global_var import param
 
 ## STORE DATA
-def output_nc_ini(param):
+def output_nc_ini():
     """ Initialise the netCDF4 file."""
 
     param['output_j'] = 0   # output index
@@ -85,10 +86,10 @@ def output_nc_ini(param):
     global ncfiles
     ncfiles = [ncu,ncv,nceta]
 
-    output_txt('Output will be stored in '+param['outputpath']+param['runfolder']+' every %i hours.' % (param['output_dt']/3600.), param)
+    output_txt('Output will be stored in '+param['outputpath']+param['runfolder']+' every %i hours.' % (param['output_dt']/3600.))
 
 
-def output_nc(u,v,eta,t, param):
+def output_nc(u,v,eta,t):
     """ Writes u,v,eta fields on every nth time step """
     # output index j
     j = param['output_j']   # for convenience
@@ -97,19 +98,19 @@ def output_nc(u,v,eta,t, param):
         ncfile['t'][j] = t
 
     #TODO issue, use unlimited time dimension or not?
-    ncfiles[0]['u'][j,:,:] = u2mat(u, param)
-    ncfiles[1]['v'][j,:,:] = v2mat(v, param)
-    ncfiles[2]['eta'][j,:,:] = h2mat(eta, param)
+    ncfiles[0]['u'][j,:,:] = u2mat(u)
+    ncfiles[1]['v'][j,:,:] = v2mat(v)
+    ncfiles[2]['eta'][j,:,:] = h2mat(eta)
 
     param['output_j'] += 1
 
-def output_nc_fin(param):
+def output_nc_fin():
     """ Finalise the output netCDF4 file."""
 
     for ncfile in ncfiles:
         ncfile['file'].close()
 
-    output_txt('All output written in '+param['runfolder']+'.', param)
+    output_txt('All output written in '+param['runfolder']+'.')
 
 ## STORE INFO in TXT FILE
 def readable_secs(secs):
@@ -129,7 +130,7 @@ def readable_secs(secs):
     else:
         return ("%.2fs" % secs)
 
-def duration_est(tic, i, param):
+def duration_est(tic, i):
     """ Saves an estimate for the total time the model integration will take in the output txt file. """
     time_togo = (tictoc.time()-tic) / (i+1) * param['Nt']
     str1 = 'Model integration will take approximately '+readable_secs(time_togo)+', '
@@ -137,38 +138,38 @@ def duration_est(tic, i, param):
 
     if param['output']:
         str2 = 'and is hopefully done on '+tictoc.asctime(tictoc.localtime(tic + time_togo))
-        output_txt(str1+str2, param)
+        output_txt(str1+str2)
         print(str2)
 
-def output_txt_ini(param):
+def output_txt_ini():
     """ Initialise the output txt file for information about the run."""
     if param['output']:
         param['output_txtfile'] = open(param['output_runpath']+'/info.txt','w')
         s = ('Shallow water model run %i initialised on ' % param['run_id'])+tictoc.asctime()+'\n'
         param['output_txtfile'].write(s)
 
-def output_scripts(param):
+def output_scripts():
     """Save all model scripts into a zip file."""
     if param['output']:
         zf = zipfile.ZipFile(param['output_runpath']+'/scripts.zip','w')
         all_scripts = glob.glob('swm_*.py')
         [zf.write(script) for script in all_scripts]
         zf.close()
-        output_txt('All model scripts stored in a zipped file.', param)
+        output_txt('All model scripts stored in a zipped file.')
 
-def output_txt(s, param, end='\n'):
+def output_txt(s, end='\n'):
     """ Write into the output txt file."""
     if param['output']:
         param['output_txtfile'].write(s+end)
         param['output_txtfile'].flush()
 
-def output_txt_fin(param):
+def output_txt_fin():
     """ Finalise the output txt file."""
     if param['output']:
         param['output_txtfile'].close()
 
 ## STORE PARAMETERS
-def output_param(param):
+def output_param():
     """ Stores the param dictionary in a .npy file """
     if param['output']:
         # filter out 'output_txtfile' as this is a unsaveable textwrapper
@@ -182,4 +183,4 @@ def output_param(param):
                 param_txtfile.write(key + 2*'\t' + str(dict_tmp[key]) + '\n')
 
         param_txtfile.close()
-        output_txt('Param dictionary stored as txt and zip.\n', param)
+        output_txt('Param dictionary stored as txt and zip.\n')
