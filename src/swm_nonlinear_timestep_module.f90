@@ -21,6 +21,7 @@
 !! vars_module, ONLY : AB_Chi, AB_C1, AB_C2
 !------------------------------------------------------------------
 MODULE swm_timestep_module
+#include "interp.inc"
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
@@ -37,8 +38,11 @@ MODULE swm_timestep_module
 
   PUBLIC :: SWM_timestep_init, SWM_timestep_finish, SWM_timestep_step, SWM_timestep_advance
 
+  !< set of 2D pointer for use with interpolation macros
+  real(KDOUBLE), dimension(:, :), pointer :: eta_now, u_now, v_now, v_bs_now, u_bs_now
+
+
   CONTAINS
-#include "interp.inc"
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -53,7 +57,7 @@ MODULE swm_timestep_module
     !! memchunk_module, ONLY : initMemChunk
     !------------------------------------------------------------------
     SUBROUTINE SWM_timestep_init
-      USE vars_module, ONLY : addToRegister
+      USE vars_module, ONLY : addToRegister, N0
       USE domain_module, ONLY : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
       USE memchunk_module, ONLY : initMemChunk, getChunkData
       use calc_lib, only : vorticity, evaluateStreamfunction
@@ -88,6 +92,13 @@ MODULE swm_timestep_module
       call computePotVort
       call computeEDens
       call computeMassFluxes
+
+      !< set 2D pointer for use with interpolation routines
+      eta_now => SWM_eta(:, :, N0)
+      u_now => SWM_u(:, :, N0)
+      v_now => SWM_v(:, :, N0)
+      u_bs_now => u_bs(:, :, N0)
+      v_bs_now => v_bs(:, :, N0)
 
     END SUBROUTINE SWM_timestep_init
 
@@ -321,25 +332,21 @@ MODULE swm_timestep_module
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       YSPACE1: DO j=1,Ny
         XSPACE1: DO i=1,Nx
-          ETA: IF (eta_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
+          ETA: IF (eta_grid%ocean(i,j) .eq. 1_KSHORT) THEN !skip this point if it is land
               !eta = \nabla * (MU, MV)
-              G_eta(i,j,NG0) = ((- (MU(ip1(i),j) &
-                                    - MU(i,j)) &
-                                   / dLambda &
-                                 - (MV(i,jp1(j)) * v_grid%cos_lat(jp1(j)) &
-                                    - MV(i,j) * v_grid%cos_lat(j)) &
-                                   / dTheta &
+              G_eta(i,j,NG0) = ((- (MU(ip1(i),j) - MU(i,j)) / dLambda &
+                               - (MV(i,jp1(j)) * v_grid%cos_lat(jp1(j)) - MV(i,j) * v_grid%cos_lat(j)) / dTheta &
 #ifdef LINEARISED_MEAN_STATE
-                                 - (interp2(SWM_eta(:,:,N0), eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
-                                    - interp2(SWM_eta(:,:,N0), eta2u_noland, i, j) * u_bs(i,j,1)) &
+                                 - (interp2(eta_now, eta2u_noland, ip1(i),j) * u_bs(ip1(i), j, N0) &
+                                    - interp2(eta_now, eta2u_noland, i, j) * u_bs(i, j, N0)) &!) &
                                    / dLambda &
-                                 - (v_grid%cos_lat(jp1(j)) * interp2(SWM_eta(:,:,N0), eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j),1) &
-                                    - v_grid%cos_lat(j) * interp2(SWM_eta(:,:,N0), eta2v_noland, i,j) * v_bs(i,j,1)) &
+                                 - (v_grid%cos_lat(jp1(j)) * interp2(eta_now, eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j), N0) &
+                                    - v_grid%cos_lat(j) * interp2(eta_now, eta2v_noland, i, j) * v_bs(i, j, N0)) &
                                    / dTheta &
 #endif
-                                  ) / (A * eta_grid%cos_lat(j)) &
-                                + F_eta(i,j) &
-                               )
+                                 ) / (A * eta_grid%cos_lat(j)) &
+                                 + F_eta(i,j))
+
               ! Integrate
  !             SWM_eta(i, j, N0p1) = integrate_AB(SWM_eta(i, j, N0), G_eta(i, j, :), impl_eta(i, j), NG)
           END IF ETA
@@ -357,14 +364,14 @@ MODULE swm_timestep_module
                               * interp4(MV, v2u, i, j) &       !
 #ifdef LINEARISED_MEAN_STATE
                              + interp2(zeta, H2u, i, j) &
-                                 * interp4(v_bs(:,:,N0), v2u, i, j) &   !
+                                 * interp4(v_bs_now, v2u, i, j) &   !
 #endif
                              - ((EDens(i,j) - EDens(im1(i),j))  &
                                / (A * u_grid%cos_lat(j) * dLambda)) & !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT( &
-                               SWM_u(i,j,N0)**2 &
-                               + (interp4(SWM_v(:,:,N0), v2u, i, j)**2)) & ! averaging v on u grid
+                               SWM_u(i, j, N0)**2 &
+                               + (interp4(v_now, v2u, i, j)**2)) & ! averaging v on u grid
                              *SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
@@ -388,14 +395,14 @@ MODULE swm_timestep_module
                               * interp4(MU, u2v, i, j) &  !
 #ifdef LINEARISED_MEAN_STATE
                              - interp2(zeta, H2v, i, j) &
-                                * interp4(u_bs(:,:,N0), u2v, i, j) &  !
+                                * interp4(u_bs_now, u2v, i, j) &  !
 #endif
                                 - ((EDens(i,j) - EDens(i,jm1(j))) &
                                    / (A * dTheta)) &  !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT( &
                                 SWM_v(i,j,N0)**2 &
-                                + (interp4(SWM_u(:,:,N0), u2v, i, j)**2)) & ! averaging u on v grid
+                                + (interp4(u_now, u2v, i, j)**2)) & ! averaging u on v grid
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
