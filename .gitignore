@@ -1,0 +1,8 @@
+build/*
+bin/*
+selfcheck/*/output/new_*
+.cproject
+.project
+config.log
+config.status
+Makefile
