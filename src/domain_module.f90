@@ -11,7 +11,7 @@ MODULE domain_module
   real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
   real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
   real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
-  real(KDOUBLE)               :: H_overwrite = 0.    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+  real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
   CHARACTER(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
   CHARACTER(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
   real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
@@ -165,15 +165,16 @@ MODULE domain_module
       H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i), jp1(j))) &
                    / (ocean_H(i, j) + ocean_H(ip1(i), j) + ocean_H(i, jp1(j)) + ocean_H(ip1(i), jp1(j)))
 
-#ifdef H_OVERWRITE
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !! overwrite bathimetry of all grids with constant value
-    !------------------------------------------------------------------
-    H     = ocean_H   * H_overwrite
-    H_u   = ocean_u   * H_overwrite
-    H_v   = ocean_v   * H_overwrite
-    H_eta = ocean_eta * H_overwrite
-#endif
+    if (H_overwrite .ne. H_OVERWRITE_DEF) then
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! overwrite bathimetry of all grids with constant value
+        !------------------------------------------------------------------
+        H     = ocean_H   * H_overwrite
+        H_u   = ocean_u   * H_overwrite
+        H_v   = ocean_v   * H_overwrite
+        H_eta = ocean_eta * H_overwrite
+    end if
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! set the grid-type for all grids
     !------------------------------------------------------------------
