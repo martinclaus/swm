@@ -64,6 +64,21 @@ MODULE swm_damping_module
       CALL addToRegister(impl_v, "IMPL_V", v_grid)
       CALL addToRegister(impl_eta, "IMPL_ETA", eta_grid)
 
+      ! linear friction
+      ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
+        STOP 1
+      END IF
+      CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
+      CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
+      gamma_lin_u = 0
+      gamma_lin_v = 0
+#ifdef BAROTROPIC
+      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
+      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v/H_v
+#endif
+
       ! quadratic friction
 #ifdef QUADRATIC_BOTTOM_FRICTION
       ALLOCATE(gamma_sq_u(1:Nx, 1:Ny), gamma_sq_v(1:Nx, 1:Ny), stat=alloc_error)
@@ -79,11 +94,20 @@ MODULE swm_damping_module
       WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u/H_u
       WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
 #endif
-#endif
+
+      ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .ne. 0) THEN
+        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
+        STOP 1
+      END IF
+      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
+      gamma_lin_eta = 0
 
       ! build implicit terms (linear damping)
-      impl_u = ( 1 &)
-      
+      impl_u = 1
+      impl_v = 1
+      impl_eta = 1
+
     END SUBROUTINE SWM_damping_init
 
 
