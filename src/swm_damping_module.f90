@@ -72,8 +72,26 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
       CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
+
       gamma_lin_u = 0
       gamma_lin_v = 0
+
+      IF (rayleigh_damp_mom .eq. .TRUE.) !add the corresponding friction coefficient and sponge layers
+      gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
+#ifdef VELOCITY_SPONGE
+                            + getSpongeLayer("U",VELOCITY_SPONGE) &
+#endif
+                    )
+      gamma_lin_v = ( getDampingCoefficient("GAMMA_LIN_V",SHAPE(gamma_lin_v)) &
+#ifdef VELOCITY_SPONGE
+                      + getSpongeLayer("V",VELOCITY_SPONGE) &
+#endif
+                    )
+      END IF
+
+
+
+
 #ifdef BAROTROPIC
       WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
       WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v/H_v
@@ -95,6 +113,7 @@ MODULE swm_damping_module
       WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
 #endif
 
+    ! Newtonian cooling
       ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
@@ -102,6 +121,14 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
       gamma_lin_eta = 0
+
+      IF (rayleigh_damp_cont .eq. .TRUE.) !add the corresponding friction coefficient and sponge layers
+      gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
+#ifdef NEWTONIAN_SPONGE
+                        + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
+#endif
+                      )
+      END IF
 
       ! build implicit terms (linear damping)
       impl_u = 1
