@@ -72,7 +72,6 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
       CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
-
       gamma_lin_u = 0
       gamma_lin_v = 0
 
@@ -88,9 +87,6 @@ MODULE swm_damping_module
 #endif
                     )
       END IF
-
-
-
 
 #ifdef BAROTROPIC
       WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
