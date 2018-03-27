@@ -108,7 +108,7 @@ MODULE swm_damping_module
       WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u/H_u
       WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
 #endif
-
+#endif
     ! Newtonian cooling
       ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
