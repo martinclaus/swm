@@ -75,18 +75,18 @@ MODULE swm_damping_module
       gamma_lin_u = 0
       gamma_lin_v = 0
 
-      IF (rayleigh_damp_mom .eq. .TRUE.) !add the corresponding friction coefficient and sponge layers
-      gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
+      if (rayleigh_damp_mom .eq. .TRUE.) then !add the corresponding friction coefficient and sponge layers
+        gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
 #ifdef VELOCITY_SPONGE
-                            + getSpongeLayer("U",VELOCITY_SPONGE) &
+                        + getSpongeLayer("U",VELOCITY_SPONGE) &
 #endif
-                    )
-      gamma_lin_v = ( getDampingCoefficient("GAMMA_LIN_V",SHAPE(gamma_lin_v)) &
+                      )
+        gamma_lin_v = ( getDampingCoefficient("GAMMA_LIN_V",SHAPE(gamma_lin_v)) &
 #ifdef VELOCITY_SPONGE
                       + getSpongeLayer("V",VELOCITY_SPONGE) &
 #endif
-                    )
-      END IF
+                      )
+      end if
 
 #ifdef BAROTROPIC
       WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
@@ -118,13 +118,13 @@ MODULE swm_damping_module
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
       gamma_lin_eta = 0
 
-      IF (rayleigh_damp_cont .eq. .TRUE.) !add the corresponding friction coefficient and sponge layers
-      gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
+      if (rayleigh_damp_cont .eq. .TRUE.) then !add the corresponding friction coefficient and sponge layers
+        gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
 #ifdef NEWTONIAN_SPONGE
-                        + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
+                          + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
 #endif
-                      )
-      END IF
+                        )
+      end if
 
       ! build implicit terms (linear damping)
       impl_u = 1
