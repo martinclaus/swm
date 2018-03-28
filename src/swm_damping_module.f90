@@ -42,7 +42,7 @@ MODULE swm_damping_module
     !! addToRegister
     !------------------------------------------------------------------
     SUBROUTINE SWM_damping_init
-      USE vars_module, ONLY : r, k, gamma_new, dt, &
+      USE vars_module, ONLY : r, k, gamma_new, dt, rayleigh_damp_mom, rayleigh_damp_cont, &
                               addToRegister
       USE domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
       IMPLICIT NONE
@@ -75,7 +75,7 @@ MODULE swm_damping_module
       gamma_lin_u = 0
       gamma_lin_v = 0
 
-      if (rayleigh_damp_mom .eq. .TRUE.) then !add the corresponding friction coefficient and sponge layers
+      if (rayleigh_damp_mom) then !add the corresponding friction coefficient and sponge layers
         gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
 #ifdef VELOCITY_SPONGE
                         + getSpongeLayer("U",VELOCITY_SPONGE) &
@@ -118,7 +118,7 @@ MODULE swm_damping_module
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
       gamma_lin_eta = 0
 
-      if (rayleigh_damp_cont .eq. .TRUE.) then !add the corresponding friction coefficient and sponge layers
+      if (rayleigh_damp_cont) then !add the corresponding friction coefficient and sponge layers
         gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
 #ifdef NEWTONIAN_SPONGE
                           + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &

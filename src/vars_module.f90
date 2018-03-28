@@ -40,8 +40,8 @@ MODULE vars_module
   integer(KSHORT), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
 
   ! logical parameters
-  LOGICAL                      :: rayleigh_damp_mom = .FALSE.          !< Replacement for LINEAR_BOTTOM_FRICTION
-  LOGICAL                      :: rayleigh_damp_cont = .FALSE.         !< Replacement for NEWTONIAN_COOLING
+  LOGICAL                      :: rayleigh_damp_mom = .FALSE.          !< linear bottom friction
+  LOGICAL                      :: rayleigh_damp_cont = .FALSE.         !< newtonian cooling
 
   ! dynamic fields u, v, eta, allocated during initialization
   real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
@@ -123,7 +123,7 @@ MODULE vars_module
     ! definition of the namelist
       namelist / model_nl / &
         G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding, & !friction and forcing parameter
-        rayleigh_damp_mom,rayleigh_damp_cont, & !replacement for LINEAR_BOTTOM_FRICTION and NEWTONIAN_COOLING
+        rayleigh_damp_mom,rayleigh_damp_cont, &
         run_length, &
         dt, meant_out, & ! time step and mean step
         file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
