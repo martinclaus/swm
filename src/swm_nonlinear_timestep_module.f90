@@ -179,7 +179,7 @@ MODULE swm_timestep_module
     END SUBROUTINE SWM_timestep_step
 
     subroutine computeD()
-      use vars_module, only : N0
+      use vars_module, only : N0, itt
       use domain_module, only : eta_grid, Nx, Ny
       use calc_lib, only : interpolate, eta2H_noland, eta2u_noland, eta2v_noland
       integer(KINT) :: i,j
@@ -196,17 +196,23 @@ MODULE swm_timestep_module
 !$OMP END PARALLEL DO
 !      if (any(D .lt. minD)) print *, "WARNING: Outcropping detected!!"
 !      where (D .lt. minD) D = minD
+#endif
+#if defined LINEARISED_MEAN_STATE || defined LINEARISED_STATE_OF_REST
+      if (itt .eq. 0) then
+#endif
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      do j=1, Ny
-        do i=1, Nx
-          Dh(i,j) = interp4(D, eta2H_noland, i, j)
-          Du(i, j) = interp2(D, eta2u_noland, i, j)
-          Dv(i, j) = interp2(D, eta2v_noland, i, j)
+        do j=1, Ny
+          do i=1, Nx
+            Dh(i,j) = interp4(D, eta2H_noland, i, j)
+            Du(i, j) = interp2(D, eta2u_noland, i, j)
+            Dv(i, j) = interp2(D, eta2v_noland, i, j)
+          end do
         end do
-      end do
 !$OMP END PARALLEL DO
+#if defined LINEARISED_MEAN_STATE || defined LINEARISED_STATE_OF_REST
+      end if
 #endif
     end subroutine computeD
 
