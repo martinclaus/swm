@@ -18,9 +18,7 @@ Header file for shallow water model. Meant to set different physics.
 /* Switches for forcing */
 #define TAU_SCALE 1e-2
 /* Switches for damping */
-#define LINEAR_BOTTOM_FRICTION
 #define LATERAL_MIXING
-#define NEWTONIAN_COOLING
 /* Sponge layers */
 #define NEWTONIAN_SPONGE "NSEW"
 #define VELOCITY_SPONGE "NSEW"
