@@ -76,6 +76,7 @@ MODULE swm_damping_module
       gamma_lin_v = 0
 
       if (rayleigh_damp_mom) then !add the corresponding friction coefficient and sponge layers
+        write(*,*) "Rayleigh damp mom"
         gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
 #ifdef VELOCITY_SPONGE
                         + getSpongeLayer("U",VELOCITY_SPONGE) &
@@ -127,9 +128,9 @@ MODULE swm_damping_module
       end if
 
       ! build implicit terms (linear damping)
-      impl_u = 1
-      impl_v = 1
-      impl_eta = 1
+      impl_u = 1 + dt*gamma_lin_u
+      impl_v = 1 + dt*gamma_lin_v
+      impl_eta = 1 + dt*gamma_lin_eta
 
     END SUBROUTINE SWM_damping_init
 
