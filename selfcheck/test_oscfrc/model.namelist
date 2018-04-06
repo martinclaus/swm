@@ -1,7 +1,7 @@
 &model_nl
-  r = 0,                ! linear bottom friction parameter
+  r = 5e-5,                ! linear bottom friction parameter
   k = 5e-1,             ! quadratic bottom friction parameter
-  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
+  gamma_new = 5e-5,  ! Newtonian cooling parameter (1/s)
   new_sponge_efolding=8e-2, ! efolding scale of sponge layers
   gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
@@ -10,6 +10,8 @@
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init=""
   diag_start=0.
+  rayleigh_damp_cont=.true.
+  rayleigh_damp_mom=.true.
 &end
 
 &calendar_nl
@@ -47,3 +49,5 @@
 &end
 
 &diag_nl filename="taux.nc", varname="f_x", type="S", frequency=10 &end
+&diag_nl filename="u.nc", varname="u", type="S", frequency=10 &end
+&diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 &end
