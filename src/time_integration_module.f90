@@ -81,7 +81,7 @@ contains
     integer(KINT), intent(in) :: order     !< order of the integration scheme
     real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2)), weight_inc
 
-    !A_NP1 = A_N
+    A_NP1 = A_N
     tstep = min(order, itt)
 
 !$OMP parallel do &
@@ -89,11 +89,7 @@ contains
     do ti = 1, tstep
       do j = 1, size(A_NP1, 2)
         do i = 1, size(A_NP1, 1)
-          if ( ti == 1) then
-            A_NP1(i, j) = A_N(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
-          else
-            A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
-          end if
+          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
         end do
       end do
     end do
