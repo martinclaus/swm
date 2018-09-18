@@ -12,11 +12,11 @@
   diag_start=0.
   rayleigh_damp_cont=.true.
   rayleigh_damp_mom=.true.
-&end
+/
 
 &calendar_nl
   model_start="1945-01-01 12:00"
-&end
+/
 
 &domain_nl
   A = 6371000,          ! radius of the earth (m)
@@ -31,7 +31,7 @@
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
-&end
+/
 
 &swm_forcing_nl
   filename="input/taux_sc.nc",
@@ -41,13 +41,13 @@
   omega=7.24704187679e-06,
   forcingtype="O",
   component="Z",
-&end
+/
 
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
-&end
+/
 
-&diag_nl filename="taux.nc", varname="f_x", type="S", frequency=10 &end
-&diag_nl filename="u.nc", varname="u", type="S", frequency=10 &end
-&diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 &end
+&diag_nl filename="taux.nc", varname="f_x", type="S", frequency=10 /
+&diag_nl filename="u.nc", varname="u", type="S", frequency=10 /
+&diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 /
