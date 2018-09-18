@@ -125,6 +125,7 @@ MODULE swm_timestep_module
 !$OMP parallel do &
 !$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
       do j = 1, Ny
+!$NEC ivdep
         do i = 1, Nx
           do ti = 1, NG - 1
             G_u(i, j, ti) = G_u(i, j, ti + 1)
