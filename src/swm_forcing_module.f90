@@ -319,7 +319,7 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), INTENT(inout)    :: iStream      !< Forcing stream to process
       real(KDOUBLE), DIMENSION(:,:), POINTER    :: forcingTerm
       integer(KSHORT), DIMENSION(:,:), POINTER  :: oceanMask
-      real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData, oscForce
+      real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData !, oscForce
       real(KDOUBLE)  :: r_iot, i_iot
       integer(KINT) :: i, j
 
@@ -352,21 +352,23 @@ MODULE swm_forcing_module
       do j=1,Ny
         do i=1,Nx
           !if (oceanMask(i, j) .ne. 1) cycle
-          oscForce(i, j) =  (forcingTerm(i, j) &
-                             + 2._8 * ( rData(i, j) * r_iot &
-                                       - iData(i, j) * i_iot )&
-                            ) * oceanMask(i, j)
+          forcingTerm(i, j)     = forcingTerm(i, j)  &
+                                + (2._8 * ( rData(i, j) * r_iot &
+                                          - iData(i, j) * i_iot )&
+                                  )! * oceanMask(i, j)
+          !forcingTerm(i, j) = forcingTerm(i, j) + oscForce(i, j)! * oceanMask(i, j)
         end do
       end do
 !$OMP end do
-!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      do j=1,Ny
-        do i=1,Nx
-          forcingTerm(i, j) = oscForce(i, j)
-        end do
-      end do
-!$OMP end do
+!!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!      do j=1,Ny
+!        do i=1,Nx
+!          forcingTerm(i, j) = forcinoscForce(i, j)
+!        end do
+!      end do
+!!$OMP end do
 !$OMP end parallel
+      !forcingTerm = forcingTerm + oscForce 
     END SUBROUTINE SWM_forcing_processOscillation
 
 
