@@ -347,28 +347,18 @@ MODULE swm_forcing_module
       r_iot = cos(iStream%omega * itt * dt)
       i_iot = sin(iStream%omega * itt * dt)
       !e_iot = exp((0D0, 1D0) * iStream%omega * itt * dt)
-!$OMP parallel
-!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel do &
+!$OMP private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
       do j=1,Ny
         do i=1,Nx
           !if (oceanMask(i, j) .ne. 1) cycle
           forcingTerm(i, j)     = forcingTerm(i, j)  &
                                 + (2._8 * ( rData(i, j) * r_iot &
                                           - iData(i, j) * i_iot )&
-                                  )! * oceanMask(i, j)
-          !forcingTerm(i, j) = forcingTerm(i, j) + oscForce(i, j)! * oceanMask(i, j)
+                                  ) * oceanMask(i, j)
         end do
       end do
-!$OMP end do
-!!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-!      do j=1,Ny
-!        do i=1,Nx
-!          forcingTerm(i, j) = forcinoscForce(i, j)
-!        end do
-!      end do
-!!$OMP end do
-!$OMP end parallel
-      !forcingTerm = forcingTerm + oscForce 
+!$OMP end parallel do
     END SUBROUTINE SWM_forcing_processOscillation
 
 
