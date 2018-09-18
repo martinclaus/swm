@@ -1,0 +1,24 @@
+# Choosing a FORTRAN Compiler
+# ---------------------------
+
+NEC_PRE=n
+
+if test "X-" = "X-$FC"; then
+    FC="${NEC_PRE}fort"
+    FC_BASENAME="${NEC_PRE}fort"
+fi
+
+if test "X-" = "X-$CC"; then
+    CC="${NEC_PRE}cc"
+    CC_BASENAME="${NEC_PRE}cc"
+fi
+
+# set default flags
+FCFLAGS="${FCFLAGS} -O3 -DSHORT_KIND=4 -finline-functions -finline-max-function-size=500 -finline-max-times=15"
+CFLAGS="${CFLAGS} -O3 -DSHORT_KIND=4"
+
+# define compiler switches
+#ac_cv_fc_pp_define="-D"
+#ac_cv_fc_pp_srcext_f90="-Ep"
+ac_cv_fc_implicit_none=
+#ac_cv_fc_module_output_flag="-to "
