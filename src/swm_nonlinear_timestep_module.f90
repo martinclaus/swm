@@ -123,7 +123,7 @@ MODULE swm_timestep_module
       integer(KINT) :: i, j, ti
       ! Shift explicit increment vectors
 !$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(1)
       do j = 1, Ny
 !$NEC ivdep
         do i = 1, Nx
@@ -176,7 +176,7 @@ MODULE swm_timestep_module
 #ifdef FULLY_NONLINEAR
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
           if (eta_grid%ocean(i, j) .ne. 1_KSHORT) cycle
@@ -192,7 +192,7 @@ MODULE swm_timestep_module
 #endif
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j=1, Ny
           do i=1, Nx
             Dh(i,j) = interp4(D, eta2H_noland, i, j)
@@ -225,7 +225,7 @@ MODULE swm_timestep_module
       eps = epsilon(eps)
 !$OMP parallel do &
 !$OMP private(i,j, pD) &
-!$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           pD = max(Dh(i, j), eps)
@@ -255,7 +255,7 @@ MODULE swm_timestep_module
       integer(KINT) :: i, j
 !$OMP parallel
 #if defined FULLY_NONLINEAR
-!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           u2(i, j) = SWM_u(i, j, N0) ** 2
@@ -264,7 +264,7 @@ MODULE swm_timestep_module
       end do
 !$OMP end do
 #elif defined LINEARISED_MEAN_STATE
-!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           u2(i, j) = SWM_u(i, j, N0) * u_bs(i, j, 1)
@@ -273,7 +273,7 @@ MODULE swm_timestep_module
       end do
 !$OMP end do
 #endif
-!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           IF (eta_grid%land(i, j) .EQ. 1_KSHORT) cycle !skip this point if it is land
@@ -302,7 +302,7 @@ MODULE swm_timestep_module
       use vars_module, only : N0
       use domain_module, only : u_grid, v_grid, Nx, Ny, eta_grid
       integer(KINT) :: i, j
-!$OMP parallel do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP parallel do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=1, Ny
         do i=1, Nx
           !Mass-Flux MU = interpolate(D,{x}) * u
@@ -322,10 +322,19 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       integer(KINT) :: i,j
       CHARACTER(1), parameter :: charx="x", chary="y"
+      real(KDOUBLE), dimension(:, :), pointer :: eta_now, v_bs_now, v_now, u_bs_now, u_now
+
+#ifdef LINEARISED_MEAN_STATE
+      v_bs_now => v_bs(:,:,N0)
+      u_bs_now => u_bs(:, :, N0)
+#endif
+      eta_now => SWM_eta(:, :, N0)
+      v_now => SWM_v(:, :, N0)
+      u_now => SWM_u(:, :, N0)
 
 !$OMP parallel
 !$OMP do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE1: DO j=1,Ny
         XSPACE1: DO i=1,Nx
           ETA: IF (eta_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
@@ -337,8 +346,8 @@ MODULE swm_timestep_module
                                     - MV(i,j) * v_grid%cos_lat(j)) &
                                    / dTheta &
 #ifdef LINEARISED_MEAN_STATE
-                                 - (interp2(SWM_eta(:,:,N0), eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
-                                    - interp2(SWM_eta(:,:,N0), eta2u_noland, i, j) * u_bs(i,j,1)) &
+                                 - (interp2(eta_now, eta2u_noland, ip1(j),j) * u_bs(ip1(i),j,1) &
+                                    - interp2(eta_now, eta2u_noland, i, j) * u_bs(i,j,1)) &
                                    / dLambda &
                                  - (v_grid%cos_lat(jp1(j)) * interp2(SWM_eta(:,:,N0), eta2v_noland, i, jp1(j)) * v_bs(i, jp1(j),1) &
                                     - v_grid%cos_lat(j) * interp2(SWM_eta(:,:,N0), eta2v_noland, i,j) * v_bs(i,j,1)) &
@@ -354,7 +363,7 @@ MODULE swm_timestep_module
       END DO YSPACE1
 !$OMP end do
 !$OMP do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE2: DO j=1,Ny
         XSPACE2: DO i=1,Nx
           !u equation
@@ -364,14 +373,14 @@ MODULE swm_timestep_module
                               * interp4(MV, v2u, i, j) &       !
 #ifdef LINEARISED_MEAN_STATE
                              + interp2(zeta, H2u, i, j) &
-                                 * interp4(v_bs(:,:,N0), v2u, i, j) &   !
+                                 * interp4(v_bs_now, v2u, i, j) &   !
 #endif
                              - ((EDens(i,j) - EDens(im1(i),j))  &
                                / (A * u_grid%cos_lat(j) * dLambda)) & !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_u(i,j)*SQRT( &
                                SWM_u(i,j,N0)**2 &
-                               + (interp4(SWM_v(:,:,N0), v2u, i, j)**2)) & ! averaging v on u grid
+                               + (interp4(v_now, v2u, i, j)**2)) & ! averaging v on u grid
                              *SWM_u(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
@@ -386,7 +395,7 @@ MODULE swm_timestep_module
       END DO YSPACE2
 !$OMP end do
 !$OMP do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE3: DO j=1,Ny
         XSPACE3: DO i=1,Nx
           V: IF (v_grid%ocean(i,j) .eq. 1) THEN !skip this point if it is land
@@ -395,14 +404,14 @@ MODULE swm_timestep_module
                               * interp4(MU, u2v, i, j) &  !
 #ifdef LINEARISED_MEAN_STATE
                              - interp2(zeta, H2v, i, j) &
-                                * interp4(u_bs(:,:,N0), u2v, i, j) &  !
+                                * interp4(u_bs_now, u2v, i, j) &  !
 #endif
                                 - ((EDens(i,j) - EDens(i,jm1(j))) &
                                    / (A * dTheta)) &  !
 #ifdef QUADRATIC_BOTTOM_FRICTION
                            - gamma_sq_v(i,j)*SQRT( &
                                 SWM_v(i,j,N0)**2 &
-                                + (interp4(SWM_u(:,:,N0), u2v, i, j)**2)) & ! averaging u on v grid
+                                + (interp4(u_now, u2v, i, j)**2)) & ! averaging u on v grid
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
 #endif
 #ifdef LATERAL_MIXING
