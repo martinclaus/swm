@@ -10,6 +10,8 @@ test_diaglist : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_diaglist/
 test_nonlinear : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nonlinear/
 test_nl_tracer : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nl_tracer/
 test_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
+test_performance : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_performance/
+
 test% : clean model
 	@echo run $@ with $(bindir)model
 	$(SHELL) $(selfcheck_dir)runselfcheck.sh $@ $(bindir)model
