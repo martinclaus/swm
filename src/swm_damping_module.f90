@@ -32,10 +32,8 @@ MODULE swm_damping_module
     !> @brief  Initialise damping coefficients
     !!
     !! Alocates and computes the coefficients for implicit linear damping
-    !! and/or explicit quadratic damping. The coefficients are only computed
-    !! if either LINEAR_BOTTOM_FRICTION or QUADRATIC_BOTTOM_FRICTION is defined
-    !! in model.h. If the model is set to be BAROTROPIC, the damping coefficients
-    !! are scaled with the depth.
+    !! and/or explicit quadratic damping. If the model is set to be BAROTROPIC,
+    !! the damping coefficients are scaled with the depth.
     !!
     !! @par Uses:
     !! vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, ocean_u, ocean_v, H_u, H_v
