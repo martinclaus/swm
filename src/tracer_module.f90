@@ -165,7 +165,7 @@ MODULE tracer_module
       gamma_c => trc%gamma_C
       kappa_h = trc%kappa_h
 !$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE: do j=1,Ny
         XSPACE: do i=1,Nx
           if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
@@ -226,7 +226,7 @@ MODULE tracer_module
       integer(KINT) :: i, j, ti
 !CDIR NODEP
 !$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=1,Ny
 !CDIR NODEP
         do i=1,Nx

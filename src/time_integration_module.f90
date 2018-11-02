@@ -85,7 +85,7 @@ contains
     tstep = min(order, itt)
 
 !$OMP parallel do &
-!$OMP default(shared) private(i, j, ti) collapse(2)
+!$OMP default(shared) private(i, j, ti) OMP_COLLAPSE(2)
     do ti = 1, tstep
       do j = 1, size(A_NP1, 2)
         do i = 1, size(A_NP1, 1)

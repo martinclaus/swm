@@ -167,7 +167,7 @@ MODULE swm_lateralmixing_module
       integer(KINT) :: i, j
 !$OMP parallel do &
 !$OMP private(i,j) &
-!$OMP schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+!$OMP schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
 !CDIR NODEP
         do i = 1, Nx
@@ -221,7 +221,7 @@ MODULE swm_lateralmixing_module
       integer(KINT) :: i, j
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           if (eta_grid%ocean(i, j) .eq. 1_KSHORT) then

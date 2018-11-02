@@ -206,7 +206,7 @@ MODULE swm_timestep_module
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE1: DO j=1,Ny   ! loop over y dimension
         XSPACE1: DO i=1,Nx ! loop over x dimension
           IF (ocean_eta(i,j) == 1) THEN !skip this grid point if it is land
@@ -225,7 +225,7 @@ MODULE swm_timestep_module
       ENDDO YSPACE1
 !$OMP END DO
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE2: DO j=1,Ny   ! loop over y dimension
         XSPACE2: DO i=1,Nx ! loop over x dimension
           IF (ocean_u(i,j) == 1) THEN !skip this grid point if it is land
@@ -255,7 +255,7 @@ MODULE swm_timestep_module
       ENDDO YSPACE2
 !$OMP END DO
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE3: DO j=1,Ny   ! loop over y dimension
         XSPACE3: DO i=1,Nx ! loop over x dimension
           IF (ocean_v(i,j) == 1) THEN !skip this grid point, because it is land
@@ -312,7 +312,7 @@ MODULE swm_timestep_module
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,u_v,v_u)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       YSPACE: DO j=1,Ny   ! loop over y dimension
         XSPACE: DO i=1,Nx ! loop over x dimension
           ! eta equation

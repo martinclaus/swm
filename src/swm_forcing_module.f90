@@ -144,7 +144,7 @@ MODULE swm_forcing_module
       ! add time dependent forcing
       CALL SWM_forcing_getForcing(isTDF=.TRUE.)
 #if defined(FXDEP) || defined(FYDEP) || defined(FETADEP)
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
 #ifdef FXDEP
@@ -348,7 +348,7 @@ MODULE swm_forcing_module
       i_iot = sin(iStream%omega * itt * dt)
       !e_iot = exp((0D0, 1D0) * iStream%omega * itt * dt)
 !$OMP parallel do &
-!$OMP private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=1,Ny
         do i=1,Nx
           !if (oceanMask(i, j) .ne. 1) cycle

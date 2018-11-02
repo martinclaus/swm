@@ -721,7 +721,7 @@ do i=1,Nx-1
       end do
 !$OMP END DO
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=2, Ny
         do i=1,Nx-1
           psi(i,j) = ((-1)*SUM( &
@@ -871,7 +871,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -941,7 +941,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -1007,7 +1007,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -1075,7 +1075,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -1146,7 +1146,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(2)
       do j=1,size(var,2)
         do i=1,size(var,1)
           if (grid%ocean(i,j).ne.1_KSHORT) cycle
