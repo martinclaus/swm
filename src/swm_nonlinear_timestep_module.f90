@@ -122,19 +122,21 @@ MODULE swm_timestep_module
       IMPLICIT NONE
       integer(KINT) :: i, j, ti
       ! Shift explicit increment vectors
-!$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(1)
-      do j = 1, Ny
+!$OMP parallel private(ti)
+      do ti = 1, NG - 1
+!$OMP do &
+!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
 !$NEC ivdep
-        do i = 1, Nx
-          do ti = 1, NG - 1
+        do j = 1, Ny
+          do i = 1, Nx
             G_u(i, j, ti) = G_u(i, j, ti + 1)
             G_v(i, j, ti) = G_v(i, j, ti + 1)
             G_eta(i, j, ti) = G_eta(i, j, ti + 1)
           end do
         end do
+!$OMP end do
       end do
-!$OMP end parallel do
+!$OMP end parallel
       ! compute diagnostic variables
       call computeD
       call computeRelVort
@@ -162,7 +164,7 @@ MODULE swm_timestep_module
       call SWM_LateralMixing_step
 #endif
       CALL SWM_timestep_nonlinear
-#ifdef FULLY_NONLINEAR
+#if defined(FULLY_NONLINEAR)
       eta => SWM_eta(:,:, N0p1)
       where (eta .lt. (minD - eta_grid%H)) eta = minD - eta_grid%H
 #endif
@@ -173,7 +175,7 @@ MODULE swm_timestep_module
       use domain_module, only : eta_grid, Nx, Ny
       use calc_lib, only : interpolate, eta2H_noland, eta2u_noland, eta2v_noland
       integer(KINT) :: i,j
-#ifdef FULLY_NONLINEAR
+#if defined(FULLY_NONLINEAR)
 !$OMP PARALLEL DO &
 !$OMP PRIVATE(i,j) &
 !$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
@@ -187,7 +189,7 @@ MODULE swm_timestep_module
 !      if (any(D .lt. minD)) print *, "WARNING: Outcropping detected!!"
 !      where (D .lt. minD) D = minD
 #endif
-#if defined LINEARISED_MEAN_STATE || defined LINEARISED_STATE_OF_REST
+#if (defined(LINEARISED_MEAN_STATE) || defined(LINEARISED_STATE_OF_REST))
       if (itt .eq. 0) then
 #endif
 !$OMP PARALLEL DO &
@@ -201,7 +203,7 @@ MODULE swm_timestep_module
           end do
         end do
 !$OMP END PARALLEL DO
-#if defined LINEARISED_MEAN_STATE || defined LINEARISED_STATE_OF_REST
+#if (defined(LINEARISED_MEAN_STATE) || defined(LINEARISED_STATE_OF_REST))
       end if
 #endif
     end subroutine computeD
@@ -210,7 +212,7 @@ MODULE swm_timestep_module
       use vars_module, only : N0
       use calc_lib, only : vorticity
       use domain_module, only : u_grid, v_grid
-#if defined FULLY_NONLINEAR || defined LINEARISED_MEAN_STATE
+#if defined(FULLY_NONLINEAR) || defined(LINEARISED_MEAN_STATE)
       zeta = vorticity(SWM_u(:, :, N0), SWM_v(:, :, N0), u_grid, v_grid)
 #endif
 ! else zeta = 0.
