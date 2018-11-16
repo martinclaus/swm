@@ -247,7 +247,7 @@ MODULE calc_lib
           int_obj%jind(:, i, j) = (/ jp(j), jm(j) /)
         end do
       end do
-      
+
       if (exclude_land) then
         do j = 1,Ny
           do i = 1,Nx
@@ -872,9 +872,9 @@ do i=1,Nx-1
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
 !$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
-      TSPACE: do l=1,size(var,3)
-        YSPACE: do j=1,size(var,2)
-          XSPACE: do i=1,size(var,1)
+      TSPACE: do l=1,size(var_lambda,3)
+        YSPACE: do j=1,size(var_lambda,2)
+          XSPACE: do i=1,size(var_lambda,1)
             if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_KSHORT) cycle
             var_lambda(i,j,l) = grid_out%bc(i, j) / (A*grid_out%cos_lat(j)*dLambda) &
                                 *(var(ind0(i),j,l) - var(indm1(i),j,l))
@@ -942,9 +942,9 @@ do i=1,Nx-1
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
 !$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
-      TSPACE: do l=1,size(var,3)
-        YSPACE: do j=1,size(var,2)
-          XSPACE: do i=1,size(var,1)
+      TSPACE: do l=1,size(var_theta,3)
+        YSPACE: do j=1,size(var_theta,2)
+          XSPACE: do i=1,size(var_theta,1)
             if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_KSHORT) cycle
             var_theta(i,j,l) = grid_out%bc(i, j) * (var(i,ind0(j),l) - var(i,indm1(j),l)) / (A*dTheta)
           end do XSPACE
