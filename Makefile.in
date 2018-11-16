@@ -82,6 +82,8 @@ model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_mod
 types.$(OBJEXT) : types.f90 types.h
 	$(COMPILE)
 
+init_vars.$(OBJEXT) : init_vars.f90 model.h
+
 vars_module.$(OBJEXT) : vars_module.f90 generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) io.h
 	$(COMPILE)
 
