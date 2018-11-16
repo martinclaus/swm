@@ -97,7 +97,7 @@ f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
 calendar_module.$(OBJEXT) : calendar_module.f90 f_udunits_2.$(OBJEXT) io.h types.$(OBJEXT)
 	$(COMPILE)
 
-swm_module.$(OBJEXT) : swm_module.f90 vars_module.$(OBJEXT) io_module.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_timestep_module.$(OBJEXT) swm_damping_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
+swm_module.$(OBJEXT) : swm_module.f90 model.h vars_module.$(OBJEXT) io_module.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_timestep_module.$(OBJEXT) swm_damping_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
 diag_module.$(OBJEXT) : diag_module.f90 vars_module.$(OBJEXT) diagTask.$(OBJEXT) model.h
@@ -130,19 +130,19 @@ dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 vars_module.$(OBJEXT) calc
 memchunk_module.$(OBJEXT) : memchunk_module.f90 io_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
-swm_vars.$(OBJEXT) : swm_vars.f90 vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT)
+swm_vars.$(OBJEXT) : swm_vars.f90 vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
-swm_forcing_module.$(OBJEXT) : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) generic_list.$(OBJEXT) calc_lib.$(OBJEXT)
+swm_forcing_module.$(OBJEXT) : swm_forcing_module.f90 model.h swm_module.h io.h vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) generic_list.$(OBJEXT) calc_lib.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 swm_timestep_module.$(OBJEXT) : swm_timestep_module.f90 model.h swm_module.h io.h swm_vars.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_lateralmixing_module.$(OBJEXT) vars_module.$(OBJEXT) memchunk_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) time_integration_module.$(OBJEXT) interp.inc
 	$(COMPILE)
 
-swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h swm_vars.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT) str.$(OBJEXT)
+swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h swm_vars.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT) str.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
-swm_lateralmixing_module.$(OBJEXT) : swm_lateralmixing_module.f90 model.h vars_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) calc_lib.$(OBJEXT)
+swm_lateralmixing_module.$(OBJEXT) : swm_lateralmixing_module.f90 model.h vars_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) calc_lib.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 domain_module.$(OBJEXT) : domain_module.f90 model.h grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT) init_vars.$(OBJEXT)

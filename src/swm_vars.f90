@@ -6,6 +6,7 @@
 module swm_vars
 #include "model.h"
   use types
+  use init_vars
   use memchunk_module, ONLY : memoryChunk
   implicit none
   private
@@ -16,9 +17,9 @@ module swm_vars
          D, Dh, Du, Dv, EDens, Pot, zeta, MV, MU, &
          psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD
 
-  integer(KINT), PARAMETER                                   :: NG=3        !< maximal level of timestepping. Increments stored in memory
-  integer(KINT), PARAMETER                                   :: NG0=NG      !< Index of newest increment
-  integer(KINT), PARAMETER                                   :: NG0m1=NG0-1 !< Index of n-1 level
+  integer(KINT), PARAMETER                             :: NG=3        !< maximal level of timestepping. Increments stored in memory
+  integer(KINT), PARAMETER                             :: NG0=NG      !< Index of newest increment
+  integer(KINT), PARAMETER                             :: NG0m1=NG0-1 !< Index of n-1 level
   real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_u       !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
   real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_v       !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
   real(KDOUBLE), dimension(:,:,:), allocatable, target :: SWM_eta     !< Interface displacement of shallow water module. Size Nx,Ny,vars_module::Ns
@@ -61,9 +62,9 @@ module swm_vars
         write(*,*) "Allocation error in SWM_init:",alloc_error
         stop 1
       end if
-      SWM_u = 0.
-      SWM_v = 0.
-      SWM_eta = 0.
+      call initVar(SWM_u, 0._KDOUBLE)
+      call initVar(SWM_v, 0._KDOUBLE)
+      call initVar(SWM_eta, 0._KDOUBLE)
       call addToRegister(SWM_u(:, :, N0), "SWM_U", u_grid)
       call addToRegister(SWM_v(:, :, N0), "SWM_V", v_grid)
       call addToRegister(SWM_eta(:, :, N0), "SWM_ETA", eta_grid)
@@ -73,9 +74,9 @@ module swm_vars
         WRITE(*,*) "Allocation error in SWM_timestep_init:", alloc_error
         STOP 1
       END IF
-      G_u = 0.
-      G_v = 0.
-      G_eta = 0.
+      call initVar(G_u, 0._KDOUBLE)
+      call initVar(G_v, 0._KDOUBLE)
+      call initVar(G_eta, 0._KDOUBLE)
       CALL addToRegister(G_u(:,:,NG0),"G_U",u_grid)
       CALL addToRegister(G_v(:,:,NG0),"G_V",v_grid)
       CALL addToRegister(G_eta(:,:,NG0),"G_ETA",eta_grid)
@@ -86,11 +87,11 @@ module swm_vars
         WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
         STOP 1
       END IF
-      EDens = 0.
-      Pot = 0.
-      zeta = 0.
-      MU = 0.
-      MV = 0.
+      call initVar(Edens, 0._KDOUBLE)
+      call initVar(Pot, 0._KDOUBLE)
+      call initVar(zeta, 0._KDOUBLE)
+      call initVar(MU, 0._KDOUBLE)
+      call initVar(MV, 0._KDOUBLE)
       CALL addToRegister(EDens,"SWM_EDENS",eta_grid)
       CALL addToRegister(Pot,"SWM_POT",H_grid)
       CALL addToRegister(zeta,"SWM_RELVORT",H_grid)
@@ -103,10 +104,10 @@ module swm_vars
         WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
         STOP 1
       END IF
-      D = 1.
-      Dh = 1.
-      Du = 1.
-      Dv = 1.
+      call initVar(D, 1._KDOUBLE)
+      call initVar(Dh, 1._KDOUBLE)
+      call initVar(Du, 1._KDOUBLE)
+      call initVar(Dv, 1._KDOUBLE)
 #else
       D  => eta_grid%H
       Dh => H_grid%H
@@ -124,10 +125,10 @@ module swm_vars
         WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
         STOP 1
       END IF
-      psi_bs = 0.
-      u_bs = 0.
-      v_bs = 0.
-      zeta_bs = 0.
+      call initVar(psi_bs, 0._KDOUBLE)
+      call initVar(u_bs, 0._KDOUBLE)
+      call initVar(v_bs, 0._KDOUBLE)
+      call initVar(zeta_bs, 0._KDOUBLE)
       CALL addToRegister(psi_bs(:,:,1),"PSI_BS",H_grid)
       CALL addToRegister(u_bs(:,:,1),"U_BS",H_grid)
       CALL addToRegister(v_bs(:,:,1),"V_BS",H_grid)

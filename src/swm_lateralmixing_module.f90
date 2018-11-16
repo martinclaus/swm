@@ -35,6 +35,7 @@
 MODULE swm_lateralmixing_module
 #include "model.h"
   use types
+  use init_vars
   IMPLICIT NONE
   SAVE
   PRIVATE
@@ -73,16 +74,16 @@ MODULE swm_lateralmixing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      call initVar(lat_mixing_u, 0._KDOUBLE)
+      call initVar(lat_mixing_v, 0._KDOUBLE)
+      call initVar(swm_latmix_u, 0._KDOUBLE)
+      call initVar(swm_latmix_v, 0._KDOUBLE)
       CALL addToRegister(lat_mixing_u,"LAT_MIXING_U", u_grid)
       CALL addToRegister(lat_mixing_v,"LAT_MIXING_V", v_grid)
       CALL addToRegister(swm_latmix_u,"SWM_LATMIX_U", u_grid)
       CALL addToRegister(swm_latmix_v,"SWM_LATMIX_V", v_grid)
 
-      lat_mixing_u = 0._KDOUBLE
-      lat_mixing_v = 0._KDOUBLE
-      swm_latmix_u = 0._KDOUBLE
-      swm_latmix_v = 0._KDOUBLE
-
+!$omp parallel do private(i, j, o_tmp) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1,Nx
           o_tmp = max(1_KSHORT, h_grid%ocean(i, j) + h_grid%ocean(i, jp1(j)))
@@ -95,6 +96,7 @@ MODULE swm_lateralmixing_module
                                      - (v_grid%bc(i, j) / A / dTheta + 2._KDOUBLE * v_grid%tan_lat(j) / A / o_tmp) /)
         end do
       end do
+!$omp end parallel do
       call SWM_LateralMixing_init_p_coefficients
     END SUBROUTINE SWM_LateralMixing_init
 
@@ -124,14 +126,15 @@ MODULE swm_lateralmixing_module
         write(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         stop 1
       end if
+      call initVar(pll, 0._KDOUBLE)
+      call initVar(plt, 0._KDOUBLE)
       call addToRegister(pll_coeff,"Pll_COEFF", eta_grid)
       call addToRegister(plt_coeff,"PLT_COEFF", H_grid)
       call addToRegister(pll, "PLL", eta_grid)
       call addToRegister(plt, "PLT", H_grid)
       pll_coeff = 0._KDOUBLE
       plt_coeff = 0._KDOUBLE
-      pll = 0._KDOUBLE
-      plt = 0._KDOUBLE
+!$omp parallel do private(i, j, o_tmp) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
           o_tmp = max(1_KSHORT, v_grid%ocean(i, j) + v_grid%ocean(i, jp1(j)))
@@ -144,6 +147,7 @@ MODULE swm_lateralmixing_module
                                   - Ah / A * (-h_grid%bc(i, j) / dTheta + u_grid%ocean(i, jm1(j)) * h_grid%tan_lat(j) / o_tmp) /)
         end do
       end do
+!$omp end parallel do
     end subroutine SWM_LateralMixing_init_p_coefficients
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

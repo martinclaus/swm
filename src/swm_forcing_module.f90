@@ -21,6 +21,7 @@ MODULE swm_forcing_module
 #include "swm_module.h"
 #include "io.h"
   use types
+  use init_vars
   USE memchunk_module, ONLY : memoryChunk
   USE generic_list
   IMPLICIT NONE
@@ -93,15 +94,16 @@ MODULE swm_forcing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,stat
         STOP 1
       END IF
+      call initVar(F_x, 0._KDOUBLE)
+      call initVar(F_y, 0._KDOUBLE)
+      call initVar(F_eta, 0._KDOUBLE)
+      call initVar(F_x_const, 0._KDOUBLE)
+      call initVar(F_y_const, 0._KDOUBLE)
+      call initVar(F_eta_const, 0._KDOUBLE)
       CALL addToRegister(F_x,"F_X", u_grid)
       CALL addToRegister(F_y,"F_Y", v_grid)
       CALL addToRegister(F_eta,"F_ETA", eta_grid)
-      F_x = 0.
-      F_y = 0.
-      F_eta = 0.
-      F_x_const = 0.
-      F_y_const = 0.
-      F_eta_const = 0.
+
       has_forcing = .false.
       ! read input namelists
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
@@ -138,9 +140,16 @@ MODULE swm_forcing_module
       IMPLICIT NONE
       integer(KINT) :: i, j
       ! reset forcing data to constant forcing
-      F_eta = F_eta_const
-      F_x = F_x_const
-      F_y = F_y_const
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          F_eta(i, j) = F_eta_const(i, j)
+          F_x(i, j) = F_x_const(i, j)
+          F_y(i, j) = F_y_const(i, j)
+        end do
+      end do
+!$omp end parallel do
+
       ! add time dependent forcing
       CALL SWM_forcing_getForcing(isTDF=.TRUE.)
 #if defined(FXDEP) || defined(FYDEP) || defined(FETADEP)
@@ -464,6 +473,7 @@ MODULE swm_forcing_module
       data = getChunkData(iStream%memChunk,itt*dt)
       SELECT CASE(iStream%component(1:1))
         CASE("U","u")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_u(i,j) .ne. 1) cycle
@@ -472,7 +482,9 @@ MODULE swm_forcing_module
                                      /(2*A*dLambda*cosTheta_u(j)*H_u(i,j)))
             end do
           end do
+!$omp end parallel do
         CASE("V","v")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_v(i,j) .ne. 1) cycle
@@ -481,7 +493,9 @@ MODULE swm_forcing_module
                                     / (8*A*dTheta*cosTheta_v(j)*H_v(i,j)))
             end do
           end do
+!$omp end parallel do
         CASE("R","r")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_u(i,j) .eq. 1) &
@@ -494,6 +508,7 @@ MODULE swm_forcing_module
                                      / (2*A*dLambda*cosTheta_v(j)*H_v(i,j))) ! Reynolds stress term \overbar{u'v'}_x
             end do
           end do
+!$omp end parallel do
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
