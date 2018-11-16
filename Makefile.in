@@ -103,7 +103,7 @@ swm_module.$(OBJEXT) : swm_module.f90 vars_module.$(OBJEXT) io_module.$(OBJEXT) 
 diag_module.$(OBJEXT) : diag_module.f90 vars_module.$(OBJEXT) diagTask.$(OBJEXT) model.h
 	$(COMPILE)
 
-diagTask.$(OBJEXT) : diagTask.f90 io.h io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) diagVar.$(OBJEXT) generic_list.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
+diagTask.$(OBJEXT) : diagTask.f90 io.h model.h diag_module.h io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) diagVar.$(OBJEXT) generic_list.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 diagVar.$(OBJEXT) : diagVar.f90 vars_module.$(OBJEXT) io.h domain_module.$(OBJEXT) calc_lib.$(OBJEXT) generic_list.$(OBJEXT) types.$(OBJEXT)
