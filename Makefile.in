@@ -145,7 +145,7 @@ swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h swm_v
 swm_lateralmixing_module.$(OBJEXT) : swm_lateralmixing_module.f90 model.h vars_module.$(OBJEXT) swm_vars.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-domain_module.$(OBJEXT) : domain_module.f90 grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT)
+domain_module.$(OBJEXT) : domain_module.f90 model.h grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT)
