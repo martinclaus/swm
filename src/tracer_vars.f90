@@ -10,6 +10,7 @@ module tracer_vars
 #include "tracer_module.h"
 #include "io.h"
   use types
+  use init_vars
   use generic_list, only: list_node_t
   implicit none
   save
@@ -159,14 +160,15 @@ module tracer_vars
       call TRC_init_field(tracer%cons, cons, filename_cons, varname_cons)
       call TRC_init_field(tracer%gamma_C, gamma_C, filename_gamma_C, varname_gamma_C)
 
-      tracer%CH = 0._KDOUBLE
+      call initVar(tracer%CH, 0._KDOUBLE)
       tracer%CH(:, :, TRC_N0) = swm_d * tracer%C
-      tracer%G_CH = 0._KDOUBLE
+      call initVar(tracer%G_CH, 0._KDOUBLE)
+      call initVar(tracer%impl, 1._KDOUBLE)
       tracer%impl = 1._KDOUBLE + dt * tracer%cons
-      tracer%uhc = 0._KDOUBLE
-      tracer%vhc = 0._KDOUBLE
-      tracer%diff = 0._KDOUBLE
-      tracer%forcing = 0._KDOUBLE
+      call initVar(tracer%uhc, 0._KDOUBLE)
+      call initVar(tracer%vhc, 0._KDOUBLE)
+      call initVar(tracer%diff, 0._KDOUBLE)
+      call initVar(tracer%forcing, 0._KDOUBLE)
 
       call addToRegister(tracer%C, trim(tracer%varid) // "_C", eta_grid)
       call addToRegister(tracer%CH(:, :, TRC_N0), trim(tracer%varid) // "_CH", eta_grid)
@@ -203,11 +205,11 @@ module tracer_vars
       character(CHARLEN), intent(in)        :: filename, varname
       type(fileHandle) :: fh
 
+      call initVar(dat, def_val)
+
       if (filename .ne. "" .and. varname .ne. "") then
         call initFH(filename, varname, fh)
         call readInitialCondition(fh, dat)
-      else
-        dat = def_val
       end if
     end subroutine TRC_init_field
 
