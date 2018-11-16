@@ -11,6 +11,7 @@
 !------------------------------------------------------------------
 MODULE calc_lib
   use types
+  use init_vars
 #include "calc_lib.h"
 #include "model.h"
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
@@ -134,10 +135,12 @@ MODULE calc_lib
         WRITE(*,*) "Allocation error in initCalcLib"
         STOP 1
       END IF
-      chi = 0._KDOUBLE
+
+      call initVar(chi, 0._KDOUBLE)
+      call initVar(u_nd, 0._KDOUBLE)
+      call initVar(v_nd, 0._KDOUBLE)
       chi_computed=.FALSE.
-      u_nd = 0._KDOUBLE
-      v_nd = 0._KDOUBLE
+
       ! Interpolators including land/coast points as zero
       call set2PointInterpolater(eta2u, eta_grid, "x", .false.)
       call set4PointInterpolater(eta2H, eta_grid, .false.)
@@ -241,14 +244,18 @@ MODULE calc_lib
         stop 1
       end if
 
+!$omp parallel private(i, j, ii, jj, weight)
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1,Ny
         do i = 1,Nx
           int_obj%iind(:, i, j) = (/ ip(i), im(i) /)
           int_obj%jind(:, i, j) = (/ jp(j), jm(j) /)
         end do
       end do
-      
+!$omp end do
+
       if (exclude_land) then
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -259,7 +266,9 @@ MODULE calc_lib
                                              real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
         end do
+!$omp end do
       else
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -269,7 +278,9 @@ MODULE calc_lib
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
         end do
+!$omp end do
       end if
+!$omp end parallel
     end subroutine set2PointInterpolater
 
     subroutine set4PointInterpolater(int_obj, from_grid, exclude_land)
@@ -303,14 +314,18 @@ MODULE calc_lib
         stop 1
       end if
 
+!$omp parallel private(i, j, ii, jj, weight)
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1,Ny
         do i = 1,Nx
           int_obj%iind(:, i, j) = (/ ip(i), im(i), im(i), ip(i) /)
           int_obj%jind(:, i, j) = (/ jp(j), jm(j), jp(j), jm(j) /)
         end do
       end do
+!$omp end do
 
       if (exclude_land) then
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -324,11 +339,13 @@ MODULE calc_lib
                                              real(int_obj%mask(ii(4), jj(4))) * weight /)
           end do
         end do
-      else
+!$omp end do
+        else
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
-            ii => int_obj%iind(:, i, j)
-            jj => int_obj%jind(:, i, j)
+            !ii => int_obj%iind(:, i, j)
+            !jj => int_obj%jind(:, i, j)
             weight = .25_KDOUBLE
             int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight, &
@@ -336,7 +353,9 @@ MODULE calc_lib
                                           !   real(int_obj%mask(ii(4), jj(4))) * weight /)
           end do
         end do
+!$omp end do
       end if
+!$omp end parallel
     end subroutine set4PointInterpolater
 
 

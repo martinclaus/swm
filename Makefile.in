@@ -121,7 +121,7 @@ tracer_vars.$(OBJEXT) : tracer_vars.f90 tracer_module.h io.h generic_list.$(OBJE
 tracer_module.$(OBJEXT) : tracer_module.f90 model.h tracer_vars.$(OBJEXT) vars_module.$(OBJEXT) generic_list.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) time_integration_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT)
+calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 vars_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
