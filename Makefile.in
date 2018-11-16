@@ -127,7 +127,7 @@ calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h vars_module.$(OBJEXT) domain_module
 dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 vars_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-memchunk_module.$(OBJEXT) : memchunk_module.f90 io_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT)
+memchunk_module.$(OBJEXT) : memchunk_module.f90 io_module.$(OBJEXT) calc_lib.$(OBJEXT) domain_module.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 swm_vars.$(OBJEXT) : swm_vars.f90 vars_module.$(OBJEXT) domain_module.$(OBJEXT) memchunk_module.$(OBJEXT)
