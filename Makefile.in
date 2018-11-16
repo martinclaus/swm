@@ -58,7 +58,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module types
+modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module types init_vars
 
 objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
@@ -82,9 +82,10 @@ model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_mod
 types.$(OBJEXT) : types.f90 types.h
 	$(COMPILE)
 
-init_vars.$(OBJEXT) : init_vars.f90 model.h
+init_vars.$(OBJEXT) : init_vars.f90 types.$(OBJEXT) model.h
+	$(COMPILE)
 
-vars_module.$(OBJEXT) : vars_module.f90 generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) io.h
+vars_module.$(OBJEXT) : vars_module.f90 generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) io.h
 	$(COMPILE)
 
 time_integration_module.$(OBJEXT) : time_integration_module.f90 vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT) domain_module.$(OBJEXT)

@@ -5,6 +5,8 @@
 !! model.h
 !------------------------------------------------------------------
 module init_vars
+#include "model.h"
+  use types
   implicit none
 
   ! Subroutines to initialize variables with different dimensions to the register
@@ -24,7 +26,7 @@ module init_vars
       real(KDOUBLE) :: init_val_loc = 0.
       integer(KINT) :: i
 
-      if present(init_val) init_val_loc = init_val
+      if (present(init_val)) init_val_loc = init_val
 
 !$omp parallel do private(i) schedule(OMPSCHEDULE, OMPCHUNK)
       do i = 1, size(var, 1)
@@ -40,7 +42,7 @@ module init_vars
       real(KDOUBLE) :: init_val_loc = 0.
       integer(KINT) :: i, j
 
-      if present(init_val) init_val_loc = init_val
+      if (present(init_val)) init_val_loc = init_val
 
 !$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, size(var, 2)
@@ -58,7 +60,7 @@ module init_vars
       real(KDOUBLE) :: init_val_loc = 0.
       integer(KINT) :: i, j, l
 
-      if present(init_val) init_val_loc = init_val
+      if (present(init_val)) init_val_loc = init_val
 
 !$omp parallel do private(i, j, l) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(3)
       do l = 1, size(var, 3)
@@ -69,6 +71,6 @@ module init_vars
         end do
       end do
 !$omp end parallel do
-    end subroutine init2Dvar
+    end subroutine init3Dvar
 
 end module init_vars
