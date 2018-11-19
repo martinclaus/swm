@@ -18,9 +18,11 @@ MODULE diagTask
   USE generic_list
   USE diagVar
   USE str
+  use init_vars
   IMPLICIT NONE
 #include "io.h"
 #include "diag_module.h"
+#include "model.h"
 
   PRIVATE
   PUBLIC :: initDiagTaskList, finishDiagTaskList, processTaskList, printTaskSummary
@@ -86,7 +88,7 @@ MODULE diagTask
       integer(KINT), intent(in)       :: ID          !< ID of diagTask
       integer(KINT), intent(in)       :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
       POINTER :: self
-      integer(KINT) :: alloc_error
+      integer(KINT) :: alloc_error, i
 
       ALLOCATE(self, stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
@@ -125,14 +127,23 @@ MODULE diagTask
         CASE ("A","a")
           if(associated(self%varData2D)) then !< euler grid
             allocate(self%buffer(size(self%varData2D,1), size(self%varData2D,2)), stat=alloc_error)
+            IF (alloc_error .ne. 0) THEN
+              PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
+              STOP 1
+            END IF
+            call initVar(self%buffer, 0._KDOUBLE)
           else if (associated(self%varData1D)) then !< lagrangian grid
             allocate(self%buffer(size(self%varData1D),1), stat=alloc_error)
+            IF (alloc_error .ne. 0) THEN
+              PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
+              STOP 1
+            END IF
+!$omp parallel do private(i) schedule(OMPSCHEDULE, OMPCHUNK)
+            do i = 1, size(self%buffer, 1)
+              self%buffer(i, 1) = 0._KDOUBLE
+            end do
+!$omp end parallel do
           end if
-          IF (alloc_error .ne. 0) THEN
-            PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
-            STOP 1
-          END IF
-          self%buffer = 0.
           self%bufferCount = 0.
       END SELECT
 

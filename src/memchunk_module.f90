@@ -13,6 +13,7 @@
 MODULE memchunk_module
 #include "io.h"
   use types
+  use init_vars
   USE io_module
   IMPLICIT NONE
   PRIVATE
@@ -103,7 +104,7 @@ MODULE memchunk_module
         PRINT *,"Allocation failed in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      memChunk%var = 0.
+      call initVar(memChunk%var, 0._KDOUBLE)
       memChunk%time = 0.
       CALL getChunkFromDisk(memChunk)
       memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec),1)

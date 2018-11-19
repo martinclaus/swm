@@ -39,7 +39,7 @@ MODULE tracer_module
 
   integer(KINT), parameter                              :: TRC_NCOEFF=12 !< Number of coefficients use for coefficient matrix
   real(KDOUBLE), dimension(:,:,:), allocatable, target  :: TRC_coeff     !< Coefficient matrix for Euler-forward and Adams-Bashforth scheme. Size TRC_NCOEFF, Nx, Ny
-  real(KDOUBLE), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
+  ! real(KDOUBLE), dimension(:, :), allocatable, target   :: TRC_C1_impl   !< Implicit terms, i.e. relaxation and consumption. Size Nx, Ny
   real(KDOUBLE), dimension(:, :), pointer               :: h, h_u, h_v   !< Pointer to layer thickness of the shallow water component
   real(KDOUBLE), dimension(:, :), pointer               :: u, v, mu, mv  !< horizontal velocity components
 
@@ -164,19 +164,31 @@ MODULE tracer_module
       forcing => trc%forcing
       gamma_c => trc%gamma_C
       kappa_h = trc%kappa_h
-!$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      YSPACE: do j=1,Ny
-        XSPACE: do i=1,Nx
-          if (eta_grid%land(i, j) .EQ. 1_1) cycle XSPACE
+      !$OMP parallel
+      !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
+          if (eta_grid%land(i, j) .EQ. 1_1) cycle
           diff(i, j) =   kappa_h * h_u(ip1(i), j) * (C(ip1(i), j) - C(i     , j)) * TRC_coeff(9, i ,j) &
                        + kappa_h * h_u(i     , j) * (C(i     , j) - C(im1(i), j)) * TRC_coeff(10, i ,j) &
                        + kappa_h * h_v(i, jp1(j)) * (C(i, jp1(j)) - C(i, j    )) * TRC_coeff(11, i ,j) &
                        + kappa_h * h_v(i, j     ) * (C(i, j     ) - C(i, jm1(j))) *  TRC_coeff(12, i ,j)
 
+        end do
+      end do
+      !$omp end do
 #ifdef SWM
+      !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
           forcing(i, j) = C(i, j) * F_eta(i, j)
+        end do
+      end do
+      !$omp end do
 #endif
+      !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
           GCH(i, j) = ( CH(ip1(i), j     ) * u(ip1(i), j) * TRC_coeff(1, i ,j) &
                       + CH(im1(i), j     ) * u(i     , j) * TRC_coeff(2, i ,j) &
                       + CH(i     , jp1(j)) * v(i     , jp1(j)) * TRC_coeff(3, i ,j) &
@@ -189,9 +201,10 @@ MODULE tracer_module
                       - gamma_C(i, j) * h(i, j) * (C(i, j) - C0(i, j)) &
                       + forcing(i, j) &
                       )
-        END DO XSPACE
-      END DO YSPACE
-!$OMP end parallel do
+        end do
+      end do
+      !$omp end do
+      !$OMP end parallel
     END SUBROUTINE TRC_tracer_incr
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -224,28 +237,45 @@ MODULE tracer_module
       use domain_module, only: eta_grid, Nx, Ny, im1, jm1
       type(TRC_tracer), pointer, intent(inout) :: trc
       integer(KINT) :: i, j, ti
-!CDIR NODEP
-!$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      do j=1,Ny
-!CDIR NODEP
-        do i=1,Nx
-          if (eta_grid%land(i, j) .eq. 1_KSHORT) cycle
-          do ti = 1, TRC_NG-1
+      !$OMP parallel private(ti)
+      do ti = 1, TRC_NG - 1
+        !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+        do j=1,Ny
+          do i=1,Nx
             !< Shift explicit increment vector
             trc%G_CH(i, j, ti) = trc%G_CH(i, j, ti + 1)
           end do
-          do ti = 1, TRC_NLEVEL_SCHEME-1
+        end do
+        !$omp end do
+      end do
+      do ti = 1, TRC_NLEVEL_SCHEME-1
+        !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+        do j=1,Ny
+          do i=1,Nx
             !< Shift prognostic variables
             trc%CH(i, j, ti) = trc%CH(i, j, ti + 1)
           end do
-          !< compute diagnostic variables
+        end do
+        !$omp end do
+      end do
+
+      !< compute diagnostic variables
+      !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
           trc%C(i, j) = trc%CH(i, j, TRC_N0) / h(i, j)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j=1,Ny
+        do i=1,Nx
           trc%uhc(i, j) = mu(i, j) * .5 * (trc%C(i, j) + trc%C(im1(i), j))
           trc%vhc(i, j) = mv(i, j) * .5 * (trc%C(i, j) + trc%C(i, jm1(j)))
         end do
       end do
-!$OMP end parallel do
+      !$omp end do
+      !$OMP end parallel
     end subroutine TRC_tracer_advance
 
 
@@ -273,7 +303,7 @@ MODULE tracer_module
       end if
 
       call addToRegister(TRC_coeff,"TRC_COEFF")
-      TRC_coeff = 0._KDOUBLE
+      ! TRC_coeff = 0._KDOUBLE
 
       ocean_eta => eta_grid%ocean
       ocean_u => u_grid%ocean
@@ -282,30 +312,35 @@ MODULE tracer_module
       cosTheta_v => v_grid%cos_lat
       cosTheta_eta => eta_grid%cos_lat
 
-      FORALL (i=1:Nx, j=1:Ny, ocean_eta(i,j) .EQ. 1)
-        !< advection term
-        TRC_coeff(1,i,j)  = -1d0 * ocean_u(ip1(i), j) * ocean_eta(ip1(i), j) &
-                              / (ocean_eta(ip1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
-        TRC_coeff(2,i,j)  =  1d0 * ocean_u(i, j) * ocean_eta(im1(i), j) &
-                              / (ocean_eta(im1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
-        TRC_coeff(3,i,j)  = -1d0 * ocean_v(i, jp1(j)) * cosTheta_v(jp1(j)) * ocean_eta(i, jp1(j)) &
-                             / (ocean_eta(i, jp1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
-        TRC_coeff(4,i,j)  =  1d0 * ocean_v(i, j) * cosTheta_v(j) * ocean_eta(i, jm1(j)) &
-                             / (ocean_eta(i, jm1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
-        TRC_coeff(5,i,j)  = -1d0 * ocean_u(ip1(i), j) *  ocean_eta(i, j) &
-                             / (ocean_eta(ip1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
-        TRC_coeff(6,i,j)  =  1d0 * ocean_u(i, j) * ocean_eta(i, j) &
-                             / (ocean_eta(im1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j) !
-        TRC_coeff(7,i,j)  = -1d0 * ocean_v(i, jp1(j)) * cosTheta_v(jp1(j)) * ocean_eta(i, j) &
-                             / (ocean_eta(i, jp1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j) !
-        TRC_coeff(8,i,j)  =  1d0 * ocean_v(i, j) * cosTheta_v(j) * ocean_eta(i, j) &
-                             / (ocean_eta(i, jm1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
-        !< diffusion term
-        TRC_coeff(9,i,j)  =   1d0 * ocean_u(ip1(i),j) / dLambda**2 / A**2 / cosTheta_u(j) / cosTheta_eta(j)
-        TRC_coeff(10,i,j) =  -1d0 * ocean_u(i,j) / dLambda**2 / A**2 / cosTheta_u(j) / cosTheta_eta(j)
-        TRC_coeff(11,i,j) =   1d0 * ocean_v(i,jp1(j)) * cosTheta_v(jp1(j)) / dTheta**2 / A**2 / cosTheta_eta(j)
-        TRC_coeff(12,i,j) =  -1d0 * ocean_v(i,j) * cosTheta_v(j) / dTheta**2 / A**2 / cosTheta_eta(j)
-      END FORALL
+      !$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          if (ocean_eta(i, j) .ne. 1) TRC_coeff(:, i, j) = 0._KDOUBLE
+          !< advection term
+          TRC_coeff(1,i,j)  = -1d0 * ocean_u(ip1(i), j) * ocean_eta(ip1(i), j) &
+                                / (ocean_eta(ip1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
+          TRC_coeff(2,i,j)  =  1d0 * ocean_u(i, j) * ocean_eta(im1(i), j) &
+                                / (ocean_eta(im1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
+          TRC_coeff(3,i,j)  = -1d0 * ocean_v(i, jp1(j)) * cosTheta_v(jp1(j)) * ocean_eta(i, jp1(j)) &
+                               / (ocean_eta(i, jp1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
+          TRC_coeff(4,i,j)  =  1d0 * ocean_v(i, j) * cosTheta_v(j) * ocean_eta(i, jm1(j)) &
+                               / (ocean_eta(i, jm1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
+          TRC_coeff(5,i,j)  = -1d0 * ocean_u(ip1(i), j) *  ocean_eta(i, j) &
+                               / (ocean_eta(ip1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j)
+          TRC_coeff(6,i,j)  =  1d0 * ocean_u(i, j) * ocean_eta(i, j) &
+                               / (ocean_eta(im1(i), j) + ocean_eta(i, j)) / A / dLambda / cosTheta_eta(j) !
+          TRC_coeff(7,i,j)  = -1d0 * ocean_v(i, jp1(j)) * cosTheta_v(jp1(j)) * ocean_eta(i, j) &
+                               / (ocean_eta(i, jp1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j) !
+          TRC_coeff(8,i,j)  =  1d0 * ocean_v(i, j) * cosTheta_v(j) * ocean_eta(i, j) &
+                               / (ocean_eta(i, jm1(j)) + ocean_eta(i, j)) / A / dTheta / cosTheta_eta(j)
+          !< diffusion term
+          TRC_coeff(9,i,j)  =   1d0 * ocean_u(ip1(i),j) / dLambda**2 / A**2 / cosTheta_u(j) / cosTheta_eta(j)
+          TRC_coeff(10,i,j) =  -1d0 * ocean_u(i,j) / dLambda**2 / A**2 / cosTheta_u(j) / cosTheta_eta(j)
+          TRC_coeff(11,i,j) =   1d0 * ocean_v(i,jp1(j)) * cosTheta_v(jp1(j)) / dTheta**2 / A**2 / cosTheta_eta(j)
+          TRC_coeff(12,i,j) =  -1d0 * ocean_v(i,j) * cosTheta_v(j) / dTheta**2 / A**2 / cosTheta_eta(j)
+        end do
+      end do
+      !$omp end parallel do
     END SUBROUTINE TRC_initCoeffs
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

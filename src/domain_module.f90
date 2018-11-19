@@ -2,6 +2,7 @@ MODULE domain_module
 #include "io.h"
 #include "model.h"
   use types
+  use init_vars
   USE grid_module
   USE io_module, ONLY : fileHandle, initFH, readInitialCondition
 
@@ -67,18 +68,34 @@ MODULE domain_module
     close(UNIT_DOMAIN_NL)
 
     ALLOCATE(missmask(1:Nx,1:Ny), missmask_H(1:Nx,1:Ny))
+    ! call initVar(missmask, 0._KDOUBLE)
+    ! call initVar(missmask_H, 0._KDOUBLE)
+
     ALLOCATE(lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny))
     ALLOCATE(lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx))
     ALLOCATE(land_H(1:Nx,1:Ny), land_u(1:Nx,1:Ny), land_v(1:Nx,1:Ny), land_eta(1:Nx,1:Ny))
+    call initVar(land_u, 0_KSHORT)
+    call initVar(land_v, 0_KSHORT)
+    call initVar(land_eta, 0_KSHORT)
+    call initVar(land_H, 0_KSHORT)
+
     ALLOCATE(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny))
-    ALLOCATE(H(1:Nx,1:Ny))
-    ALLOCATE(H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
+    call initVar(ocean_u, 0_KSHORT)
+    call initVar(ocean_v, 0_KSHORT)
+    call initVar(ocean_eta, 0_KSHORT)
+    call initVar(ocean_H, 0_KSHORT)
+
+    ALLOCATE(H(1:Nx,1:Ny), H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
+    call initVar(H_u, 0._KDOUBLE)
+    call initVar(H_v, 0._KDOUBLE)
+    call initVar(H_eta, 0._KDOUBLE)
+    call initVar(H, 0._KDOUBLE)
+
     ALLOCATE(ip0(1:Nx), ip1(1:Nx), im1(1:Nx), jp0(1:Ny), jp1(1:Ny), jm1(1:Ny))
     allocate(H_grid, u_grid, v_grid, eta_grid)
 
     dLambda = D2R * (lon_e-lon_s)/(Nx-1)
     dTheta = D2R * (lat_e-lat_s)/(Ny-1)
-
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! index fields

@@ -5,7 +5,7 @@
 !!
 !! @par Includes:
 !! io.h
-!!
+!! model.h
 !------------------------------------------------------------------
 MODULE time_integration_module
 #include "model.h"
@@ -84,16 +84,17 @@ contains
     A_NP1 = A_N
     tstep = min(order, itt)
 
-!$OMP parallel do &
-!$OMP default(shared) private(i, j, ti) OMP_COLLAPSE(2)
+!$OMP parallel private(ti)
     do ti = 1, tstep
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, size(A_NP1, 2)
         do i = 1, size(A_NP1, 1)
           A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
         end do
       end do
+!$OMP end do
     end do
-!$OMP end parallel do
+!$OMP end parallel
   END FUNCTION integrate_AB_vec
 
 

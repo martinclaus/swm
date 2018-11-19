@@ -16,6 +16,7 @@ MODULE diagVar
 #include "io.h"
 #include "diag_module.h"
   use types
+  use init_vars
   USE vars_module, ONLY : addToRegister
   USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid
   USE grid_module, only : grid_t
@@ -78,7 +79,7 @@ MODULE diagVar
         PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
-      self%data = 0._KDOUBLE
+      call initVar(self%data, 0._KDOUBLE)
       self%name=""
       if (PRESENT(name)) THEN
         strlen = MIN(len(name),CHARLEN)
