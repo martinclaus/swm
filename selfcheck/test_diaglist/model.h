@@ -9,7 +9,6 @@ Header file for shallow water model. Meant to set different physics.
 #define OMPCHUNK 5
 /*#define OMPSCHEDULE GUIDED*/
 #define OMPSCHEDULE STATIC
-#define OMPSCHEDULE GUIDED
 
 /* Switch for Shallow Water Model */
 #define SWM
