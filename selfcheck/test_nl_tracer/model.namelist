@@ -7,11 +7,11 @@
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   run_length = 5.184e7, ! length of run in seconds
   dt = 3.5e3  ! time step (s)
-&end
+/
 
 &calendar_nl
   model_start="2000-01-01 00:00"
-&end
+/
 
 &domain_nl
   A = 6371000,          ! radius of the earth (m)
@@ -24,48 +24,48 @@
   lat_s = -25.     ! min. lat. of the domain (H-grid),
   lat_e = 25.         ! max. lat. of the domain (H-grid)
   H_overwrite=125.
-&end
+/
 
 &swm_timestep_nl 
   AB_Chi = .1
-&end
+/
 
-&trc_tracer_nl varid="C1", kappa_h=5e3, filename_C="input/C.nc", varname_C="C" &end
-&trc_tracer_nl varid="C2", kappa_h=1e2, filename_C="input/C.nc", varname_C="C" &end
-&swm_forcing_nl filename="input/taux.nc", varname="TAUX", forcingtype="W", component="Z" &end
+&trc_tracer_nl varid="C1", kappa_h=5e3, filename_C="input/C.nc", varname_C="C" /
+&trc_tracer_nl varid="C2", kappa_h=1e2, filename_C="input/C.nc", varname_C="C" /
+&swm_forcing_nl filename="input/taux.nc", varname="TAUX", forcingtype="W", component="Z" /
 
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
-&end
+/
 
-&diag_nl filename="CH1_out.nc", varname="C1_CH", type="snapshot", frequency=100 &end
-&diag_nl filename="C1_out.nc", varname="C1_C", type="snapshot", frequency=100 &end
-&diag_nl filename="CH2_out.nc", varname="C2_CH", type="snapshot", frequency=100 &end
-&diag_nl filename="C2_out.nc", varname="C2_C", type="snapshot", frequency=100 &end
+&diag_nl filename="CH1_out.nc", varname="C1_CH", type="snapshot", frequency=100 /
+&diag_nl filename="C1_out.nc", varname="C1_C", type="snapshot", frequency=100 /
+&diag_nl filename="CH2_out.nc", varname="C2_CH", type="snapshot", frequency=100 /
+&diag_nl filename="C2_out.nc", varname="C2_C", type="snapshot", frequency=100 /
 
-&diag_nl filename="u_out.nc", varname="u", type="snapshot", frequency=100 &end
-&diag_nl filename="v_out.nc", varname="v", type="snapshot", frequency=100 &end
-!&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=100 &end
-!&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
-!&diag_nl filename="u_mean_out.nc", varname="u", type="A", period=2.628e6 &end
-!&diag_nl filename="v_mean_out.nc", varname="v", type="average", period=2.628e6 &end
-!&diag_nl filename="eta_mean_out.nc", varname="eta", type="A", period=2.628e6 &end
-!&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period=2.628e6 &end
-!&diag_nl filename="u2_mean_out.nc", varname="u", type="A", process="S", period=2.628e6 &end
-!&diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period=2.628e6 &end
-!&diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period=2.628e6 &end
-!&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period=2.628e6 &end
-!&diag_nl filename="H_out.nc", varname="H", type="I" &end
-!&diag_nl filename="impl_u.nc", varname="impl_u", type="I" &end
-!&diag_nl filename="impl_v.nc", varname="impl_v", type="I" &end
-!&diag_nl filename="impl_n.nc", varname="impl_eta", type="I" &end
-!&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" &end
-!&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" &end
-!&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" &end
-!&diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=50 &end
-!&diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=50 &end
-!&diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=50 &end
-!&diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50 &end
-!&diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50 &end
-!&diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50 &end
+&diag_nl filename="u_out.nc", varname="u", type="snapshot", frequency=100 /
+&diag_nl filename="v_out.nc", varname="v", type="snapshot", frequency=100 /
+!&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=100 /
+!&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 /
+!&diag_nl filename="u_mean_out.nc", varname="u", type="A", period=2.628e6 /
+!&diag_nl filename="v_mean_out.nc", varname="v", type="average", period=2.628e6 /
+!&diag_nl filename="eta_mean_out.nc", varname="eta", type="A", period=2.628e6 /
+!&diag_nl filename="psi_mean_out.nc", varname="psi", type="A", period=2.628e6 /
+!&diag_nl filename="u2_mean_out.nc", varname="u", type="A", process="S", period=2.628e6 /
+!&diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period=2.628e6 /
+!&diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period=2.628e6 /
+!&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period=2.628e6 /
+!&diag_nl filename="H_out.nc", varname="H", type="I" /
+!&diag_nl filename="impl_u.nc", varname="impl_u", type="I" /
+!&diag_nl filename="impl_v.nc", varname="impl_v", type="I" /
+!&diag_nl filename="impl_n.nc", varname="impl_eta", type="I" /
+!&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" /
+!&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" /
+!&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" /
+!&diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=50 /
+!&diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=50 /
+!&diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=50 /
+!&diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50 /
+!&diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50 /
+!&diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50 /
