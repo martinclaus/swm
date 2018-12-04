@@ -75,9 +75,9 @@
 &diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" /
 &diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" /
 &diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" /
-$diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=10 /
-$diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=10 /
-$diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=10 /
-$diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=10 /
-$diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=10 /
-$diag_nl filename="d.nc", varname="swm_d", type="S" frequency=10 /
+&diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=10 /
+&diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=10 /
+&diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=10 /
+&diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=10 /
+&diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=10 /
+&diag_nl filename="d.nc", varname="swm_d", type="S" frequency=10 /
