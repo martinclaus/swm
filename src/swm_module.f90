@@ -37,12 +37,12 @@ MODULE swm_module
       IMPLICIT NONE
       call swm_vars_init
       print *, "	swm_vars_init done"
+      CALL SWM_timestep_init
+      print *, "	swm_timestep_init done"
       CALL SWM_damping_init
       print *, "	swm_damping_init done"
       CALL SWM_forcing_init
       print *, "	swm_forcing_init done"
-      CALL SWM_timestep_init
-      print *, "	swm_timestep_init done"
       CALL SWM_initialConditions
     END SUBROUTINE SWM_initSWM
 
@@ -133,8 +133,8 @@ MODULE swm_module
       end do
       !$omp end do
       !$omp end parallel
-      CALL SWM_forcing_update
       CALL SWM_timestep_advance
+      CALL SWM_forcing_update
     END SUBROUTINE SWM_advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
