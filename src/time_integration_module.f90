@@ -81,20 +81,27 @@ contains
     integer(KINT), intent(in) :: order     !< order of the integration scheme
     real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2)), weight_inc
 
-    A_NP1 = A_N
-    tstep = min(order, itt)
 
-!$OMP parallel private(ti)
+!$OMP parallel private(ti, tstep)
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+    do j = 1, size(A_NP1, 2)
+      do i = 1, size(A_NP1, 1)
+        A_NP1(i, j) = A_N(i, j) / impl(i, j)
+      end do
+    end do
+!$OMP end do
+    tstep = min(order, itt)
     do ti = 1, tstep
 !$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, size(A_NP1, 2)
         do i = 1, size(A_NP1, 1)
-          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
+          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti) / impl(i, j)
         end do
       end do
 !$OMP end do
     end do
 !$OMP end parallel
+    ! A_NP1 = A_NP1 / impl
   END FUNCTION integrate_AB_vec
 
 

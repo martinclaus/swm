@@ -51,16 +51,17 @@
 !&diag_nl filename="v2_mean_out.nc", varname="v", type="average", process="S", period=2.628e6 /
 !&diag_nl filename="eta2_mean_out.nc", varname="eta", type="A", process="S", period=2.628e6 /
 !&diag_nl filename="psi2_mean_out.nc", varname="psi", type="A", process="S", period=2.628e6 /
-!&diag_nl filename="H_out.nc", varname="H", type="I"/
-!&diag_nl filename="impl_u.nc", varname="impl_u", type="I"/
-!&diag_nl filename="impl_v.nc", varname="impl_v", type="I"/
-!&diag_nl filename="impl_n.nc", varname="impl_eta", type="I"/
-!&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I"/
-!&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I"/
-!&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I"/
-$diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=50/
-$diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=50/
-$diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=50/
-$diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50/
-$diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50/
-$diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50/
+!&diag_nl filename="H_out.nc", varname="H", type="I" /
+!&diag_nl filename="impl_u.nc", varname="impl_u", type="I" /
+!&diag_nl filename="impl_v.nc", varname="impl_v", type="I" /
+!&diag_nl filename="impl_n.nc", varname="impl_eta", type="I" /
+!&diag_nl filename="gamma_u.nc", varname="GAMMA_LIN_U", type="I" /
+!&diag_nl filename="gamma_v.nc", varname="gamma_lin_v", type="I" /
+!&diag_nl filename="gamma_n.nc", varname="gamma_lin_eta", type="I" /
+&diag_nl filename="edens.nc", varname="swm_edens", type="S" frequency=50 /
+&diag_nl filename="potvort.nc", varname="swm_pot", type="S" frequency=50 /
+&diag_nl filename="relvort.nc", varname="swm_relvort", type="S" frequency=50 /
+&diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50 /
+&diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50 /
+&diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50 /
+&diag_nl filename="fx.nc", varname="f_x", type="S" frequency=50 /

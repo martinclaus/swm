@@ -5,9 +5,10 @@ Header file for shallow water model. Meant to set different physics.
 #define FILE_MODEL_SEEN
 
 /* OpenMP */
-#define OMPCHUNK 5
 #define OMP_COLLAPSE(N) collapse(N-1)
-#define OMPSCHEDULE GUIDED
+#define OMPCHUNK 5
+/*#define OMPSCHEDULE GUIDED*/
+#define OMPSCHEDULE STATIC
 
 /* Switch for Shallow Water Model */
 #define SWM
