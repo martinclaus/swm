@@ -272,7 +272,7 @@ MODULE swm_forcing_module
     !! not be scaled with the depth
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processWindstress(iStream)
-      USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
+      USE memchunk_module, ONLY : getChunkData, getVarNameMC, getFileNameMC
       USE vars_module, ONLY : itt, dt
       USE domain_module, ONLY : u_grid, v_grid, RHO0
       USE swm_vars, ONLY : Du, Dv
@@ -285,6 +285,7 @@ MODULE swm_forcing_module
 
       ocean_u => u_grid%ocean
       ocean_v => v_grid%ocean
+
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
@@ -623,11 +624,18 @@ MODULE swm_forcing_module
       sptr%stream%omega       = omega
       sptr%stream%isInitialised = .true.
 
-      if (forcingtype(1:1) == "O" .or. forcingtype(1:1) == "o") then
+      select case(forcingtype(1:1))
+        case("O","o")
           sptr%stream%isConstant = .FALSE.
-      else
+        case("W", "w")
+#if defined(FULLY_NONLINEAR)
+          sptr%stream%isConstant = .false.
+#else
           sptr%stream%isConstant = isConstant(sptr%stream%memChunk)
-      end if
+#endif
+        case default
+          sptr%stream%isConstant = isConstant(sptr%stream%memChunk)
+      end select
 
       IF (.NOT. ASSOCIATED(SWM_forcing_iStream)) THEN
           CALL list_init(SWM_forcing_iStream, transfer(sptr, list_data))
