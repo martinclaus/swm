@@ -21,6 +21,7 @@ MODULE swm_forcing_module
 #include "swm_module.h"
 #include "io.h"
   use types
+  use init_vars
   USE memchunk_module, ONLY : memoryChunk
   USE generic_list
   IMPLICIT NONE
@@ -93,15 +94,16 @@ MODULE swm_forcing_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,stat
         STOP 1
       END IF
+      call initVar(F_x, 0._KDOUBLE)
+      call initVar(F_y, 0._KDOUBLE)
+      call initVar(F_eta, 0._KDOUBLE)
+      call initVar(F_x_const, 0._KDOUBLE)
+      call initVar(F_y_const, 0._KDOUBLE)
+      call initVar(F_eta_const, 0._KDOUBLE)
       CALL addToRegister(F_x,"F_X", u_grid)
       CALL addToRegister(F_y,"F_Y", v_grid)
       CALL addToRegister(F_eta,"F_ETA", eta_grid)
-      F_x = 0.
-      F_y = 0.
-      F_eta = 0.
-      F_x_const = 0.
-      F_y_const = 0.
-      F_eta_const = 0.
+
       has_forcing = .false.
       ! read input namelists
       OPEN(UNIT_SWM_FORCING_NL, file=SWM_FORCING_NL)
@@ -138,13 +140,20 @@ MODULE swm_forcing_module
       IMPLICIT NONE
       integer(KINT) :: i, j
       ! reset forcing data to constant forcing
-      F_eta = F_eta_const
-      F_x = F_x_const
-      F_y = F_y_const
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          F_eta(i, j) = F_eta_const(i, j)
+          F_x(i, j) = F_x_const(i, j)
+          F_y(i, j) = F_y_const(i, j)
+        end do
+      end do
+!$omp end parallel do
+
       ! add time dependent forcing
       CALL SWM_forcing_getForcing(isTDF=.TRUE.)
 #if defined(FXDEP) || defined(FYDEP) || defined(FETADEP)
-!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
 #ifdef FXDEP
@@ -263,7 +272,7 @@ MODULE swm_forcing_module
     !! not be scaled with the depth
     !------------------------------------------------------------------
     SUBROUTINE SWM_forcing_processWindstress(iStream)
-      USE memchunk_module, ONLY : getChunkData, isConstant, getVarNameMC, getFileNameMC
+      USE memchunk_module, ONLY : getChunkData, getVarNameMC, getFileNameMC
       USE vars_module, ONLY : itt, dt
       USE domain_module, ONLY : u_grid, v_grid, RHO0
       USE swm_vars, ONLY : Du, Dv
@@ -276,6 +285,7 @@ MODULE swm_forcing_module
 
       ocean_u => u_grid%ocean
       ocean_v => v_grid%ocean
+
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
@@ -319,7 +329,7 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), INTENT(inout)    :: iStream      !< Forcing stream to process
       real(KDOUBLE), DIMENSION(:,:), POINTER    :: forcingTerm
       integer(KSHORT), DIMENSION(:,:), POINTER  :: oceanMask
-      real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData, oscForce
+      real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData !, oscForce
       real(KDOUBLE)  :: r_iot, i_iot
       integer(KINT) :: i, j
 
@@ -347,26 +357,18 @@ MODULE swm_forcing_module
       r_iot = cos(iStream%omega * itt * dt)
       i_iot = sin(iStream%omega * itt * dt)
       !e_iot = exp((0D0, 1D0) * iStream%omega * itt * dt)
-!$OMP parallel
-!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP parallel do &
+!$OMP private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=1,Ny
         do i=1,Nx
           !if (oceanMask(i, j) .ne. 1) cycle
-          oscForce(i, j) =  (forcingTerm(i, j) &
-                             + 2._8 * ( rData(i, j) * r_iot &
-                                       - iData(i, j) * i_iot )&
-                            ) * oceanMask(i, j)
+          forcingTerm(i, j)     = forcingTerm(i, j)  &
+                                + (2._8 * ( rData(i, j) * r_iot &
+                                          - iData(i, j) * i_iot )&
+                                  ) * oceanMask(i, j)
         end do
       end do
-!$OMP end do
-!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
-      do j=1,Ny
-        do i=1,Nx
-          forcingTerm(i, j) = oscForce(i, j)
-        end do
-      end do
-!$OMP end do
-!$OMP end parallel
+!$OMP end parallel do
     END SUBROUTINE SWM_forcing_processOscillation
 
 
@@ -472,6 +474,7 @@ MODULE swm_forcing_module
       data = getChunkData(iStream%memChunk,itt*dt)
       SELECT CASE(iStream%component(1:1))
         CASE("U","u")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_u(i,j) .ne. 1) cycle
@@ -480,7 +483,9 @@ MODULE swm_forcing_module
                                      /(2*A*dLambda*cosTheta_u(j)*H_u(i,j)))
             end do
           end do
+!$omp end parallel do
         CASE("V","v")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_v(i,j) .ne. 1) cycle
@@ -489,7 +494,9 @@ MODULE swm_forcing_module
                                     / (8*A*dTheta*cosTheta_v(j)*H_v(i,j)))
             end do
           end do
+!$omp end parallel do
         CASE("R","r")
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
           do j=1,Ny
             do i=1,nx
               if (ocean_u(i,j) .eq. 1) &
@@ -502,6 +509,7 @@ MODULE swm_forcing_module
                                      / (2*A*dLambda*cosTheta_v(j)*H_v(i,j))) ! Reynolds stress term \overbar{u'v'}_x
             end do
           end do
+!$omp end parallel do
         CASE DEFAULT
           WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
@@ -616,11 +624,18 @@ MODULE swm_forcing_module
       sptr%stream%omega       = omega
       sptr%stream%isInitialised = .true.
 
-      if (forcingtype(1:1) == "O" .or. forcingtype(1:1) == "o") then
+      select case(forcingtype(1:1))
+        case("O","o")
           sptr%stream%isConstant = .FALSE.
-      else
+        case("W", "w")
+#if defined(FULLY_NONLINEAR)
+          sptr%stream%isConstant = .false.
+#else
           sptr%stream%isConstant = isConstant(sptr%stream%memChunk)
-      end if
+#endif
+        case default
+          sptr%stream%isConstant = isConstant(sptr%stream%memChunk)
+      end select
 
       IF (.NOT. ASSOCIATED(SWM_forcing_iStream)) THEN
           CALL list_init(SWM_forcing_iStream, transfer(sptr, list_data))

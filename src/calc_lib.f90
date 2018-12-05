@@ -11,6 +11,7 @@
 !------------------------------------------------------------------
 MODULE calc_lib
   use types
+  use init_vars
 #include "calc_lib.h"
 #include "model.h"
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
@@ -134,10 +135,12 @@ MODULE calc_lib
         WRITE(*,*) "Allocation error in initCalcLib"
         STOP 1
       END IF
-      chi = 0._KDOUBLE
+
+      call initVar(chi, 0._KDOUBLE)
+      call initVar(u_nd, 0._KDOUBLE)
+      call initVar(v_nd, 0._KDOUBLE)
       chi_computed=.FALSE.
-      u_nd = 0._KDOUBLE
-      v_nd = 0._KDOUBLE
+
       ! Interpolators including land/coast points as zero
       call set2PointInterpolater(eta2u, eta_grid, "x", .false.)
       call set4PointInterpolater(eta2H, eta_grid, .false.)
@@ -241,14 +244,18 @@ MODULE calc_lib
         stop 1
       end if
 
+!$omp parallel private(i, j, ii, jj, weight)
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1,Ny
         do i = 1,Nx
           int_obj%iind(:, i, j) = (/ ip(i), im(i) /)
           int_obj%jind(:, i, j) = (/ jp(j), jm(j) /)
         end do
       end do
-      
+!$omp end do
+
       if (exclude_land) then
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -259,7 +266,9 @@ MODULE calc_lib
                                              real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
         end do
+!$omp end do
       else
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -269,7 +278,9 @@ MODULE calc_lib
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight /)
           end do
         end do
+!$omp end do
       end if
+!$omp end parallel
     end subroutine set2PointInterpolater
 
     subroutine set4PointInterpolater(int_obj, from_grid, exclude_land)
@@ -303,14 +314,18 @@ MODULE calc_lib
         stop 1
       end if
 
+!$omp parallel private(i, j, ii, jj, weight)
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1,Ny
         do i = 1,Nx
           int_obj%iind(:, i, j) = (/ ip(i), im(i), im(i), ip(i) /)
           int_obj%jind(:, i, j) = (/ jp(j), jm(j), jp(j), jm(j) /)
         end do
       end do
+!$omp end do
 
       if (exclude_land) then
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
             ii => int_obj%iind(:, i, j)
@@ -324,11 +339,13 @@ MODULE calc_lib
                                              real(int_obj%mask(ii(4), jj(4))) * weight /)
           end do
         end do
-      else
+!$omp end do
+        else
+!$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
         do j = 1,Ny
           do i = 1,Nx
-            ii => int_obj%iind(:, i, j)
-            jj => int_obj%jind(:, i, j)
+            !ii => int_obj%iind(:, i, j)
+            !jj => int_obj%jind(:, i, j)
             weight = .25_KDOUBLE
             int_obj%weight_vec(:, i, j) = weight !(/ real(int_obj%mask(ii(1), jj(1))) * weight, &
                                           !   real(int_obj%mask(ii(2), jj(2))) * weight, &
@@ -336,7 +353,9 @@ MODULE calc_lib
                                           !   real(int_obj%mask(ii(4), jj(4))) * weight /)
           end do
         end do
+!$omp end do
       end if
+!$omp end parallel
     end subroutine set4PointInterpolater
 
 
@@ -721,7 +740,7 @@ do i=1,Nx-1
       end do
 !$OMP END DO
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j=2, Ny
         do i=1,Nx-1
           psi(i,j) = ((-1)*SUM( &
@@ -862,7 +881,7 @@ do i=1,Nx-1
       integer(KINT), dimension(:), pointer  :: ind0=>null(), indm1=>null()
       integer(KINT)               :: i, j, l
 
-      var_lambda = 0._KDOUBLE
+      ! var_lambda = 0._KDOUBLE
 
       !< get out grid
       call getOutGrid(grid,"lambda",grid_out, ind0, indm1)
@@ -871,13 +890,16 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
-      TSPACE: do l=1,size(var,3)
-        YSPACE: do j=1,size(var,2)
-          XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_KSHORT) cycle
-            var_lambda(i,j,l) = grid_out%bc(i, j) / (A*grid_out%cos_lat(j)*dLambda) &
-                                *(var(ind0(i),j,l) - var(indm1(i),j,l))
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
+      TSPACE: do l=1,size(var_lambda, 3)
+        YSPACE: do j=1,size(var_lambda, 2)
+          XSPACE: do i=1,size(var_lambda, 1)
+            if ((grid%ocean(indm1(i),j) + grid%ocean(ind0(i),j)) .eq. 0_KSHORT) then
+              var_lambda(i, j, l) = 0._KDOUBLE
+            else
+              var_lambda(i,j,l) = grid_out%bc(i, j) / (A*grid_out%cos_lat(j)*dLambda) &
+                                  *(var(ind0(i),j,l) - var(indm1(i),j,l))
+            end if
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -932,7 +954,7 @@ do i=1,Nx-1
       integer(KINT), dimension(:), pointer  :: ind0=>null(), indm1=>null()
       integer(KINT)               :: i, j, l
 
-      var_theta = 0._KDOUBLE
+      ! var_theta = 0._KDOUBLE
 
       !< get out grid and index vectors
       call getOutGrid(grid,"theta",grid_out, ind0, indm1)
@@ -941,12 +963,15 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
-      TSPACE: do l=1,size(var,3)
-        YSPACE: do j=1,size(var,2)
-          XSPACE: do i=1,size(var,1)
-            if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_KSHORT) cycle
-            var_theta(i,j,l) = grid_out%bc(i, j) * (var(i,ind0(j),l) - var(i,indm1(j),l)) / (A*dTheta)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
+      TSPACE: do l=1,size(var_theta, 3)
+        YSPACE: do j=1,size(var_theta, 2)
+          XSPACE: do i=1,size(var_theta, 1)
+            if ((grid%ocean(i,ind0(j)) + grid%ocean(i, indm1(j))) .eq. 0_KSHORT) then
+              var_theta(i, j, l) = 0._KDOUBLE
+            else
+              var_theta(i,j,l) = grid_out%bc(i, j) * (var(i,ind0(j),l) - var(i,indm1(j),l)) / (A*dTheta)
+            end if
           end do XSPACE
         end do YSPACE
       end do TSPACE
@@ -1007,7 +1032,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -1075,7 +1100,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j,l)
 !$OMP DO PRIVATE(i,j,l)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(3)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(3)
       TSPACE: do l=1,size(var,3)
         YSPACE: do j=1,size(var,2)
           XSPACE: do i=1,size(var,1)
@@ -1146,7 +1171,7 @@ do i=1,Nx-1
 !$OMP PARALLEL &
 !$OMP PRIVATE(i,j)
 !$OMP DO PRIVATE(i,j)&
-!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) COLLAPSE(2)
+!$OMP SCHEDULE(OMPSCHEDULE, size(var,1)) OMP_COLLAPSE(2)
       do j=1,size(var,2)
         do i=1,size(var,1)
           if (grid%ocean(i,j).ne.1_KSHORT) cycle

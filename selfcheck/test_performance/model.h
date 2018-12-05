@@ -5,6 +5,8 @@ Header file for shallow water model. Meant to set different physics.
 #define FILE_MODEL_SEEN
 
 /* OpenMP */
+
+/*#define OMP_COLLAPSE(N) collapse(N)*/
 #define OMP_COLLAPSE(N) collapse(N-1)
 #define OMPCHUNK 5
 /*#define OMPSCHEDULE GUIDED*/
@@ -13,22 +15,24 @@ Header file for shallow water model. Meant to set different physics.
 /* Switch for Shallow Water Model */
 #define SWM
 #define BAROTROPIC
-#define LINEARISED_MEAN_STATE
+#define FULLY_NONLINEAR
 /* Switches for timestepping (only use one at a time) */
 #define SWM_TSTEP_ADAMSBASHFORTH
-/*#define SWM_TSTEP_HEAPS */
+/* #define SWM_TSTEP_HEAPS */
 /* Switches for forcing */
-#define TAU_SCALE 1e-2
+/* #define TAU_SCALE 1e-2 */
 /* Switches for damping */
+#define QUADRATIC_BOTTOM_FRICTION
 #define LATERAL_MIXING
+
 /* Sponge layers */
 #define NEWTONIAN_SPONGE "NSEW"
 #define VELOCITY_SPONGE "NSEW"
 
+
 /* Switch to load dynamical variables from file (mean flow) */
 /* #define DYNFROMFILE */
 
-#define DIAG_START 0.
 #define H_OVERWRITE_DEF 0.
 
 /* Possible calculation of Coriolis-Parameter */

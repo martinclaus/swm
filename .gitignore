@@ -1,0 +1,9 @@
+config.log
+config.status
+Makefile
+build/*
+bin/*
+*.L
+selfcheck/*/output/new_*.nc
+
+ftrace.out

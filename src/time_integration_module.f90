@@ -5,7 +5,7 @@
 !!
 !! @par Includes:
 !! io.h
-!!
+!! model.h
 !------------------------------------------------------------------
 MODULE time_integration_module
 #include "model.h"
@@ -40,7 +40,7 @@ contains
     open(UNIT_MODEL_NL, file = MODEL_NL)
     read(UNIT_MODEL_NL, nml = tint_nl, iostat=stat)
     close(UNIT_MODEL_NL)
-    
+
     ab_coeff = 0._KDOUBLE
     ab_coeff(1, 1) = 1._KDOUBLE
     ab_coeff(1:2, 2) = (/-0.5_KDOUBLE - ab_chi, 1.5_KDOUBLE + ab_chi /)
@@ -66,10 +66,10 @@ contains
     IMPLICIT NONE
     real(KDOUBLE), intent(in) :: G(:), A_N, impl
     integer(KINT)             :: tstep
-    integer(KINT)             :: order     !< order of the integration scheme 
+    integer(KINT)             :: order     !< order of the integration scheme
     tstep = min(order, itt)
     A_NP1 = (A_N + dt * dot_product(ab_coeff(1:tstep, tstep), G(1:tstep))) / impl
-  END FUNCTION integrate_AB_scalar 
+  END FUNCTION integrate_AB_scalar
 
   function integrate_AB_vec(A_N, G, impl, order) result(A_NP1)
     USE vars_module, ONLY : dt, itt
@@ -81,20 +81,27 @@ contains
     integer(KINT), intent(in) :: order     !< order of the integration scheme
     real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2)), weight_inc
 
-    !A_NP1 = A_N
-    tstep = min(order, itt)
-!$OMP parallel do &
-!$OMP private(i,j) schedule(OMPSCHEDULE, OMPCHUNK) collapse(2)
+
+!$OMP parallel private(ti, tstep)
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
     do j = 1, size(A_NP1, 2)
       do i = 1, size(A_NP1, 1)
-        A_NP1(i, j) = A_N(i, j)
-        do ti = 1, tstep
-          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
-        end do
-        A_NP1(i, j) = A_NP1(i, j) / impl(i, j)
+        A_NP1(i, j) = A_N(i, j) / impl(i, j)
       end do
     end do
-!$OMP end parallel do
+!$OMP end do
+    tstep = min(order, itt)
+    do ti = 1, tstep
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(A_NP1, 2)
+        do i = 1, size(A_NP1, 1)
+          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti) / impl(i, j)
+        end do
+      end do
+!$OMP end do
+    end do
+!$OMP end parallel
+    ! A_NP1 = A_NP1 / impl
   END FUNCTION integrate_AB_vec
 
 

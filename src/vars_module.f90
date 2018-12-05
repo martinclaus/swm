@@ -16,6 +16,7 @@ MODULE vars_module
   use grid_module, only : t_grid_lagrange, grid_t
   USE io_module, ONLY : fileHandle, initFH
   use str
+  use init_vars, ONLY : initVar
   IMPLICIT NONE
 
   ! Constants (default parameters), contained in model_nl
@@ -120,6 +121,7 @@ MODULE vars_module
       CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
       CHARACTER(CHARLEN)     :: file_v_init=""              !< File containing initial condition for meridional velocity. Last timestep of dataset used.
       CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
+      integer                :: i, j, l                     !< local counter
     ! definition of the namelist
       namelist / model_nl / &
         G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding, & !friction and forcing parameter
@@ -146,11 +148,11 @@ MODULE vars_module
       itt = 0
 
       ! init dynamical variables
-      u = 0.
-      v = 0.
-      eta = 0.
+      call initVar(u, 0._KDOUBLE)
+      call initVar(v, 0._KDOUBLE)
+      call initVar(eta, 0._KDOUBLE)
 
-      !< add vars_module variables to variable register
+        !< add vars_module variables to variable register
       CALL addToRegister(u(:,:,N0),"U", u_grid)
       CALL addToRegister(v(:,:,N0),"V", v_grid)
       CALL addToRegister(eta(:,:,N0),"ETA", eta_grid)

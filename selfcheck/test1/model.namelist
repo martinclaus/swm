@@ -12,11 +12,11 @@
   diag_start=0.
   rayleigh_damp_cont=.true.
   rayleigh_damp_mom=.true.
-&end
+/
 
 &calendar_nl
   model_start="1945-01-01 12:00"
-&end
+/
 
 &domain_nl
   A = 6371000,          ! radius of the earth (m)
@@ -31,18 +31,18 @@
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
-&end
+/
 
 &swm_timestep_nl
   filename="input/bs_sc.nc"
   varname="PSI"
   chunksize=1
   AB_Chi = .1
-&end
+/
 
 !Forcing Files
-&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" &end
-&swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" &end
+&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" /
+&swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" /
 
 &dynFromFile
 !  FileName_u="input/u_dff_sc.nc",
@@ -50,18 +50,18 @@
 !  FileName_eta="input/eta_dff_sc.nc", ! Filenames of input files of dynamical variables
 !  FileName_psi="input/bs_sc.nc",
 !  DFF_Nt_chunksize=57 ! Number of timesteps to read at once
-&end
+/
 &tracer_nl
   TRC_C1_A = 1e2     ! horizontal tracer diffusivity
   TRC_file_C0 = "input/C0_sc.nc"
   TRC_file_relax = "input/Crelax_sc.nc"
-&end
+/
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
-&end
+/
 
-&diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 &end
-&diag_nl filename="v_out.nc", varname="v", type="snapshot", period=2.628e6, frequency=10 &end
-&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 &end
-&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 &end
+&diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 /
+&diag_nl filename="v_out.nc", varname="v", type="snapshot", period=2.628e6, frequency=10 /
+&diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 /
+&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 /

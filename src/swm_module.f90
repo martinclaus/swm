@@ -12,6 +12,7 @@
 !! swm_timestep_module\n
 !------------------------------------------------------------------
 MODULE swm_module
+#include "model.h"
   use types
   use swm_vars
   USE swm_damping_module
@@ -34,15 +35,14 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE SWM_initSWM
       IMPLICIT NONE
-      integer(KINT) :: alloc_error ! return status
       call swm_vars_init
       print *, "	swm_vars_init done"
+      CALL SWM_timestep_init
+      print *, "	swm_timestep_init done"
       CALL SWM_damping_init
       print *, "	swm_damping_init done"
       CALL SWM_forcing_init
       print *, "	swm_forcing_init done"
-      CALL SWM_timestep_init
-      print *, "	swm_timestep_init done"
       CALL SWM_initialConditions
     END SUBROUTINE SWM_initSWM
 
@@ -86,16 +86,55 @@ MODULE swm_module
       USE vars_module, ONLY : u,v,eta,N0,N0p1
       USE domain_module, ONLY : Nx, Ny
       IMPLICIT NONE
+      integer(KINT) :: i, j
       ! shift timestep in SMW module
-      SWM_eta(:,:,N0) = SWM_eta(:,:,N0p1)
-      SWM_u(:,:,N0)   = SWM_u(:,:,N0p1)
-      SWM_v(:,:,N0)   = SWM_v(:,:,N0p1)
-      ! add information to master model
-      u(:,:,N0)     = u(:,:,N0) + SWM_u(:,:,N0)
-      v(:,:,N0)     = v(:,:,N0) + SWM_v(:,:,N0)
-      eta(:,:,N0)   = eta(:,:,N0) + SWM_eta(:,:,N0)
-      CALL SWM_forcing_update
+      !$omp parallel
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(SWM_eta, 2)
+        do i = 1, size(SWM_eta, 1)
+          SWM_eta(i, j, N0) = SWM_eta(i, j, N0p1)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(SWM_u, 2)
+        do i = 1, size(SWM_u, 1)
+          SWM_u(i, j, N0)   = SWM_u(i, j, N0p1)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(SWM_v, 2)
+        do i = 1, size(SWM_v, 1)
+          SWM_v(i, j, N0)   = SWM_v(i, j, N0p1)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(u, 2)
+        do i = 1, size(u, 1)
+          ! add information to master model
+          u(i, j, N0)     = u(i, j, N0) + SWM_u(i, j, N0)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(v, 2)
+        do i = 1, size(v, 1)
+          v(i, j, N0)     = v(i, j, N0) + SWM_v(i, j, N0)
+        end do
+      end do
+      !$omp end do
+      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(SWM_eta, 2)
+        do i = 1, size(SWM_eta, 1)
+          eta(i, j, N0)   = eta(i, j, N0) + SWM_eta(i, j, N0)
+        end do
+      end do
+      !$omp end do
+      !$omp end parallel
       CALL SWM_timestep_advance
+      CALL SWM_forcing_update
     END SUBROUTINE SWM_advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -14,6 +14,7 @@ MODULE swm_damping_module
 #include "swm_module.h"
 #include "io.h"
   use types
+  use init_vars
   IMPLICIT NONE
   PRIVATE
 
@@ -32,10 +33,8 @@ MODULE swm_damping_module
     !> @brief  Initialise damping coefficients
     !!
     !! Alocates and computes the coefficients for implicit linear damping
-    !! and/or explicit quadratic damping. The coefficients are only computed
-    !! if either LINEAR_BOTTOM_FRICTION or QUADRATIC_BOTTOM_FRICTION is defined
-    !! in model.h. If the model is set to be BAROTROPIC, the damping coefficients
-    !! are scaled with the depth.
+    !! and/or explicit quadratic damping. If the model is set to be BAROTROPIC,
+    !! the damping coefficients are scaled with the depth.
     !!
     !! @par Uses:
     !! vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, ocean_u, ocean_v, H_u, H_v
@@ -60,6 +59,9 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      call initVar(impl_u, 1._KDOUBLE)
+      call initVar(impl_v, 1._KDOUBLE)
+      call initVar(impl_eta, 1._KDOUBLE)
       CALL addToRegister(impl_u, "IMPL_U", u_grid)
       CALL addToRegister(impl_v, "IMPL_V", v_grid)
       CALL addToRegister(impl_eta, "IMPL_ETA", eta_grid)
@@ -72,8 +74,8 @@ MODULE swm_damping_module
       END IF
       CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
       CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
-      gamma_lin_u = 0
-      gamma_lin_v = 0
+      call initVar(gamma_lin_u, 0._KDOUBLE)
+      call initVar(gamma_lin_v, 0._KDOUBLE)
 
       if (rayleigh_damp_mom) then !add the corresponding friction coefficient and sponge layers
         write(*,*) "Rayleigh damp mom"
@@ -101,6 +103,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      call initVar(gamma_sq_u, 0._KDOUBLE)
+      call initVar(gamma_sq_v, 0._KDOUBLE)
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U", u_grid)
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V", v_grid)
       gamma_sq_u = getDampingCoefficient("GAMMA_SQ_U",SHAPE(gamma_sq_u))
@@ -116,8 +120,8 @@ MODULE swm_damping_module
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
         STOP 1
       END IF
+      call initVar(gamma_lin_eta, 0._KDOUBLE)
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
-      gamma_lin_eta = 0
 
       if (rayleigh_damp_cont) then !add the corresponding friction coefficient and sponge layers
         gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
