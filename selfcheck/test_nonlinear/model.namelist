@@ -64,3 +64,4 @@
 &diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=50 /
 &diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=50 /
 &diag_nl filename="d.nc", varname="swm_d", type="S" frequency=50 /
+&diag_nl filename="fx.nc", varname="f_x", type="S" frequency=50 /
