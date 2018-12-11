@@ -54,6 +54,8 @@ MODULE calc_lib
   interface interpolate
     module procedure interpolate_2point
     module procedure interpolate_4point
+    module procedure interp1D_scalar
+    module procedure interp1D_array2D
   end interface interpolate
 
 !  interface interpMask
@@ -358,28 +360,52 @@ MODULE calc_lib
 !$omp end parallel
     end subroutine set4PointInterpolater
 
-
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief 1D linear interpolation, usually in time.
     !!
     !! Linear interpolation, usually in time, i.e.
     !! \f[ y = y_0 + (x-x_0)\frac{y_1-y_0}{x_1-x_0} \f]
-    !!This function is elemental, which means
+    !! This function is elemental, which means
     !! that one or more arguments can be arrays and the operation is done
     !! element-wise. However, if one or more arguments are arrays, their shape
-    !! must be campatible, which means that they should have the same size in this context.
+    !! must be campatible, which means that they should have the same size.
     !!
     !! @return Ordinate of requested point.
     !------------------------------------------------------------------
-    ELEMENTAL real(KDOUBLE) FUNCTION interpLinear(y0,y1,x0,x1,x) RESULT(y)
+    ELEMENTAL real(KDOUBLE) FUNCTION interp1D_scalar(y0,y1,x0,x1,x) RESULT(y)
       real(KDOUBLE), INTENT(in)  :: y0 !< Ordinate of first point
       real(KDOUBLE), INTENT(in)  :: y1 !< Ordinate of second point
       real(KDOUBLE), INTENT(in)  :: x0 !< Abscissa of first point
       real(KDOUBLE), INTENT(in)  :: x1 !< Abscissa of second point
       real(KDOUBLE), INTENT(in)  :: x !< Abscissa of requested point
       y = y0 + (x-x0)*(y1-y0)/(x1-x0)
-    END FUNCTION interpLinear
+    END FUNCTION interp1D_scalar
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief 1D linear interpolation between 2D arrays, usually in time.
+    !!
+    !! Linear interpolation of 2D arrays, usually in time, i.e.
+    !! \f[ y = y_0 + (x-x_0)\frac{y_1-y_0}{x_1-x_0} \f]
+    !! The shape of y0 and y1 must be the same and x0 and x1 are scalars.
+    !!
+    !! @return 2d array of ordinate of requested point.
+    !------------------------------------------------------------------
+    FUNCTION interp1D_array2D(y0,y1,x0,x1,x) RESULT(y)
+      real(KDOUBLE), dimension(:, :), INTENT(in)                     :: y0 !< Ordinate of first point
+      real(KDOUBLE), dimension(size(y0, 1), size(y0, 2)), intent(in) :: y1 !< Ordinate of second point
+      real(KDOUBLE), dimension(size(y0, 1), size(y0, 2)) :: y !< Ordinate of result
+      real(KDOUBLE), INTENT(in)  :: x0 !< Abscissa of first point
+      real(KDOUBLE), INTENT(in)  :: x1 !< Abscissa of second point
+      real(KDOUBLE), INTENT(in)  :: x !< Abscissa of requested point
+      integer(KINT) :: i, j
+!$omp parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, size(y, 2)
+        do i = 1, size(y, 1)
+          y(i, j) = y0(i, j) + (x - x0) * (y1(i, j) - y0(i, j)) / (x1 - x0)
+        end do
+      end do
+!$omp end parallel do
+    END FUNCTION interp1D_array2D
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Get a weighting object for spatial bilinear interpolation

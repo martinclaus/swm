@@ -204,15 +204,15 @@ MODULE memchunk_module
     !! Returns a single time slice of the data associated with the memoryChunk.
     !! If required new data is loaded from disk. If the requested time does
     !! not exacly match the time value of the datasets time axis, the data will
-    !! be linearly interpolated onto the requested time using calc_lib::interpLinear.
+    !! be linearly interpolated onto the requested time using calc_lib::interpolate.
     !!
     !! @par Uses:
-    !! calc_lib, ONLY : interpLinear
+    !! calc_lib, ONLY : interpolate
     !! @note The requested time must always be greater than the time requested at the
     !! last call of this routine.
     !------------------------------------------------------------------
     FUNCTION getChunkData(memChunk,time)
-      USE calc_lib, ONLY : interpLinear
+      USE calc_lib, ONLY : interpolate
       IMPLICIT NONE
       TYPE(memoryChunk), INTENT(inout)  :: memChunk !< Chunk to get data from
       real(KDOUBLE), INTENT(in)               :: time     !< time of the data in units of the internal model calendar, i.e. seconds since model start.
@@ -236,11 +236,11 @@ MODULE memchunk_module
       IF (time.EQ.memChunk%time(memChunk%chunkCounter)) THEN
         getChunkData = memChunk%var(:,:,memChunk%chunkCounter)
       ELSE
-        getChunkData = interpLinear(memChunk%var(:,:,memChunk%chunkCounter),&
-                                    memChunk%var(:,:,memChunk%chunkCounter+1),&
-                                    memChunk%time(memChunk%chunkCounter),&
-                                    memChunk%time(memChunk%chunkCounter+1),&
-                                    time)
+        getChunkData = interpolate(memChunk%var(:,:,memChunk%chunkCounter),&
+                                   memChunk%var(:,:,memChunk%chunkCounter+1),&
+                                   memChunk%time(memChunk%chunkCounter),&
+                                   memChunk%time(memChunk%chunkCounter+1),&
+                                   time)
       END IF
       RETURN
     END FUNCTION getChunkData
