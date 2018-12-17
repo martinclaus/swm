@@ -21,12 +21,7 @@ MODULE vars_module
 
   ! Constants (default parameters), contained in model_nl
   real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
-  real(KDOUBLE)                :: r=0.                             !< linear friction parameter \f$[ms^{-1}]\f$
-  real(KDOUBLE)                :: k=0.                             !< quadratic friction parameter
   real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
-  real(KDOUBLE)                :: gamma_new=0.                     !< Newtonian cooling coefficient \f$[s^{-1}]\f$
-  real(KDOUBLE)                :: gamma_new_sponge=1.              !< Linear damping at boundary using sponge layers \f$[s^{-1}]\f$
-  real(KDOUBLE)                :: new_sponge_efolding=1.           !< Newtonian cooling sponge layer e-folding scale
 
   CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
@@ -39,10 +34,6 @@ MODULE vars_module
   ! numerical parameters
   integer(KSHORT), PARAMETER   :: Ns = 2                     !< Max number of time steps stored in memory.
   integer(KSHORT), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
-
-  ! logical parameters
-  LOGICAL                      :: rayleigh_damp_mom = .FALSE.          !< linear bottom friction
-  LOGICAL                      :: rayleigh_damp_cont = .FALSE.         !< newtonian cooling
 
   ! dynamic fields u, v, eta, allocated during initialization
   real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
@@ -124,8 +115,7 @@ MODULE vars_module
       integer                :: i, j, l                     !< local counter
     ! definition of the namelist
       namelist / model_nl / &
-        G,r,k,Ah,gamma_new,gamma_new_sponge,new_sponge_efolding, & !friction and forcing parameter
-        rayleigh_damp_mom,rayleigh_damp_cont, &
+        G, Ah, & !friction parameter
         run_length, &
         dt, meant_out, & ! time step and mean step
         file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
