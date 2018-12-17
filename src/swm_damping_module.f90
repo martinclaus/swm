@@ -78,23 +78,12 @@ MODULE swm_damping_module
       call initVar(gamma_lin_u, 0._KDOUBLE)
       call initVar(gamma_lin_v, 0._KDOUBLE)
 
-      if (rayleigh_damp_mom) then !add the corresponding friction coefficient and sponge layers
-        write(*,*) "Rayleigh damp mom"
-        gamma_lin_u = ( getDampingCoefficient("GAMMA_LIN_U",SHAPE(gamma_lin_u)) &
-#ifdef VELOCITY_SPONGE
-                        + getSpongeLayer("U",VELOCITY_SPONGE) &
-#endif
-                      )
-        gamma_lin_v = ( getDampingCoefficient("GAMMA_LIN_V",SHAPE(gamma_lin_v)) &
-#ifdef VELOCITY_SPONGE
-                      + getSpongeLayer("V",VELOCITY_SPONGE) &
-#endif
-                      )
-      end if
+      call getDampingCoefficient(gamma_lin_u, "GAMMA_LIN_U")
+      call getDampinCoefficient(gamma_lin_v, "GAMMA_LIN_V")
 
 #ifdef BAROTROPIC
-      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u/H_u
-      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v/H_v
+      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u / H_u
+      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v / H_v
 #endif
 
       ! quadratic friction
@@ -108,14 +97,14 @@ MODULE swm_damping_module
       call initVar(gamma_sq_v, 0._KDOUBLE)
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U", u_grid)
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V", v_grid)
-      gamma_sq_u = getDampingCoefficient("GAMMA_SQ_U",SHAPE(gamma_sq_u))
-      gamma_sq_v = getDampingCoefficient("GAMMA_SQ_V",SHAPE(gamma_sq_v))
+      call getDampingCoefficient(gamma_sq_u, "GAMMA_SQ_U")
+      call getDampingCoefficient(gamma_sq_v, "GAMMA_SQ_V")
 #ifdef BAROTROPIC
-      WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u/H_u
-      WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v/H_v
+      WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u / H_u
+      WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v / H_v
 #endif
 #endif
-    ! Newtonian cooling
+      ! Newtonian cooling
       ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) THEN
         WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
@@ -124,13 +113,7 @@ MODULE swm_damping_module
       call initVar(gamma_lin_eta, 0._KDOUBLE)
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
 
-      if (rayleigh_damp_cont) then !add the corresponding friction coefficient and sponge layers
-        gamma_lin_eta = ( getDampingCoefficient("GAMMA_LIN_ETA",SHAPE(gamma_lin_eta)) &
-#ifdef NEWTONIAN_SPONGE
-                          + getSpongeLayer("ETA",NEWTONIAN_SPONGE) &
-#endif
-                        )
-      end if
+      call getDampingCoefficient(gamma_lin_eta, "GAMMA_LIN_ETA")
 
       ! build implicit terms (linear damping)
 !$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
@@ -164,53 +147,109 @@ MODULE swm_damping_module
     !! str, only : to_upper\n
     !! memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
     !------------------------------------------------------------------
-    FUNCTION getDampingCoefficient(coefName,shapeOfCoef) RESULT(coef)
+    subroutine getDampingCoefficient(coef, coefName)
       USE vars_module, ONLY : r, k, gamma_new
       use str, only : to_upper
       USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
-      CHARACTER(*), INTENT(in)                               :: coefName    !< String naming the requested coefficient
-      integer(KINT), DIMENSION(2), INTENT(in)                :: shapeOfCoef !< Shape of the metrix to be returned
-      real(KDOUBLE), DIMENSION(shapeOfCoef(1),shapeOfCoef(2)):: coef        !< coefficient matrix
-      TYPE(memoryChunk)                                      :: memChunk    !< memory chunk to load data from file
-      CHARACTER(CHARLEN)                                     :: filename="" !< Filename of dataset
-      CHARACTER(CHARLEN)                                     :: varname=""  !< Variable of coefficient in dataset
-      CHARACTER(CHARLEN)                                     :: type=""     !< Name of coefficient to compare with coefName
-      integer(KINT)                                          :: chunkSize=1 !< Chunksize of memory chunk. 1, because it is constant in time
-      integer(KINT)                                          :: io_stat=0   !< io status of namelist read call
-      NAMELIST / swm_damping_nl / filename, varname, type             !< namelist of damping coefficient dataset
+      real(KDOUBLE), DIMENSION(:, :), intent(inout)        :: coef          !< damping coefficient
+      CHARACTER(*), INTENT(in)                             :: coefName      !< String naming the requested coefficient
+      TYPE(memoryChunk)                                    :: memChunk      !< memory chunk to load data from file
+      CHARACTER(CHARLEN)                                   :: filename=""   !< Filename of dataset
+      CHARACTER(CHARLEN)                                   :: varname=""    !< Variable of coefficient in dataset
+      CHARACTER(CHARLEN)                                   :: type=""       !< Type of coefficient. Possible values: "file", "sponge"
+      CHARACTER(CHARLEN)                                   :: term=""       !< Name of coefficient to compare with coefName
+      real(KDOUBLE)                                        :: value=0.      !< Type is "uniform": Background value
+                                                                            !< Type is "sponge": Maximum value of the sponge layer at the coast
+      real(KDOUBLE)                                        :: sl_length=1.  !< length scale of the sponge layer decay in units defined in swm_module.h.
+      real(KDOUBLE)                                        :: sl_cutoff=15. !< cutoff distance of sponge layer in units of sl_length, i.e. the cutoff distance in the same unit as sl_length is sl_cutoff * sl_length.
+      character(CHARLEN)                                   :: sl_location=""!< location of the sponge layers, combination of ("N", "S", "E", "W")
+      integer(KINT)                                        :: chunkSize=1   !< Chunksize of memory chunk. 1, because it is constant in time
+      character(1)                                         :: grid_ident="" !< Either "U", "V" or "E"
+      integer(KINT)                                        :: io_stat=0     !< io status of namelist read call
+      NAMELIST / swm_damping_nl / filename, varname, term, &            !< namelist of damping coefficient dataset
+                 value, sl_length, sl_cutoff, sl_position, type
+
+      SELECT CASE (coefName)
+        CASE ("GAMMA_LIN_U")
+          grid_ident = "U"
+        case ("GAMMA_LIN_V")
+          grid_ident = "V"
+        CASE ("GAMMA_SQ_U")
+          grid_ident = "U"
+        case ("GAMMA_SQ_V")
+          grid_ident = "V"
+        CASE ("GAMMA_LIN_ETA")
+          grid_ident = "E"
+        CASE DEFAULT
+          PRINT *,"ERROR: Unknow damping coefficient "//TRIM(coefName)//" requested. Check your code!"
+          STOP 1
+      END SELECT
 
       ! read input namelists
       io_stat = 0
       OPEN(UNIT_SWM_DAMPING_NL, file=SWM_DAMPING_NL)
       DO WHILE (io_stat.EQ.0)
+        call setDefault_swm_damping_nl(filename, varname, term, &
+                                       value, sl_length, sl_cutoff, sl_location, &
+                                       type)
         READ(UNIT_SWM_DAMPING_NL, nml=swm_damping_nl, iostat=io_stat)
-        IF (io_stat.NE.0) exit               !< no namelist left
-        IF (to_upper(type).eq.coefName) exit !< coefficient found
+        IF (io_stat.NE.0) THEN
+          WRITE (*,*) "ERROR: There is a problem a swm_damping_nl. Check your namelists!"
+          STOP 1
+        END IF
+
+        IF (to_upper(term) .ne. coefName) cycle !< namelist not for coefficient of interest
+
+        select case (type)
+          case (SWM_DAMPING_NL_TYPE_SPONGE)
+            call getSpongeLayer(coeff, grid_ident, sl_location, value, sl_length, sl_cutoff)
+
+          case (SWM_DAMPING_NL_TYPE_FILE)
+            CALL initMemChunk(filename,varname,chunkSize,memChunk)
+            IF (.NOT.isInitialised(memChunk)) THEN
+              PRINT *,"ERROR loading damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!"
+              STOP 1
+            end if
+            coef = max(getChunkData(memChunk, 0._KDOUBLE), coef)
+            CALL finishMemChunk(memChunk)
+
+          case (SWM_DAMPING_NL_TYPE_UNIFORM)
+            coef = max(coef, value)
+          case default
+            write (*, *) "ERROR: Unkown type identifyer in swm_damping_nl. Check your namelists!"
+            STOP 1
+
+        end select
+      END IF
       END DO
       CLOSE(UNIT_SWM_DAMPING_NL)
-      IF (io_stat.NE.0) THEN ! return default
-        SELECT CASE (coefName)
-          CASE ("GAMMA_LIN_U","GAMMA_LIN_V")
-            coef = r
-          CASE ("GAMMA_SQ_U","GAMMA_SQ_V")
-            coef = k
-          CASE ("GAMMA_LIN_ETA")
-            coef = gamma_new
-          CASE DEFAULT
-            PRINT *,"ERROR: Unknow damping coefficient "//TRIM(coefName)//" requested. Check your code!"
-            STOP 1
-        END SELECT
-      ELSE ! Open file and read data
-        CALL initMemChunk(filename,varname,chunkSize,memChunk)
-        IF (.NOT.isInitialised(memChunk)) THEN
-          PRINT *,"ERROR loading damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!"
-          STOP 1
-        ELSE
-          coef = getChunkData(memChunk, 0._KDOUBLE)
-        END IF
-        CALL finishMemChunk(memChunk)
-      END IF
-    END FUNCTION getDampingCoefficient
+    END subroutine getDampingCoefficient
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  set default values for swm_damping_nl
+    !------------------------------------------------------------------
+    subroutine setDefault_swm_damping_nl(filename, varname, term, &
+                                         value, sl_length, sl_cutoff, sl_location, &
+                                         type)
+      CHARACTER(CHARLEN), intent(out)  :: filename     !< Filename of dataset
+      CHARACTER(CHARLEN), intent(out)  :: varname      !< Variable of coefficient in dataset
+      CHARACTER(CHARLEN), intent(out)  :: type         !< Type of coefficient. Possible values: "file", "sponge"
+      CHARACTER(CHARLEN), intent(out)  :: term         !< Name of coefficient to compare with coefName
+      real(KDOUBLE), intent(out)       :: value       !< Maximum value of the sponge layer at the coast
+      real(KDOUBLE), intent(out)       :: sl_length    !< length scale of the sponge layer decay in units defined in swm_module.h.
+      real(KDOUBLE), intent(out)       :: sl_cutoff    !< cutoff distance of sponge layer in units of sl_length, i.e. the cutoff distance in the same unit as sl_length is sl_cutoff * sl_length.
+      character(CHARLEN), intent(out)  :: sl_location  !< location of the sponge layers, combination of ("N", "S", "E", "W")
+
+      filename = ""
+      varname = ""
+      type = ""
+      term = ""
+      value = 0.
+      sl_length = 1.
+      sl_cutoff = SPONGE_CUT_OFF
+      sl_location = ""
+    end subroutine setDefault_swm_damping_nl
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Parses sponge layer string and return coefficient field
@@ -240,11 +279,13 @@ MODULE swm_damping_module
     !!
     !! @return Field of damping coefficients related to the sponge layers
     !------------------------------------------------------------------
-    FUNCTION getSpongeLayer(gString,posString) RESULT(gamma)
+    subroutine getSpongeLayer(gamma, gString,posString, max, length, cutoff)
       USE vars_module, ONLY : G, &
                               gamma_new_sponge, new_sponge_efolding
       USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
       IMPLICIT NONE
+      !> Field of damping coefficients related to the sponge layers
+      real(KDOUBLE), dimension(:, :), intent(inout) :: gamma
       !> String specifying the grid to work with. First character of this string must be one of
       !! - "U" (zonal velocity grid)
       !! - "V" (meridional velocity grid
@@ -256,15 +297,21 @@ MODULE swm_damping_module
       !! - "E" for eastern boundary
       !! - "W" for western boundary
       CHARACTER(len=*), INTENT(in)             :: posString
-      real(KDOUBLE)                            :: gamma(Nx,Ny) !< Field of damping coefficients related to the sponge layers
+      !> maximum value of the damping coefficient
+      real(KDOUBLE), intent(in)                :: max
+      !> length scale of the sponge layer
+      real(KDOUBLE), intent(in)                :: length
+      !> cutoff distance in units of length scale
+      real(KDOUBLE), intent(in)                :: cutoff
       real(KDOUBLE)                            :: lat(Ny), lon(Nx), spongeCoefficient
       integer(KINT)                            :: iGrid, iBoundary, iSponge(4,3)
       real(KDOUBLE), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
       real(KDOUBLE), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
+
       iSponge = RESHAPE((/1_KINT, Ny-1, 2_KINT, Nx-1,&
                           2_KINT, Ny-1, 1_KINT, Nx-1,&
                           1_KINT, Ny-1, 1_KINT, Nx-1/),SHAPE(iSponge))
-      gamma = 0.
+
       SELECT CASE(gString(1:1))
         CASE("u","U")
           iGrid = 1
@@ -282,7 +329,7 @@ MODULE swm_damping_module
           WRITE (*,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
           RETURN
       END SELECT
-      spongeCoefficient = D2R * A / new_sponge_efolding / &
+      spongeCoefficient = D2R * A / length / &
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
                                        (D2R*A)
 #elif SPONGE_SCALE_UNIT == SCU_RADIUS_OF_DEFORMATION
@@ -294,47 +341,47 @@ MODULE swm_damping_module
         iBoundary = 2
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
-                                 gamma_new_sponge * &
+                                 max * &
                                  (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
+                                   -EXP(-cutoff)),&
                                  2, &
-                                 Nx &
-                            )),gamma)
+                                 size(gamma, 1) &
+                            )), gamma)
       END IF
       IF (SCAN(posString,"Ss").NE.0) THEN
         iBoundary = 1
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
-                                 gamma_new_sponge * &
+                                 max * &
                                  (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
+                                   -EXP(-cutoff)),&
                                  2, &
-                                 Nx &
+                                 size(gamma, 1) &
                             )),gamma)
       END IF
       IF (SCAN(posString,"Ww").NE.0) THEN
         iBoundary = 3
         gamma = MAX( &
                                SPREAD( &
-                                 gamma_new_sponge * &
+                                 max * &
                                  (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
+                                   -EXP(-cutoff)),&
                                  2, &
-                                 Ny &
+                                 size(gamma, 2) &
                             ),gamma)
       END IF
       IF (SCAN(posString,"Ee").NE.0) THEN
         iBoundary = 4
         gamma = MAX( &
                                SPREAD( &
-                                 gamma_new_sponge * &
+                                 max * &
                                  (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
-                                   -EXP(-REAL(SPONGE_CUT_OFF))),&
+                                   -EXP(-cutoff)),&
                                  2, &
-                                 Ny &
+                                 size(gamma, 2) &
                             ),gamma)
       END IF
-    END FUNCTION getSpongeLayer
+    END subroutine getSpongeLayer
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of member variables
