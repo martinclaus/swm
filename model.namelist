@@ -1,8 +1,5 @@
 &model_nl
-  r = 0,                ! linear bottom friction parameter
-  k = 5e-1,             ! quadratic bottom friction parameter
   G = 9.80665           ! gravitational acceleration (m/s^2)
-  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
   new_sponge_efolding=8e-2, ! efolding scale of sponge layers
   gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
@@ -43,7 +40,13 @@
 
 !&swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" /
 
-!&swm_damping_nl filename="input/gamma_n.nc", varname="GAMMA_N", type="GAMMA_LIN_ETA" /
+!&swm_damping_nl filename="input/gamma_n.nc", varname="GAMMA_N", term="GAMMA_LIN_ETA" /
+&swm_damping_nl type="sponge", term="GAMMA_LIN_U", value=1., sl_location="NSEW", sl_length=2.5, sl_cutoff=3. /
+&swm_damping_nl type="sponge", term="GAMMA_LIN_V", value=1., sl_location="NSEW", sl_length=2.5, sl_cutoff=3. /
+!&swm_damping_nl type="uniform", term="GAMMA_LIN_U", value=5e-3 /
+!&swm_damping_nl type="uniform", term="GAMMA_LIN_V", value=5e-3 /
+!&swm_damping_nl type="uniform", term="GAMMA_SQ_U", value=5e-3 /
+!&swm_damping_nl type="uniform", term="GAMMA_SQ_V", value=5e-3 /
 
 &tracer_nl
   TRC_C1_A = 1e2
