@@ -37,12 +37,11 @@ MODULE swm_damping_module
     !! the damping coefficients are scaled with the depth.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx, Ny, r, k, gamma_new, dt, ocean_u, ocean_v, H_u, H_v
-    !! addToRegister
+    !! vars_module, ONLY : dt, addToRegister\n
+    !! domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
     !------------------------------------------------------------------
     SUBROUTINE SWM_damping_init
-      USE vars_module, ONLY : r, k, gamma_new, dt, rayleigh_damp_mom, rayleigh_damp_cont, &
-                              addToRegister
+      USE vars_module, ONLY : dt, addToRegister
       USE domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
       IMPLICIT NONE
       integer(KINT) :: alloc_error
@@ -79,7 +78,7 @@ MODULE swm_damping_module
       call initVar(gamma_lin_v, 0._KDOUBLE)
 
       call getDampingCoefficient(gamma_lin_u, "GAMMA_LIN_U")
-      call getDampinCoefficient(gamma_lin_v, "GAMMA_LIN_V")
+      call getDampingCoefficient(gamma_lin_v, "GAMMA_LIN_V")
 
 #ifdef BAROTROPIC
       WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u / H_u
@@ -139,16 +138,14 @@ MODULE swm_damping_module
     !! - "GAMMA_LIN_ETA" Newtonian damping coefficient in continuity equation
     !! - "GAMMA_SQ_U" Quadratic damping coefficient in zonal momentum equation
     !! - "GAMMA_SQ_V" Quadratic damping coefficient in meridional momentum equation
-    !! If such a namelist is found, the data will be loaded from the specified file. Else,
-    !! default values from model_nl will be returned.
+    !! If such a namelist is found, the respective damping coefficient is set according
+    !! to the namelist if the value is larger.
     !!
     !! @par Uses:
-    !! vars_module, ONLY : r, k, gamma_new\n
     !! str, only : to_upper\n
     !! memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
     !------------------------------------------------------------------
     subroutine getDampingCoefficient(coef, coefName)
-      USE vars_module, ONLY : r, k, gamma_new
       use str, only : to_upper
       USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
       real(KDOUBLE), DIMENSION(:, :), intent(inout)        :: coef          !< damping coefficient
@@ -167,7 +164,7 @@ MODULE swm_damping_module
       character(1)                                         :: grid_ident="" !< Either "U", "V" or "E"
       integer(KINT)                                        :: io_stat=0     !< io status of namelist read call
       NAMELIST / swm_damping_nl / filename, varname, term, &            !< namelist of damping coefficient dataset
-                 value, sl_length, sl_cutoff, sl_position, type
+                 value, sl_length, sl_cutoff, sl_location, type
 
       SELECT CASE (coefName)
         CASE ("GAMMA_LIN_U")
@@ -202,7 +199,7 @@ MODULE swm_damping_module
 
         select case (type)
           case (SWM_DAMPING_NL_TYPE_SPONGE)
-            call getSpongeLayer(coeff, grid_ident, sl_location, value, sl_length, sl_cutoff)
+            call getSpongeLayer(coef, grid_ident, sl_location, value, sl_length, sl_cutoff)
 
           case (SWM_DAMPING_NL_TYPE_FILE)
             CALL initMemChunk(filename,varname,chunkSize,memChunk)
@@ -220,7 +217,6 @@ MODULE swm_damping_module
             STOP 1
 
         end select
-      END IF
       END DO
       CLOSE(UNIT_SWM_DAMPING_NL)
     END subroutine getDampingCoefficient
@@ -263,25 +259,22 @@ MODULE swm_damping_module
     !!    \gamma = \gamma_{max}\max\left\{e^{-\frac{d}{d_s}}-e^{-\frac{d_{cutoff}}{d_s}}, 0 \right\}
     !! \f]
     !! where \f$\gamma_{max}\f$ is the damping coefficient at the boundary, set by
-    !! gamma_new_sponge in model.namelist, \f$d\f$ is the distance from
+    !! "value" in swm_damping_nl, \f$d\f$ is the distance from
     !! the boundary, \f$d_s\f$ is the e-folding scale of the sponge layer, set by
-    !! new_sponge_efolding in model.namelist, and \f$d_{cutoff}\f$ is the cutoff
-    !! radius of the sponge layer defined in swm_module.h. All quantities related to distances
-    !! are supposed to be given in the unit specified in swm_module.h. At present following
+    !! sl_length in swm_damping_nl, and \f$d_{cutoff}\f$ is the cutoff
+    !! radius of the sponge layer defined in swm_damping_nl. sl_length
+    !! is given in the unit specified in swm_module.h. At present following
     !! units are available:
     !! - meters
     !! - degrees
     !! - Radus of deformation
     !!
     !! @par Uses:
-    !! vars_module, ONLY : Nx,Ny, lat_u, lon_u, lat_v, lon_v, A, D2R, OMEGA, G, H,
-    !! gamma_new_sponge, new_sponge_efolding
-    !!
-    !! @return Field of damping coefficients related to the sponge layers
+    !! vars_module, ONLY : G\n
+    !! domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
     !------------------------------------------------------------------
-    subroutine getSpongeLayer(gamma, gString,posString, max, length, cutoff)
-      USE vars_module, ONLY : G, &
-                              gamma_new_sponge, new_sponge_efolding
+    subroutine getSpongeLayer(gamma, gString,posString, max_val, length, cutoff)
+      USE vars_module, ONLY : G
       USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
       IMPLICIT NONE
       !> Field of damping coefficients related to the sponge layers
@@ -298,7 +291,7 @@ MODULE swm_damping_module
       !! - "W" for western boundary
       CHARACTER(len=*), INTENT(in)             :: posString
       !> maximum value of the damping coefficient
-      real(KDOUBLE), intent(in)                :: max
+      real(KDOUBLE), intent(in)                :: max_val
       !> length scale of the sponge layer
       real(KDOUBLE), intent(in)                :: length
       !> cutoff distance in units of length scale
@@ -341,7 +334,7 @@ MODULE swm_damping_module
         iBoundary = 2
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
-                                 max * &
+                                 max_val * &
                                  (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-cutoff)),&
                                  2, &
@@ -352,7 +345,7 @@ MODULE swm_damping_module
         iBoundary = 1
         gamma = MAX(TRANSPOSE( &
                                SPREAD( &
-                                 max * &
+                                 max_val * &
                                  (EXP(-ABS(lat-lat(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-cutoff)),&
                                  2, &
@@ -363,7 +356,7 @@ MODULE swm_damping_module
         iBoundary = 3
         gamma = MAX( &
                                SPREAD( &
-                                 max * &
+                                 max_val * &
                                  (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-cutoff)),&
                                  2, &
@@ -374,7 +367,7 @@ MODULE swm_damping_module
         iBoundary = 4
         gamma = MAX( &
                                SPREAD( &
-                                 max * &
+                                 max_val * &
                                  (EXP(-ABS(lon-lon(iSponge(iBoundary,iGrid)))*spongeCoefficient) &
                                    -EXP(-cutoff)),&
                                  2, &
