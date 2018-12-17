@@ -190,11 +190,8 @@ MODULE swm_damping_module
                                        value, sl_length, sl_cutoff, sl_location, &
                                        type)
         READ(UNIT_SWM_DAMPING_NL, nml=swm_damping_nl, iostat=io_stat)
-        IF (io_stat.NE.0) THEN
-          WRITE (*,*) "ERROR: There is a problem a swm_damping_nl. Check your namelists!"
-          STOP 1
-        END IF
 
+        IF (io_stat.NE.0) cycle
         IF (to_upper(term) .ne. coefName) cycle !< namelist not for coefficient of interest
 
         select case (type)
