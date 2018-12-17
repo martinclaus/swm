@@ -51,6 +51,7 @@ MODULE swm_damping_module
                                                 gamma_lin_eta => null()
       integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1), SIZE(u_grid%ocean,2)) :: ocean_u
       integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1), SIZE(v_grid%ocean,2)) :: ocean_v
+      integer(KINT) :: i, j
       ocean_u = u_grid%ocean
       ocean_v = v_grid%ocean
       ! allocate memory
@@ -132,9 +133,15 @@ MODULE swm_damping_module
       end if
 
       ! build implicit terms (linear damping)
-      impl_u = 1 + dt*gamma_lin_u
-      impl_v = 1 + dt*gamma_lin_v
-      impl_eta = 1 + dt*gamma_lin_eta
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      do j = 1, Ny
+        do i = 1, Nx
+          impl_u(i, j) = 1._KDOUBLE + dt * gamma_lin_u(i, j)
+          impl_v(i, j) = 1._KDOUBLE + dt * gamma_lin_v(i, j)
+          impl_eta(i, j) = 1._KDOUBLE + dt * gamma_lin_eta(i, j)
+        end do
+      end do
+!$OMP end parallel do
 
     END SUBROUTINE SWM_damping_init
 
