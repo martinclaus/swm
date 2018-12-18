@@ -1,9 +1,4 @@
 &model_nl
-  r = 0,                ! linear bottom friction parameter
-  k = 5e-1,             ! quadratic bottom friction parameter
-  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
-  new_sponge_efolding=8e-2, ! efolding scale of sponge layers
-  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   run_length = 8.67e5, ! length of run in seconds
   dt = 25,      ! time step (s)

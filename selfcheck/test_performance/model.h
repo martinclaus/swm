@@ -25,10 +25,6 @@ Header file for shallow water model. Meant to set different physics.
 #define QUADRATIC_BOTTOM_FRICTION
 #define LATERAL_MIXING
 
-/* Sponge layers */
-#define NEWTONIAN_SPONGE "NSEW"
-#define VELOCITY_SPONGE "NSEW"
-
 
 /* Switch to load dynamical variables from file (mean flow) */
 /* #define DYNFROMFILE */
