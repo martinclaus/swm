@@ -23,9 +23,6 @@ Header file for shallow water model. Meant to set different physics.
 #define TAU_SCALE 5.e-2
 /* Switches for damping */
 #define LATERAL_MIXING
-/* Sponge layers */
-!#define NEWTONIAN_SPONGE "NS"
-!#define VELOCITY_SPONGE "NS"
 
 /* Switch to load dynamical variables from file (mean flow) */
 /* #define DYNFROMFILE */

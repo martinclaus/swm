@@ -86,7 +86,7 @@ contains
 !$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
     do j = 1, size(A_NP1, 2)
       do i = 1, size(A_NP1, 1)
-        A_NP1(i, j) = A_N(i, j) / impl(i, j)
+        A_NP1(i, j) = A_N(i, j)
       end do
     end do
 !$OMP end do
@@ -95,11 +95,18 @@ contains
 !$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, size(A_NP1, 2)
         do i = 1, size(A_NP1, 1)
-          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti) / impl(i, j)
+          A_NP1(i, j) = A_NP1(i, j) + dt * ab_coeff(ti, tstep) *  G(i, j, ti)
         end do
       end do
 !$OMP end do
     end do
+!$OMP do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+    do j = 1, size(A_NP1, 2)
+      do i = 1, size(A_NP1, 1)
+        A_NP1(i, j) = A_NP1(i, j) / impl(i, j)
+      end do
+    end do
+!$OMP end do
 !$OMP end parallel
     ! A_NP1 = A_NP1 / impl
   END FUNCTION integrate_AB_vec

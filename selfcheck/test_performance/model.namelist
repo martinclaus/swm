@@ -1,17 +1,10 @@
 &model_nl
-  r = 0.,                ! linear bottom friction parameter
-  k = 0.,             ! quadratic bottom friction parameter
-  gamma_new = 0.,  ! Newtonian cooling parameter (1/s)
-  new_sponge_efolding=8e-2, ! efolding scale of sponge layers
-  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
   Ah = 3e2,               ! horizontal eddy viscosity (m^2/s)
   run_length = 2e4, ! length of run in seconds
   dt = 2e1,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init=""
   diag_start=0.
-  rayleigh_damp_cont=.true.
-  rayleigh_damp_mom=.true.
 /
 
 &calendar_nl
@@ -33,15 +26,30 @@
   H_overwrite=300.
 /
 
-!&swm_forcing_nl
-!  filename="input/taux_sc.nc",
-!  filename2="input/taux_sc.nc",
-!  varname="TAUX_REAL",
-!  varname2="TAUX_IMAG",
-!  omega=7.24704187679e-06,
-!  forcingtype="O",
-!  component="Z",
-!/
+&swm_damping_nl
+  term="GAMMA_LIN_ETA"
+  type="sponge"
+  sl_location="NSEW"
+  value=1.
+  sl_length=8e-2
+  sl_cutoff=15.
+/
+&swm_damping_nl
+  term="GAMMA_LIN_U"
+  type="sponge"
+  sl_location="NSEW"
+  value=1.
+  sl_length=8e-2
+  sl_cutoff=15.
+/
+&swm_damping_nl
+  term="GAMMA_LIN_V"
+  type="sponge"
+  sl_location="NSEW"
+  value=1.
+  sl_length=8e-2
+  sl_cutoff=15.
+/
 
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory

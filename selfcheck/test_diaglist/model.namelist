@@ -1,17 +1,10 @@
 &model_nl
-  r = 0,                ! linear bottom friction parameter
-  k = 5e-1,             ! quadratic bottom friction parameter
-  gamma_new = 0,  ! Newtonian cooling parameter (1/s)
-  new_sponge_efolding=8e-2, ! efolding scale of sponge layers
-  gamma_new_sponge=1.,   ! maximum damping of sponge layer (1/s)
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   run_length = 8.67e5, ! length of run in seconds
   dt = 25,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init="input/eta_init_gauss.nc"
   diag_start=0.
-  rayleigh_damp_cont=.true.
-  rayleigh_damp_mom=.true.
 /
 
 &calendar_nl
@@ -43,7 +36,36 @@
 &swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" /
 &swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" /
 
-&swm_damping_nl filename="input/gamma_n.nc", varname="GAMMA_N", type="GAMMA_LIN_ETA" /
+&swm_damping_nl
+  term="GAMMA_LIN_ETA"
+  type="file"
+  filename="input/gamma_n.nc"
+  varname="GAMMA_N"
+/
+&swm_damping_nl
+  term="GAMMA_LIN_ETA"
+  type="sponge"
+  value=1.
+  sl_location="NSEW"
+  sl_length=8e-2
+  sl_cutoff=15.
+/
+&swm_damping_nl
+  term="GAMMA_LIN_U"
+  type="sponge"
+  value=1.
+  sl_location="NSEW"
+  sl_length=8e-2
+  sl_cutoff=15.
+/
+&swm_damping_nl
+  term="GAMMA_LIN_V"
+  type="sponge"
+  value=1.
+  sl_location="NSEW"
+  sl_length=8e-2
+  sl_cutoff=15.
+/
 
 &tracer_nl
   TRC_C1_A = 1e2
