@@ -395,6 +395,9 @@ MODULE swm_timestep_module
                                SWM_u(i,j,N0)**2 &
                                + (interp4(v_now, v2u, i, j)**2)) & ! averaging v on u grid
                              *SWM_u(i,j,N0) & ! quadratic bottom friction
+#if defined(BAROTROPIC)
+                             / u_grid%H(i, j) &
+#endif
 #endif
 #if defined(LATERAL_MIXING)
                              + swm_latmix_u(i, j) &  !
@@ -426,6 +429,9 @@ MODULE swm_timestep_module
                                 SWM_v(i,j,N0)**2 &
                                 + (interp4(u_now, u2v, i, j)**2)) & ! averaging u on v grid
                              *SWM_v(i,j,N0) & ! quadratic bottom friction
+#if defined(BAROTROPIC)
+                             / v_grid%H(i, j) &
+#endif
 #endif
 #if defined(LATERAL_MIXING)
                              + swm_latmix_v(i, j) &   !
