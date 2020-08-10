@@ -23,6 +23,21 @@ Again a very brief list:
 - adjust namelists
 - run the model
 
+## Run as Docker container
+You may run the model as a docker container. Readily build docker images are available at Docker hub as [martinclaus/swm](https://hub.docker.com/r/martinclaus/swm).
+
+To run the model for a specific configuration, you must have the `model.h` and `model.namelist` file within the same directory. The absolut path to this directory is called `ABS_CONF_PATH` here. This directory must be mounted as the volume `/run` to be available inside the container. Since this directory is the only mounted volume inside the container, both input and output must located within that directory.
+
+```bash
+docker run -v ABS_CONF_PATH:/run martinclaus/swm:latest
+```
+
+The resources available to the container can be limited when running the container, see the [Docker docs](https://docs.docker.com/config/containers/resource_constraints/). For limiting the CPU usage there are basically two options, `--cpus` and `--cpuset-cpus`. The former limits the available CPU resources a container can use while the latter controls which physical cores are available to the container. Since the code uses shared-memory parallelism it is strongly recommended to use `--cpuset-cpus`. Note that using all available cores will lead to a performance penalty.
+
+```bash
+docker run -v ABS_CONF_PATH:/run --cpuset-cpus 0-1 martinclaus/swm:latest
+```
+
 ## Documentation
 Todo
 
