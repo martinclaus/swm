@@ -11,6 +11,7 @@
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
+  use logging
   use types
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
@@ -171,10 +172,8 @@ MODULE vars_module
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
-        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
-        STOP 1
-      END IF
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
+        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -208,10 +207,8 @@ MODULE vars_module
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
-        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
-        STOP 1
-      END IF
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
+        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -225,7 +222,7 @@ MODULE vars_module
       END IF
 
       CALL addVarPtrToRegister(dat_ptr)
-!      PRINT *, "Variable "//TRIM(dat_ptr%var%nam)//" registered."
+      call log_debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add2dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -243,10 +240,8 @@ MODULE vars_module
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) THEN
-        PRINT *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
-        STOP 1
-      END IF
+      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
+        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -277,10 +272,8 @@ MODULE vars_module
       type(variable_ptr)                                 :: dat_ptr
 
       !< check for duplicate
-      if(associated(getVarPtrFromRegister(varname))) then
-        print *, "ERROR: Tried to add variable with name that already exists: "//TRIM(varname)
-        stop 1
-      end if
+      if(associated(getVarPtrFromRegister(varname))) &
+        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
       !< create variable object
       allocate(dat_ptr%var)
       dat_ptr%var%data1d => var

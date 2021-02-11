@@ -1,5 +1,6 @@
 MODULE grid_module
 #include "model.h"
+  use logging
   use types
   IMPLICIT NONE
   real(KDOUBLE), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
@@ -137,32 +138,28 @@ MODULE grid_module
           case (CORIOLIS_NOF)
             f = 0.
           case default
-            WRITE(*,*) "ERROR: Invalid value of coriolis_approx in domain_nl."
-            STOP 2
+            call log_fatal("Invalid value of coriolis_approx in domain_nl.")
         end select
 
         gr%f => f
     END SUBROUTINE setf
 
     subroutine setGridLagrange(grid,Nparticle)
-       type(t_grid_lagrange), intent(inout)  :: grid
-       integer(KINT), intent(in)                   :: Nparticle
-       integer(KINT)   :: alloc_error, i
-       !< free preallocated memory
-       if (associated(grid%id)) then
-         deallocate(grid%id)
-         grid%id=>null()
-       end if
-       if (associated(grid%valid)) then
-         deallocate(grid%valid)
-         grid%valid=>null()
-       end if
-       !< allocate memory
-       allocate(grid%id(1:Nparticle),grid%valid(1:Nparticle),stat=alloc_error)
-      if (alloc_error .ne. 0) then
-        write(*,*) "Allocation error in setGridLagrange:",alloc_error
-        STOP 1
+      type(t_grid_lagrange), intent(inout)  :: grid
+      integer(KINT), intent(in)                   :: Nparticle
+      integer(KINT)   :: alloc_error, i
+      !< free preallocated memory
+      if (associated(grid%id)) then
+        deallocate(grid%id)
+        grid%id=>null()
       end if
+      if (associated(grid%valid)) then
+        deallocate(grid%valid)
+        grid%valid=>null()
+      end if
+      !< allocate memory
+      allocate(grid%id(1:Nparticle),grid%valid(1:Nparticle),stat=alloc_error)
+      if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       grid%id = (/ (i,i=1,Nparticle) /)
       grid%valid = 1_KSHORT
      end subroutine setGridLagrange
@@ -189,10 +186,7 @@ MODULE grid_module
       CALL setOcean(gr, ocean)
       call setTopo(gr, H)
       allocate(gr%bc(lbound(ocean, 1):ubound(ocean, 1), lbound(ocean, 2):ubound(ocean, 2)), stat=alloc_error)
-      if (alloc_error .ne. 0) then
-        write(*,*) "Allocation error in setGridEuler:",alloc_error
-        STOP 1
-      end if
+      if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       where (ocean .eq. 1_KSHORT)
         gr%bc = 1._KDOUBLE
       elsewhere

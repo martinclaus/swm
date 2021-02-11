@@ -10,6 +10,7 @@
 !!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
+    use logging
     use types
     use f_udunits_2
     implicit none
@@ -130,6 +131,8 @@ MODULE calendar_module
           type(CV_CONVERTER_PTR) :: converter
           integer :: junk
           character (len=128) :: buffer1, buffer2
+          character(len=*), parameter :: err_msg_fmt="('Units are not convertible:',X,A,X,'<->',X,A)"
+          character(CHARLEN) :: err_msg
 
           if (f_ut_are_convertible(fromCal%unit, toCal%unit)) then
             converter = f_ut_get_converter(fromCal%unit, toCal%unit)
@@ -141,7 +144,8 @@ MODULE calendar_module
           else
             junk = f_ut_format(toCal%unit, buffer1, UT_NAMES)
             junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
-            print *, "Units are not convertible ", trim(buffer1), trim(buffer2)
+            write (err_msg, err_msg_fmt) trim(buffer1), trim(buffer2)
+            call log_error(err_msg)
           end if
         END SUBROUTINE convertTimeArrayDouble
 
@@ -172,6 +176,8 @@ MODULE calendar_module
           type(CV_CONVERTER_PTR) :: converter
           integer :: junk
           character (len=128) :: buffer1, buffer2
+          character(len=*), parameter :: err_msg_fmt="('Units are not convertible:',X,A,X,'<->',X,A)"
+          character(CHARLEN) :: err_msg
 
           if (f_ut_are_convertible(fromCal%unit, toCal%unit)) then
             converter = f_ut_get_converter(fromCal%unit, toCal%unit)
@@ -183,7 +189,8 @@ MODULE calendar_module
           else
             junk = f_ut_format(toCal%unit, buffer1, UT_NAMES)
             junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
-            print *, "Units are not convertible ", trim(buffer1), trim(buffer2)
+            write (err_msg, err_msg_fmt) trim(buffer1), trim(buffer2)
+            call log_error(err_msg)
           end if
         END SUBROUTINE convertTimeArrayFloat
 

@@ -9,6 +9,7 @@
 module tracer_vars
 #include "tracer_module.h"
 #include "io.h"
+  use logging
   use types
   use init_vars
   use generic_list, only: list_node_t
@@ -104,8 +105,7 @@ module tracer_vars
                                filename_C, filename_C0, filename_gamma_C, filename_cons, &
                                varname_C, varname_C0, varname_gamma_C, varname_cons)
         else
-          print *, "Missing mandatory field 'varid' in one of the trc_tracer_nl namelists"
-          STOP 2
+          call log_fatal("Missing mandatory field 'varid' in one of the trc_tracer_nl namelists")
         end if
       end do
       close(UNIT_TRACER_NL)
@@ -138,10 +138,7 @@ module tracer_vars
       call getFromRegister("SWM_D", swm_d)
 
       allocate(tracer, stat=stat)
-      if (stat .ne. 0) then
-        write (*,*) "Allocation error in TRC_add_to_list"
-        stop 1
-      end if
+      if (stat .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
 
       tracer%varid = varid
       tracer%kappa_h = kappa_h
@@ -150,10 +147,7 @@ module tracer_vars
                tracer%gamma_C(1:Nx, 1:Ny), tracer%cons(1:Nx, 1:Ny), tracer%C0(1:Nx, 1:Ny), tracer%impl(1:Nx, 1:Ny), &
                tracer%uhc(1:Nx, 1:Ny), tracer%vhc(1:Nx, 1:Ny), tracer%diff(1:Nx, 1:Ny), tracer%forcing(1:Nx, 1:Ny), &
                stat=stat)
-      if (stat .ne. 0) then
-        write (*,*) "Allocation error in TRC_add_to_list"
-        stop 1
-      end if
+      if (stat .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
 
       call TRC_init_field(tracer%C, 0._KDOUBLE, filename_C, varname_C)
       call TRC_init_field(tracer%C0, 0._KDOUBLE, filename_C0, varname_C0)
@@ -242,7 +236,7 @@ module tracer_vars
                  tracer%gamma_C, tracer%G_CH, tracer%impl, &
                  tracer%uhc, tracer%vhc, &
                  stat=alloc_stat)
-      if (alloc_stat .NE. 0) print *, "Deallocation failed in ", __FILE__, __LINE__, alloc_stat
+      if (alloc_stat .NE. 0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       nullify(tracer)
     end subroutine TRC_tracer_finish
 

@@ -20,6 +20,7 @@
 PROGRAM model
 #include "model.h"
 #include "io.h"
+  use logging
   USE io_module
   USE vars_module
   USE domain_module
@@ -65,47 +66,51 @@ PROGRAM model
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Calls initialization routines of the modules
     !!
-    !! Calls the initialization routines of the used modules and prints
-    !! out information
+    !! Calls the initialization routines of the used modules
     !------------------------------------------------------------------
     SUBROUTINE initModel
       IMPLICIT NONE
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! initialise logging
+        !------------------------------------------------------------------
+        call initLogging
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise io module (read output suffix and prefix from namelist)
         !------------------------------------------------------------------
         call initIO
-        print *, 'initIO done'
+        call log_info('initIO done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialize the domain, indices, land masks
         !------------------------------------------------------------------
         call initDomain
-        print *, 'initDomain done'
+        call log_info('initDomain done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialize the variables (namelist input, allocation etc.)
         !------------------------------------------------------------------
         call initVars
-        print *, 'initVars done'
+        call log_info('initVars done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise Calc library
         !------------------------------------------------------------------
         call initCalcLib
-        print *, 'initCalcLib done'
+        call log_info('initCalcLib done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise Calc library
         !------------------------------------------------------------------
         call time_integration_init
-        print *, 'time_integration_init done'
+        call log_info('time_integration_init done')
 
 #ifdef DYNFROMFILE
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise dynFromFile module
         !------------------------------------------------------------------
         call DFF_initDynFromFile
-        print *, 'DFF_initDynFromFile done'
+        call log_info('DFF_initDynFromFile done')
 #endif
 
 #ifdef SWM
@@ -113,7 +118,7 @@ PROGRAM model
         !! initializes the shallow water model
         !------------------------------------------------------------------
         call SWM_initSWM
-        print *, 'SWM_init done'
+        call log_info('SWM_init done')
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -121,20 +126,20 @@ PROGRAM model
         !------------------------------------------------------------------
 #ifdef TRACER
         call TRC_initTracer
-        print *, 'initTracer done'
+        call log_info('initTracer done')
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Prepare output file (don't forget to close the files at the end of the programm)
         !------------------------------------------------------------------
         call initDiag
-        print *, 'initDiag done'
+        call log_info('initDiag done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! write initial fields to file
         !------------------------------------------------------------------
         call Diag
-        print *, 'first call of Diag done'
+        call log_info('first call of Diag done')
 
     END SUBROUTINE initModel
 
@@ -147,7 +152,7 @@ PROGRAM model
     !------------------------------------------------------------------------
     SUBROUTINE timestepModel
       IMPLICIT NONE
-        print *, 'starting integration'
+        call log_info('starting integration')
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Do the integration
         !------------------------------------------------------------------
@@ -220,6 +225,8 @@ PROGRAM model
 #endif
 
         call finishIO
+
+        call finishLogging
     END SUBROUTINE finishModel
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

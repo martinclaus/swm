@@ -14,6 +14,7 @@
 !------------------------------------------------------------------
 MODULE ElSolv_SOR
 #include "ElSolv_SOR.h"
+  use logging
   use types
   IMPLICIT NONE
   SAVE
@@ -46,7 +47,7 @@ MODULE ElSolv_SOR
       integer(KINT)  :: i,j, alloc_error
       ! allocate fields
       allocate(ElSolvSOR_c(1:Nx,1:Ny,1:ElSolvSOR_Ncoeff), stat=alloc_error)
-      if(alloc_error .ne. 0)write(*,*)"Allocation error in initElSolv"
+      if(alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       ! initialise fields
       ElSolvSOR_c = 0._KDOUBLE
       ! compute coefficients for elliptic solver at all ocean points of the eta grid
@@ -61,7 +62,7 @@ MODULE ElSolv_SOR
       END FORALL COEFFICIENTS
       ! initialise odd/even index spaces
       CALL init_oe_index_space
-      print *, 'initElSolv_SOR done'
+      call log_info('initElSolv_SOR done')
     END SUBROUTINE init_ElSolv_SOR
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -82,7 +83,7 @@ MODULE ElSolv_SOR
       n_even = FLOOR((Nx*Ny)/2.)
       n_oe = (/n_odd,n_even/)
       allocate(i_oe(2,n_odd,2),i_odd(n_odd,2),i_even(n_even,2), stat=alloc_error)
-      if(alloc_error .ne. 0)write(*,*)"Allocation error in init_oe_index_space"
+      if(alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       odd_count  = 1
       even_count = 1
       DO j=1,Ny
@@ -110,7 +111,8 @@ MODULE ElSolv_SOR
       IMPLICIT NONE
       integer(KINT)   :: alloc_error
       deallocate(i_odd,i_even,i_oe, STAT=alloc_error)
-      if(alloc_error.ne.0) print *,"Deallocation failed"
+      if(alloc_error.ne.0) &
+        call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE finish_oe_index_space
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -123,7 +125,8 @@ MODULE ElSolv_SOR
       IMPLICIT NONE
       integer(KINT) :: alloc_error
       deallocate(ElSolvSOR_c, STAT=alloc_error)
-      if(alloc_error.ne.0) print *,"Deallocation failed"
+      if(alloc_error.ne.0) &
+        call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       ! deallocate odd/even index spaces
       CALL finish_oe_index_space
     END SUBROUTINE finish_ElSolv_SOR
@@ -157,6 +160,8 @@ MODULE ElSolv_SOR
       real(KDOUBLE)                                    :: anorm                   !< norm of residual term
       integer(KINT)                                    :: max_count               !< maximal number of iterations
       integer(KINT)                                    :: l, i, j, oddeven, isw   !< Counter variables
+      character(CHARLEN)                               :: log_msg
+      character(len=*), parameter                      :: log_msg_fmt="(A,X,I6,X,A,X,E11.4)"
       
       IF (first_guess) THEN
         max_count=NINT(1000.*MAX(Nx,Ny)) ! SOR requires O(max(Nx,Ny)) numbers of iterations to reduce error to order 1e-3
@@ -207,11 +212,13 @@ MODULE ElSolv_SOR
         ! Estimation of lambda_max
         anorm = sqrt(anorm)
         IF (anorm .LT. epsilon) THEN
-          PRINT *,"ElSolvSOR: Iterations used: ", l," Residual: ", anorm
+          write(log_msg, log_msg_fmt) "Elliptic solver converged. Iterations used:", l, "Residual:", anorm
+          call log_debug(log_msg)
           return
         END IF
       ENDDO ITERATION
-      PRINT *,"ElSolvSOR: Maximim number of iterations used!"," Residual: ", sqrt(anorm)
+      write(log_msg, log_msg_fmt) "Elliptic solver did not converge after", l, "iterations. Residual:", sqrt(anorm)
+      call log_warn(log_msg)
     END SUBROUTINE main_ElSolv_SOR
 
 END MODULE ElSolv_SOR

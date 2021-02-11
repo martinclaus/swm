@@ -5,6 +5,7 @@
 !------------------------------------------------------------------
 module swm_vars
 #include "model.h"
+  use logging
   use types
   use init_vars
   use memchunk_module, ONLY : memoryChunk
@@ -58,10 +59,7 @@ module swm_vars
       integer(KINT)   :: alloc_error
 
       allocate(SWM_u(1:Nx, 1:Ny, 1:Ns), SWM_v(1:Nx, 1:Ny, 1:Ns), SWM_eta(1:Nx, 1:Ny, 1:Ns),stat=alloc_error)
-      if (alloc_error .ne. 0) then
-        write(*,*) "Allocation error in SWM_init:",alloc_error
-        stop 1
-      end if
+      if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       call initVar(SWM_u, 0._KDOUBLE)
       call initVar(SWM_v, 0._KDOUBLE)
       call initVar(SWM_eta, 0._KDOUBLE)
@@ -70,10 +68,7 @@ module swm_vars
       call addToRegister(SWM_eta(:, :, N0), "SWM_ETA", eta_grid)
 
       ALLOCATE(G_u(1:Nx,1:Ny,1:NG), G_v(1:Nx,1:Ny,1:NG), G_eta(1:Nx,1:Ny,1:NG), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_timestep_init:", alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       call initVar(G_u, 0._KDOUBLE)
       call initVar(G_v, 0._KDOUBLE)
       call initVar(G_eta, 0._KDOUBLE)
@@ -83,10 +78,7 @@ module swm_vars
 
       ALLOCATE(EDens(1:Nx,1:Ny), Pot(1:Nx,1:Ny), zeta(1:Nx,1:Ny), &
                MV(1:Nx, 1:Ny), MU(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       call initVar(Edens, 0._KDOUBLE)
       call initVar(Pot, 0._KDOUBLE)
       call initVar(zeta, 0._KDOUBLE)
@@ -100,10 +92,7 @@ module swm_vars
 
 #if defined FULLY_NONLINEAR
       ALLOCATE(D(1:Nx,1:Ny), Dh(1:Nx, 1:Ny), Du(1:Nx, 1:Ny), Dv(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_timestep_init:",alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       call initVar(D, 1._KDOUBLE)
       call initVar(Dh, 1._KDOUBLE)
       call initVar(Du, 1._KDOUBLE)
@@ -121,10 +110,7 @@ module swm_vars
 
 #ifdef LINEARISED_MEAN_STATE
       ALLOCATE(psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), zeta_bs(1:Nx,1:Ny,1),  stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in SWM_timestep_finishHeapsScheme:",alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_allloc_fatal(__FILE__, __LINE__)
       call initVar(psi_bs, 0._KDOUBLE)
       call initVar(u_bs, 0._KDOUBLE)
       call initVar(v_bs, 0._KDOUBLE)
@@ -142,14 +128,14 @@ module swm_vars
     subroutine SWM_vars_finish()
       integer(KINT)  :: alloc_error
       deallocate(SWM_u, SWM_v, SWM_eta, G_u, G_v, G_eta, EDens, Pot, zeta, MV, MU, stat=alloc_error)
-      if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      if (alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
 #ifdef FULLY_NONLINEAR
       deallocate(D, Du, Dv, Dh, stat=alloc_error)
-      if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      if (alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
 #endif
 #ifdef LINEARISED_MEAN_STATE
       deallocate(psi_bs, u_bs, v_bs, zeta_bs, stat=alloc_error)
-      if (alloc_error.NE.0) print *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      if (alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
 #endif
     end subroutine SWM_vars_finish
 

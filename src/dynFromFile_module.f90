@@ -19,6 +19,7 @@
 !------------------------------------------------------------------
 MODULE dynFromFile_module
 #include "io.h"
+  use logging
   use types
   USE memchunk_module, ONLY: memoryChunk
   IMPLICIT NONE
@@ -82,10 +83,7 @@ MODULE dynFromFile_module
       DFF_psi_input = isInitialised(DFF_psi_chunk)
       IF (DFF_psi_input) THEN
         ALLOCATE(DFF_psi_u(1:Nx,1:Ny,1),DFF_psi_v(1:Nx,1:Ny,1),stat=alloc_error)
-        IF (alloc_error.NE.0) THEN
-          PRINT *,"Memory allocation failed at ",__FILE__,__LINE__
-          STOP 1
-        END IF
+        IF (alloc_error.NE.0) call log_alloc_fatal(__FILE__, __LINE__)
         CALL addToRegister(DFF_psi_u,"DFF_PSI_U")
         CALL addToRegister(DFF_psi_v,"DFF_PSI_V")
       END IF
@@ -107,7 +105,8 @@ MODULE dynFromFile_module
       integer(KINT) :: alloc_error
       IF(DFF_psi_input) THEN
         DEALLOCATE(DFF_psi_u,DFF_psi_v,stat=alloc_error)
-        IF (alloc_error.NE.0) PRINT *,"Deallocation failed at ",__FILE__,__LINE__
+        IF (alloc_error.NE.0) &
+          call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       CALL finishMemChunk(DFF_u_chunk)
       CALL finishMemChunk(DFF_v_chunk)
@@ -184,15 +183,14 @@ MODULE dynFromFile_module
       integer(KINT)                           :: alloc_error
       IF (.NOT.isConstant(memChunk).OR.itt.EQ.0) THEN
         IF (.NOT.ALLOCATED(psi)) ALLOCATE(psi(1:Nx,1:Ny,1),stat=alloc_error)
-        IF (alloc_error.NE.0) THEN
-          PRINT *,"Memory allocation failed in ",__FILE__,__LINE__
-          STOP 1
-        END IF
+        IF (alloc_error.NE.0) &
+          call log_alloc_fatal(__FILE__,__LINE__)
         psi(:,:,1) = getChunkData(memChunk,time)
         DFF_psi_u = evSF_zonal(psi)
         DFF_psi_v = evSF_meridional(psi)
         IF (ALLOCATED(psi)) DEALLOCATE(psi,stat=alloc_error)
-        IF (alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__
+        IF (alloc_error.NE.0) &
+          call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
     END SUBROUTINE getVelFromPsi
 

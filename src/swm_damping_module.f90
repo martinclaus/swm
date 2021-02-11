@@ -13,6 +13,7 @@ MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
+  use logging
   use types
   use init_vars
   IMPLICIT NONE
@@ -55,10 +56,7 @@ MODULE swm_damping_module
       ocean_v = v_grid%ocean
       ! allocate memory
       ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(impl_u, 1._KDOUBLE)
       call initVar(impl_v, 1._KDOUBLE)
       call initVar(impl_eta, 1._KDOUBLE)
@@ -68,10 +66,7 @@ MODULE swm_damping_module
 
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
       CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
       call initVar(gamma_lin_u, 0._KDOUBLE)
@@ -88,10 +83,7 @@ MODULE swm_damping_module
       ! quadratic friction
 #ifdef QUADRATIC_BOTTOM_FRICTION
       ALLOCATE(gamma_sq_u(1:Nx, 1:Ny), gamma_sq_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(gamma_sq_u, 0._KDOUBLE)
       call initVar(gamma_sq_v, 0._KDOUBLE)
       CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U", u_grid)
@@ -105,10 +97,7 @@ MODULE swm_damping_module
 #endif
       ! Newtonian cooling
       ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(gamma_lin_eta, 0._KDOUBLE)
       CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
 
@@ -178,8 +167,7 @@ MODULE swm_damping_module
         CASE ("GAMMA_LIN_ETA")
           grid_ident = "E"
         CASE DEFAULT
-          PRINT *,"ERROR: Unknow damping coefficient "//TRIM(coefName)//" requested. Check your code!"
-          STOP 1
+          call log_fatal("Unknow damping coefficient "//TRIM(coefName)//" requested.")
       END SELECT
 
       ! read input namelists
@@ -200,19 +188,15 @@ MODULE swm_damping_module
 
           case (SWM_DAMPING_NL_TYPE_FILE)
             CALL initMemChunk(filename,varname,chunkSize,memChunk)
-            IF (.NOT.isInitialised(memChunk)) THEN
-              PRINT *,"ERROR loading damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!"
-              STOP 1
-            end if
+            IF (.NOT.isInitialised(memChunk)) &
+              call log_fatal("Cannot load damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!")
             coef = max(getChunkData(memChunk, 0._KDOUBLE), coef)
             CALL finishMemChunk(memChunk)
 
           case (SWM_DAMPING_NL_TYPE_UNIFORM)
             coef = max(coef, value)
           case default
-            write (*, *) "ERROR: Unkown type identifyer in swm_damping_nl. Check your namelists!"
-            STOP 1
-
+            call log_fatal("Unkown type identifyer in swm_damping_nl. Check your namelists!")
         end select
       END DO
       CLOSE(UNIT_SWM_DAMPING_NL)
@@ -297,6 +281,7 @@ MODULE swm_damping_module
       integer(KINT)                            :: iGrid, iBoundary, iSponge(4,3)
       real(KDOUBLE), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
       real(KDOUBLE), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
+      character(CHARLEN)                       :: log_msg
 
       iSponge = RESHAPE((/1_KINT, Ny-1, 2_KINT, Nx-1,&
                           2_KINT, Ny-1, 1_KINT, Nx-1,&
@@ -316,8 +301,8 @@ MODULE swm_damping_module
           lat = eta_grid%lat
           lon = eta_grid%lon
         CASE default
-          WRITE (*,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
-          RETURN
+          WRITE (log_msg,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
+          call log_fatal(log_msg)
       END SELECT
       spongeCoefficient = D2R * A / length / &
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
@@ -383,13 +368,13 @@ MODULE swm_damping_module
       integer(KINT) :: alloc_error
       IF (ALLOCATED(gamma_sq_u)) THEN
         DEALLOCATE(gamma_sq_u,stat=alloc_error)
-        IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+        IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       IF (ALLOCATED(gamma_sq_v)) THEN
         DEALLOCATE(gamma_sq_v,stat=alloc_error)
-        IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+        IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       DEALLOCATE(impl_u,impl_v,impl_eta,stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE SWM_damping_finish
 END MODULE swm_damping_module

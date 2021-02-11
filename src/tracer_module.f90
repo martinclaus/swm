@@ -24,6 +24,7 @@
 !------------------------------------------------------------------
 MODULE tracer_module
 #include "model.h"
+  use logging
   use types
   use tracer_vars
   USE time_integration_module, ONLY : integrate_AB
@@ -59,7 +60,7 @@ MODULE tracer_module
       integer(KINT) :: alloc_error
 
       call TRC_vars_init
-      if (.not. TRC_has_tracer()) write(*, *) "Warning: no tracer defined but running tracer module."
+      if (.not. TRC_has_tracer()) call log_warn("No tracer defined but running tracer module.")
 
       ! get pointer to layer thickness
       call getFromRegister("SWM_D", h)
@@ -297,10 +298,7 @@ MODULE tracer_module
       real(KDOUBLE), dimension(:), pointer :: cosTheta_u, cosTheta_v, cosTheta_eta
 
       allocate(TRC_coeff(TRC_NCOEFF, Nx, Ny), stat=alloc_error)
-      if (alloc_error .ne. 0) then
-        write(*,*) "Allocation error in initTracer"
-        stop 1
-      end if
+      if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
 
       call addToRegister(TRC_coeff,"TRC_COEFF")
       ! TRC_coeff = 0._KDOUBLE
@@ -350,7 +348,7 @@ MODULE tracer_module
     SUBROUTINE TRC_finishCoeffs
       integer(KINT)       :: alloc_error
       DEALLOCATE(TRC_coeff, STAT=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed"
+      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE TRC_finishCoeffs
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

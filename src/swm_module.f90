@@ -13,6 +13,7 @@
 !------------------------------------------------------------------
 MODULE swm_module
 #include "model.h"
+  use logging
   use types
   use swm_vars
   USE swm_damping_module
@@ -36,13 +37,13 @@ MODULE swm_module
     SUBROUTINE SWM_initSWM
       IMPLICIT NONE
       call swm_vars_init
-      print *, "	swm_vars_init done"
+      call log_info("swm_vars_init done")
       CALL SWM_timestep_init
-      print *, "	swm_timestep_init done"
+      call log_info("swm_timestep_init done")
       CALL SWM_damping_init
-      print *, "	swm_damping_init done"
+      call log_info("swm_damping_init done")
       CALL SWM_forcing_init
-      print *, "	swm_forcing_init done"
+      call log_info("swm_forcing_init done")
       CALL SWM_initialConditions
     END SUBROUTINE SWM_initSWM
 

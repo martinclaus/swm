@@ -11,6 +11,7 @@
 !! io_module, vars_module, domain_module, generic_list, diagVar
 !------------------------------------------------------------------
 MODULE diagTask
+  use logging
   use types
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr, updateNrec
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start
@@ -91,10 +92,7 @@ MODULE diagTask
       integer(KINT) :: alloc_error, i
 
       ALLOCATE(self, stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
 
       self%FH = FH
       self%type = type
@@ -113,10 +111,8 @@ MODULE diagTask
 
       !< Set pointer to variable register
       CALL getVarDataFromRegister(self)
-      IF (.NOT.ASSOCIATED(self%varData2D).and..not.associated(self%varData1D)) THEN
-        PRINT *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-        STOP 2
-      END IF
+      IF (.NOT.ASSOCIATED(self%varData2D).and..not.associated(self%varData1D)) &
+        call log_fatal("Diagnostics for variable "//TRIM(self%varname)//" not yet supported!")
 
       !< Setup task object, allocate memory if needed
       SELECT CASE (self%type(1:1))
@@ -127,17 +123,11 @@ MODULE diagTask
         CASE ("A","a")
           if(associated(self%varData2D)) then !< euler grid
             allocate(self%buffer(size(self%varData2D,1), size(self%varData2D,2)), stat=alloc_error)
-            IF (alloc_error .ne. 0) THEN
-              PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
-              STOP 1
-            END IF
+            IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
             call initVar(self%buffer, 0._KDOUBLE)
           else if (associated(self%varData1D)) then !< lagrangian grid
             allocate(self%buffer(size(self%varData1D),1), stat=alloc_error)
-            IF (alloc_error .ne. 0) THEN
-              PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
-              STOP 1
-            END IF
+            IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
 !$omp parallel do private(i) schedule(OMPSCHEDULE, OMPCHUNK)
             do i = 1, size(self%buffer, 1)
               self%buffer(i, 1) = 0._KDOUBLE
@@ -168,7 +158,7 @@ MODULE diagTask
 
       IF (ALLOCATED(self%buffer)) THEN
         DEALLOCATE(self%buffer, stat=alloc_error)
-        IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
+        IF ( alloc_error .NE. 0 ) call log_error("Deallocation failed in " // __FILE__)
       END IF
 
       nullify(self%varData2D)
@@ -177,7 +167,7 @@ MODULE diagTask
       nullify(self%grid_l)
 
       DEALLOCATE(self, stat=alloc_error)
-      IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF ( alloc_error .NE. 0 ) call log_error("Deallocation failed in " // __FILE__)
 
     END SUBROUTINE finishDiagTask
 
@@ -201,6 +191,7 @@ MODULE diagTask
       CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       integer(KINT), INTENT(out)       :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
       NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process, NoutChunk
+      character(CHARLEN) :: log_msg
 
       !< Set default values
       filename  = DEF_OFILENAME
@@ -216,8 +207,8 @@ MODULE diagTask
       nlist=nlist+1
       READ(UNIT_DIAG_NL, nml=diag_nl, iostat=io_stat)
       IF (io_stat.GT.0) THEN
-        WRITE (*,'("ERROR: There is a problem in diag_nl",X,I2,". Check if your datatypes are correct!")') nlist
-        STOP 1
+        WRITE (log_msg, '("ERROR: There is a problem in diag_nl",X,I2,". Check if your datatypes are correct!")') nlist
+        call log_fatal(log_msg)
       END IF
 
       IF (ovarname.EQ."var") ovarname = varname
@@ -454,7 +445,7 @@ MODULE diagTask
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Print summary of diagTaskList
+    !> @brief Summary of diagTaskList
     !!
     !! Itterate through diagTask::diagTaskList and print a summary of each task. At last
     !! call diagVar::printVarSummary.
@@ -462,7 +453,7 @@ MODULE diagTask
     SUBROUTINE printTaskSummary
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagTask_ptr)         :: task_ptr
-      PRINT *,"Task Summary:"
+      call log_info("Task Summary:")
       currentNode => diagTaskList
       DO WHILE (ASSOCIATED(currentNode))
         IF (ASSOCIATED(list_get(currentNode))) task_ptr = transfer(list_get(currentNode),task_ptr)
@@ -480,24 +471,31 @@ MODULE diagTask
     SUBROUTINE printTask(self)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout)    :: self  !< Task to print information about
-      CHARACTER(CHARLEN) :: formatedString, formatedInteger
+      CHARACTER(CHARLEN) :: formatedString, formatedInteger, msg
       IF (.NOT.associated(self)) THEN
-        PRINT *,"ERROR: Try to print non-existent diagnostic task!"
+        call log_error("Try to print non-existent diagnostic task!")
         RETURN
       END IF
       formatedString = '("**",X,A10,X,A80,/)'
-      formatedInteger = '("**",X,A10,X,I4)'
-      WRITE (*,'(A52)') "** Diag task info **********************************"
-      WRITE (*,'('//formatedInteger//',/,6'//formatedString//','//formatedInteger//')') &
-        "ID:", self%ID, &
-        "Varname:", self%varname, &
-        "Filename:", getFileNameFH(self%FH), &
-        "OVarname:", getVarNameFH(self%FH), &
-        "Type:", self%type, &
-        "Process:", self%process, &
-        "Period:", self%period, &
-        "Frequency:", self%frequency
-      WRITE (*,'(A52)') "****************************************************"
+      formatedInteger = '("**",X,A10,X,I4,/)'
+      call log_info("** Diag task info **********************************")
+      write(msg, formatedInteger) "ID:", self%ID
+      call log_info(msg)
+      write(msg, formatedString) "Varname:", self%varname
+      call log_info(msg)
+      write(msg, formatedString) "Filename:", getFileNameFH(self%FH)
+      call log_info(msg)
+      write(msg, formatedString) "OVarname:", getVarNameFH(self%FH)
+      call log_info(msg)
+      write(msg, formatedString) "Type:", self%type
+      call log_info(msg)
+      write(msg, formatedString) "Process:", self%process
+      call log_info(msg)
+      write(msg, formatedString) "Period:", self%period
+      call log_info(msg)
+      write(msg, formatedInteger) "Frequency:", self%frequency
+      call log_info(msg)
+      call log_info("****************************************************")
     END SUBROUTINE
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -514,10 +512,8 @@ MODULE diagTask
       call getFromRegister(self%varname,self%varData2D,self%grid,self%grid_l)
       if (.not.associated(self%varData2D)) &
         call getFromRegister(self%varname,self%varData1D, self%grid, self%grid_l)
-       if (.not.associated(self%varData2D).and..not.associated(self%varData1D)) then
-         print *, "ERROR: Diagnostics for variable "//TRIM(self%varname)//" not yet supported!"
-         stop 2
-       end if
+        if (.not.associated(self%varData2D).and..not.associated(self%varData1D)) &
+          call log_fatal("Variable "//TRIM(self%varname)//" not registered for diagnostics!")
     end subroutine
 
 END MODULE diagTask
