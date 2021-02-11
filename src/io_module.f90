@@ -13,6 +13,7 @@
 !------------------------------------------------------------------
 MODULE io_module
 #include "io.h"
+  use logging
   use types
   USE netcdf
   USE calendar_module, ONLY : ref_cal, calendar, openCal, setCal, &
@@ -131,15 +132,16 @@ MODULE io_module
       IMPLICIT NONE
       integer(KINT_NF90), INTENT(in)         :: status          !< Status returned by a call of a netcdf library function
       integer, INTENT(in), OPTIONAL          :: line            !< Line of file where the subroutine was called
-      CHARACTER(len=*), INTENT(in), OPTIONAL :: fileName  !< Name of file the function trys to access
+      CHARACTER(len=*), INTENT(in), OPTIONAL :: fileName        !< Name of file the function trys to access
+      character(CHARLEN)  :: log_msg
       if(status /= nf90_noerr) then
         IF (PRESENT(line) .AND. PRESENT(fileName)) THEN
-          WRITE(*,'("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
+          WRITE(log_msg, '("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
             line,TRIM(nf90_strerror(status)),TRIM(fileName)
+          call log_fatal(log_msg)
         ELSE
-          print *, trim(nf90_strerror(status))
+          call log_fatal(trim(nf90_strerror(status)))
         END IF
-        stop 2
       end if
     END SUBROUTINE check
 
@@ -298,7 +300,7 @@ MODULE io_module
           CALL getAtt(FH_time,NUG_ATT_UNITS,t_string)
           IF (LEN_TRIM(t_string).EQ.0) THEN
             t_string = time_unit
-            PRINT *,"WARING: Input dataset ",TRIM(FH%filename)," has no time axis. Assumed time axis: ",TRIM(t_string)
+            call log_warn("Input dataset "//TRIM(FH%filename)//" has no time axis. Assumed time axis: "//TRIM(t_string))
           END IF
           CALL setCal(FH%calendar,t_string)
         ELSE ! datset has no non-singleton time axis
@@ -504,7 +506,7 @@ MODULE io_module
         CALL getVar1Dhandle(FH_time,time)
       END IF
       ! convert to model time unit
-      print *, "Convert time from", getFileNameFH(FH)
+      call log_debug("Convert time for input "//getFileNameFH(FH))
       CALL convertTime(FH%calendar, modelCalendar, time)
     END SUBROUTINE getTimeVar
 

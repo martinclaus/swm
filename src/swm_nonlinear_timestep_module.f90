@@ -74,10 +74,7 @@ MODULE swm_timestep_module
       open(UNIT_MODEL_NL, file = MODEL_NL)
       read(UNIT_MODEL_NL, nml = swm_timestep_nl, iostat=stat)
       close(UNIT_MODEL_NL)
-      IF (stat .NE. 0) THEN
-        PRINT *,"ERROR loading timestep namelist SWM_timestep_nl"
-        STOP 1
-      END IF
+      IF (stat .NE. 0) call log_fatal("Cannot read timestep namelist SWM_timestep_nl")
 
       ! get basic state
       CALL initMemChunk(filename,varname,chunksize,SWM_MC_bs_psi)
@@ -461,12 +458,8 @@ MODULE swm_timestep_module
     SUBROUTINE alreadyStepped(already_stepped)
       IMPLICIT NONE
       LOGICAL, INTENT(inout) :: already_stepped
-      IF (already_stepped) THEN
-        PRINT *,"More than one time stepping scheme defined for SWM module."
-        STOP 3
-      ELSE
-        already_stepped = .TRUE.
-      END IF
+      IF (already_stepped) call log_fatal("More than one time stepping scheme defined for SWM module.")
+      already_stepped = .TRUE.
     END SUBROUTINE alreadyStepped
 
 END MODULE swm_timestep_module

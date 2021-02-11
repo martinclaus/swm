@@ -34,6 +34,7 @@
 !------------------------------------------------------------------
 MODULE swm_lateralmixing_module
 #include "model.h"
+  use logging
   use types
   use init_vars
   IMPLICIT NONE
@@ -70,10 +71,7 @@ MODULE swm_lateralmixing_module
 
       ALLOCATE(lat_mixing_u(1:3, 1:Nx, 1:Ny), lat_mixing_v(1:3, 1:Nx, 1:Ny), &
                swm_latmix_u(1:Nx, 1:Ny), swm_latmix_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(lat_mixing_u, 0._KDOUBLE)
       call initVar(lat_mixing_v, 0._KDOUBLE)
       call initVar(swm_latmix_u, 0._KDOUBLE)
@@ -108,7 +106,7 @@ MODULE swm_lateralmixing_module
       integer(KINT)   :: alloc_error
       call SWM_LateralMixing_finish_p_coefficients
       DEALLOCATE(lat_mixing_u, lat_mixing_v, swm_latmix_u, swm_latmix_v, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE SWM_LateralMixing_finish
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -122,10 +120,7 @@ MODULE swm_lateralmixing_module
 
       allocate(pll_coeff(1:3, 1:Nx, 1:Ny), plt_coeff(1:3, 1:Nx, 1:Ny), &
                pll(1:Nx, 1:Ny), plt(1:Nx, 1:Ny), stat=alloc_error)
-      if (alloc_error .ne. 0) then
-        write(*,*) "Allocation error in ",__FILE__,__LINE__,alloc_error
-        stop 1
-      end if
+      if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(pll, 0._KDOUBLE)
       call initVar(plt, 0._KDOUBLE)
       call addToRegister(pll_coeff,"Pll_COEFF", eta_grid)
@@ -156,7 +151,7 @@ MODULE swm_lateralmixing_module
     subroutine SWM_LateralMixing_finish_p_coefficients
       integer(KINT) :: alloc_error
       deallocate(pll, pll_coeff, plt, plt_coeff, stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     end subroutine SWM_LateralMixing_finish_p_coefficients
 
     subroutine SWM_LateralMixing_step
@@ -213,8 +208,7 @@ MODULE swm_lateralmixing_module
                              (/plt(ip1(i), j) - plt(i, j), &
                                pll(i, j), pll(i, jm1(j))/)) / Dv(i, j)
       else
-        print *, "ERROR: Target grid for lateral mixing computation is neither grid_u nor grid_v!"
-        stop 2
+        call log_fatal("Target grid for lateral mixing computation is neither grid_u nor grid_v!")
       end if
     end function SWM_LateralMixing
 

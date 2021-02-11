@@ -20,6 +20,7 @@ MODULE swm_forcing_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
+  use logging
   use types
   use init_vars
   USE memchunk_module, ONLY : memoryChunk
@@ -90,10 +91,7 @@ MODULE swm_forcing_module
       ! allocate forcing fields
       ALLOCATE(F_x(1:Nx, 1:Ny), F_y(1:Nx, 1:Ny), F_eta(1:Nx,1:Ny), &
                F_x_const(1:Nx, 1:Ny), F_y_const(1:Nx, 1:Ny), F_eta_const(1:Nx,1:Ny), stat=stat)
-      IF (stat .ne. 0) THEN
-        WRITE(*,*) "Allocation error in ",__FILE__,__LINE__,stat
-        STOP 1
-      END IF
+      IF (stat .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(F_x, 0._KDOUBLE)
       call initVar(F_y, 0._KDOUBLE)
       call initVar(F_eta, 0._KDOUBLE)
@@ -184,14 +182,15 @@ MODULE swm_forcing_module
       integer(KINT)               :: i
       TYPE(list_node_t), POINTER  :: streamlist
       TYPE(stream_ptr)            :: sptr
+      character(CHARLEN)          :: log_msg
 
       if (.not. has_forcing) return
 
       streamlist => SWM_forcing_iStream
 
       IF (.NOT. ASSOCIATED(streamlist)) THEN
-          WRITE (*,*) "Error in accessing SWM_forcing_iStream linked list in line",  __LINE__
-          STOP 2
+          WRITE (log_msg,*) "Error in accessing SWM_forcing_iStream linked list in line", __LINE__
+          call log_fatal(log_msg)
       END IF
       DO WHILE (ASSOCIATED(streamlist))
         IF (ASSOCIATED(list_get(streamlist))) THEN
@@ -224,6 +223,7 @@ MODULE swm_forcing_module
       USE memchunk_module, ONLY : getVarNameMC, getFileNameMC
       IMPLICIT NONE
       TYPE(SWM_forcingStream), INTENT(inout) :: iStream !< Forcing stream to process
+      character(CHARLEN) :: log_msg
       ! Call routine to change forcing
       SELECT CASE(iStream%forcingType(1:1))
         CASE("W","w")
@@ -237,10 +237,10 @@ MODULE swm_forcing_module
         CASE("O", "o")
           CALL SWM_forcing_processOscillation(iStream)
         CASE DEFAULT
-          WRITE(*,'("ERROR Unkown forcing type:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"Component :",X,A,/)') &
-           TRIM(iStream%forcingtype),TRIM(getFileNameMC(iStream%memChunk)),&
-           TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%component)
-          STOP 2
+          WRITE(log_msg,'("ERROR Unkown forcing type:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"Component :",X,A,/)') &
+            TRIM(iStream%forcingtype),TRIM(getFileNameMC(iStream%memChunk)),&
+            TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%component)
+          call log_fatal(log_msg)
       END SELECT
     END SUBROUTINE SWM_forcing_processInputStream
 
@@ -282,6 +282,7 @@ MODULE swm_forcing_module
       real(KDOUBLE), DIMENSION(:,:), POINTER   :: H
       integer(KSHORT), DIMENSION(:,:), POINTER :: ocean_u
       integer(KSHORT), DIMENSION(:,:), POINTER :: ocean_v
+      character(CHARLEN)                       :: log_msg
 
       ocean_u => u_grid%ocean
       ocean_v => v_grid%ocean
@@ -305,10 +306,10 @@ MODULE swm_forcing_module
           oceanMask => ocean_v
           H => Dv
         CASE DEFAULT
-          WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
+          WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(getFileNameMC(iStream%memChunk)),&
            TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%forcingtype)
-          STOP 2
+          call log_fatal(log_msg)
       END SELECT
       ! Do the calculation
       WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + (&
@@ -332,6 +333,7 @@ MODULE swm_forcing_module
       real(KDOUBLE), dimension(1:Nx, 1:Ny)      :: rData, iData !, oscForce
       real(KDOUBLE)  :: r_iot, i_iot
       integer(KINT) :: i, j
+      character(CHARLEN)  :: log_msg
 
       ! Setup pointer
       SELECT CASE(iStream%component(1:1))
@@ -345,10 +347,10 @@ MODULE swm_forcing_module
           forcingTerm => F_eta
           oceanMask => eta_grid%ocean
         CASE DEFAULT
-          WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
+          WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(getFileNameMC(iStream%memChunk)),&
            TRIM(getVarNameMC(iStream%memChunk)),TRIM(iStream%forcingtype)
-          STOP 2
+          call log_fatal(log_msg)
       END SELECT
       ! get the data
       rData = getChunkData(iStream%memChunk,itt*dt)
@@ -398,6 +400,7 @@ MODULE swm_forcing_module
       TYPE(SWM_forcingStream), INTENT(inout)   :: iStream      !< Forcing stream to process
       real(KDOUBLE), DIMENSION(:,:), POINTER   :: forcingTerm
       integer(KSHORT), DIMENSION(:,:), POINTER :: oceanMask
+      character(CHARLEN)  :: log_msg
 
       SELECT CASE(iStream%component(1:1))
         CASE("Z","z")
@@ -422,10 +425,10 @@ MODULE swm_forcing_module
           END IF
           oceanMask => eta_grid%ocean
         CASE DEFAULT
-          WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
+          WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
            TRIM(getFileNameMC(iStream%memChunk)),TRIM(getVarNameMC(iStream%memChunk))
-          STOP 2
+          call log_fatal(log_msg)
       END SELECT
       WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + getChunkData(iStream%memChunk, itt*dt)
     END SUBROUTINE SWM_forcing_processCustomForcing
@@ -459,6 +462,7 @@ MODULE swm_forcing_module
       integer(KSHORT), DIMENSION(:,:), POINTER :: ocean_v
       real(KDOUBLE), DIMENSION(:), POINTER     :: cosTheta_u
       real(KDOUBLE), DIMENSION(:), POINTER     :: cosTheta_v
+      character(CHARLEN)                       :: log_msg
 
       ocean_u => u_grid%ocean
       ocean_v => v_grid%ocean
@@ -511,10 +515,10 @@ MODULE swm_forcing_module
           end do
 !$omp end parallel do
         CASE DEFAULT
-          WRITE(*,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
+          WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%forcingtype),&
            TRIM(getFileNameMC(iStream%memChunk)),TRIM(getVarNameMC(iStream%memChunk))
-          STOP 2
+          call log_fatal(log_msg)
       END SELECT
     END SUBROUTINE SWM_forcing_processEMF
 
@@ -561,14 +565,10 @@ MODULE swm_forcing_module
       streamlist => SWM_forcing_iStream
 
       DEALLOCATE(F_x,F_y,F_x_const,F_y_const,F_eta,F_eta_const,stat=alloc_error)
-      IF(alloc_error.NE.0) PRINT *,"Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
 
       if (has_forcing) then
-        IF (.NOT. ASSOCIATED(streamlist)) THEN
-              WRITE (*,*) "Error in accessing SWM_forcing_iStream linked list in line ", __LINE__
-              STOP 2
-        END IF
-
+        IF (.NOT. ASSOCIATED(streamlist)) call log_fatal("Error in accessing SWM_forcing_iStream list in line __LINE__")
         DO WHILE(ASSOCIATED(streamlist))
           sptr = transfer(list_get(streamlist), sptr)
           IF (sptr%stream%isInitialised) CALL SWM_forcing_finishStream(sptr%stream)
@@ -600,22 +600,22 @@ MODULE swm_forcing_module
       CHARACTER(CHARLEN), INTENT(in)    :: component           !< Component of the forcing, e.g. zonal or meridional
       real(KDOUBLE), intent(in)         :: omega               !< Angular frequency of forcing if forcingtype is OSCILLATING
       TYPE(stream_ptr)                  :: sptr
-
+      character(CHARLEN)                :: log_msg
 
       ALLOCATE(sptr%stream)
 
       CALL initMemChunk(filename, varname, chunksize, sptr%stream%memChunk)
       IF (.NOT. isInitialised(sptr%stream%memChunk)) THEN
-          WRITE(*,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
+          WRITE(log_msg,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
               TRIM(filename),TRIM(varname),TRIM(forcingtype),TRIM(component)
-          STOP 2
+          call log_fatal(log_msg)
       END IF
       if (filename2 .ne. "" .and. varname2 .ne. "") then
           call initMemChunk(filename2, varname2, chunksize, sptr%stream%memChunk2)
           if (.NOT. isInitialised(sptr%stream%memChunk2)) THEN
-              WRITE(*,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
-              TRIM(filename2),TRIM(varname2),TRIM(forcingtype),TRIM(component)
-              STOP 2
+              WRITE(log_msg,'("ERROR Dataset or Variable not found:",X,A,":",A,/,"Forcing Type:",X,A,/,"Component:",X,A)') &
+                TRIM(filename2),TRIM(varname2),TRIM(forcingtype),TRIM(component)
+              call log_fatal(log_msg)
           end if
       end if
 

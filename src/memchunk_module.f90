@@ -12,6 +12,7 @@
 !------------------------------------------------------------------
 MODULE memchunk_module
 #include "io.h"
+  use logging
   use types
   use init_vars
   USE io_module
@@ -90,8 +91,10 @@ MODULE memchunk_module
       ELSE IF (chunkSize.GE.nrec+1) THEN ! chunk size too large, persistent chunk is cheaper and faster
         memChunk%isPersistent = .TRUE.
         memChunk%chunkSize    = nrec+1
-        IF(chunksize.GT.nrec+1) PRINT *,"INFO: Chunksize of ",&
-          TRIM(getFileNameMC(memChunk)),":",TRIM(getVarNameMC(memChunk))," changed to increase efficiency"
+        IF(chunksize.GT.nrec+1) call log_debug( &
+            "INFO: Chunksize of "//TRIM(getFileNameMC(memChunk))//":"//TRIM(getVarNameMC(memChunk)) &
+            //" changed to increase efficiency" &
+          )
       ELSE
         memChunk%chunkSize    = chunkSize
       END IF
@@ -100,10 +103,7 @@ MODULE memchunk_module
       ALLOCATE(memChunk%var(1:Nx,1:Ny,1:memChunk%chunkSize), &
                memChunk%time(1:memChunk%chunkSize), &
                stat=alloc_error)
-      IF (alloc_error.NE.0) THEN
-        PRINT *,"Allocation failed in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error.NE.0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(memChunk%var, 0._KDOUBLE)
       memChunk%time = 0.
       CALL getChunkFromDisk(memChunk)
@@ -124,7 +124,7 @@ MODULE memchunk_module
       IF (isInitialised(memChunk)) THEN
         CALL closeDS(memChunk%FH)
         DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
-        IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
+        IF ( alloc_error .NE. 0 ) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       memChunk%isInitialised = .FALSE.
     END SUBROUTINE finishMemChunk

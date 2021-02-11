@@ -5,7 +5,7 @@
 !! @author Valentin Kratzsch
 !!
 !! This module controls diagnostics, i.e. it initialises a linked lists of
-!! diagnostic tasks (diagTask::diagTaskList) and print a summary. Diagnostics are configured
+!! diagnostic tasks (diagTask::diagTaskList). Diagnostics are configured
 !! entirely by diag_nl namelists.
 !!
 !! @par Includes:
@@ -25,15 +25,12 @@ MODULE diag_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialises the module
     !!
-    !! Calls for initialisation of diagTask::diagTaskList and print
-    !! the result
+    !! Initialisation of diagTask::diagTaskList
     !------------------------------------------------------------------
     SUBROUTINE initDiag
       IMPLICIT NONE
       !< Init diagnostic tasks
       CALL initDiagTaskList
-      !< be verbose
-      !CALL printTaskSummary
     END SUBROUTINE initDiag
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

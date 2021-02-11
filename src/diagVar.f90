@@ -15,6 +15,7 @@
 MODULE diagVar
 #include "io.h"
 #include "diag_module.h"
+  use logging
   use types
   use init_vars
   USE vars_module, ONLY : addToRegister
@@ -75,10 +76,8 @@ MODULE diagVar
         NULLIFY(self%data)
       END IF
       ALLOCATE(self%data(1:Nx,1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) THEN
-        PRINT *, "Allocation error in ",__FILE__,__LINE__,alloc_error
-        STOP 1
-      END IF
+      IF (alloc_error .ne. 0) &
+        call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(self%data, 0._KDOUBLE)
       self%name=""
       if (PRESENT(name)) THEN
@@ -101,7 +100,8 @@ MODULE diagVar
         NULLIFY(self%data)
       END IF
       DEALLOCATE(self, stat=alloc_error)
-      IF ( alloc_error .NE. 0 ) PRINT *, "Deallocation failed in ",__FILE__,__LINE__,alloc_error
+      IF ( alloc_error .NE. 0 ) &
+        call log_error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE finishDiagVar
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -128,8 +128,7 @@ MODULE diagVar
         case (DVARNAME_V_ND)
           call computeNonDivergentFlowField(u(:,:,N0), v(:,:,N0), v_nd_out=var%data)
         CASE DEFAULT
-          PRINT *,"ERROR: Usupported diagnostic variable "//TRIM(var%name)
-          STOP 1
+          call log_fatal("Usupported diagnostic variable "//TRIM(var%name))
       END SELECT
       var%computed = .TRUE.
     END SUBROUTINE computeDiagVar
@@ -209,8 +208,7 @@ MODULE diagVar
         case (DVARNAME_V_ND)
           gout => v_grid
         case default
-          print *,"ERROR: No grid can be found for diagnostic variable "//TRIM(name)
-          STOP 1
+          call log_fatal("No grid can be found for diagnostic variable "//TRIM(name))
       end select
     end function
 
@@ -310,7 +308,7 @@ MODULE diagVar
     SUBROUTINE printVarSummary
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagVar_ptr)          :: var_ptr
-      PRINT *,"Diag Variable Summary:"
+      call log_info("Diag Variable Summary:")
       currentNode => diagVarList
       DO WHILE (ASSOCIATED(currentNode))
         IF (ASSOCIATED(list_get(currentNode))) var_ptr = transfer(list_get(currentNode),var_ptr)
@@ -327,17 +325,19 @@ MODULE diagVar
     SUBROUTINE printVar(self)
       IMPLICIT NONE
       TYPE(diagVar_t), POINTER, INTENT(in)    :: self  !< Task to print information about
-      CHARACTER(CHARLEN) :: formatedString, formatedLogical
+      CHARACTER(CHARLEN) :: formatedString, formatedLogical, msg
       IF (.NOT.associated(self)) THEN
-        PRINT *,"ERROR: Try to print non-existent diagnostic variable!"
+        call log_error("Try to print non-existent diagnostic variable!")
         RETURN
       END IF
       formatedString = '("**",X,A10,X,A80)'
       formatedLogical = '("**",X,A10,X,L2)'
-      WRITE (*,'(A52)') "** Diag task info **********************************"
-      WRITE (*,formatedString) "Name:",getName(self)
-      WRITE (*,formatedLogical) "Associated:", ASSOCIATED(self%data)
-      WRITE (*,'(A52)') "****************************************************"
+      call log_info("** Diag task info **********************************")
+      write (msg, formatedString) "Name:", getName(self)
+      call log_info(msg)
+      WRITE (msg, formatedLogical) "Associated:", ASSOCIATED(self%data)
+      call log_info(msg)
+      call log_info("****************************************************")
     END SUBROUTINE printVar
 
 END MODULE diagVar

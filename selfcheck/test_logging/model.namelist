@@ -1,0 +1,16 @@
+&logging_nl
+  level=5
+  file="test.log"
+/
+
+&model_nl
+/
+
+&calendar_nl
+/
+
+&domain_nl
+/
+
+&output_nl
+/
