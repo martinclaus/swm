@@ -995,30 +995,26 @@ MODULE io_module
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Convert string representation of NetCDF creation mode to propert argument
-    !!
-    !! May fail with a fatal error if provided string is not a valid
-    !! NetCDF file creation mode. See https://docs.unidata.ucar.edu/netcdf-fortran/current/f90_datasets.html#f90-nf90_create
-    !!
-    !! @par Uses:
-    !! str, only : to_upper
+    !> @brief  Construct NetCDF cmode argument from array of flag names
     !------------------------------------------------------------------
     integer function get_NF90_cmode(mode_strings) result(mode_code)
-      use str, only : split_comma
       implicit none
       character(*), intent(in)  :: mode_strings(:)
-      ! character(CHARLEN) :: mode_array(MAX_NC_CMODE_FLAGS)=""
       integer :: i
 
       mode_code = 0
-      ! call split_comma(mode_string, mode_array)
       do i = 1, size(mode_strings)
         if (trim(mode_strings(i)) .eq. "") exit
-        print *, "'" // mode_strings(i)(1:2) // "'", trim(mode_strings(i)), len(trim(mode_strings(i)))
         mode_code = ior(mode_code, nf90cmode_string_to_int(mode_strings(i)))
       end do 
     end function get_NF90_cmode
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Convert string representation of NetCDF creation mode to proper argument
+    !!
+    !! May fail with a fatal error if provided string is not a valid
+    !! NetCDF file creation mode. See https://docs.unidata.ucar.edu/netcdf-fortran/current/f90_datasets.html#f90-nf90_create
+    !------------------------------------------------------------------
     integer function nf90cmode_string_to_int(s) result(code)
       use str, only : to_upper
       implicit none
