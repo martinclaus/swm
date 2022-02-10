@@ -48,11 +48,30 @@ MODULE io_module
     TYPE(calendar), PRIVATE         :: calendar               !< Calendar the fileHandle uses
   END TYPE fileHandle
 
+  type, private :: nc_file_parameter
+    integer               :: cmode = DEF_NC_CMODE  !< NetCDF creation mode. Need to match one of NF90_CLOBBER, NF90_NOCLOBBER,
+                                                   !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
+    integer               :: contiguous = DEF_NC_CONTIGUOUS  !< -99: not set, 0: .False., 1: .True.
+    integer, dimension(MAX_NC_DIMS) :: chunksizes = 0 !< An array of chunk number of elements. This array has the number of
+                                                   !< elements along each dimension of the data chunk. The array must have
+                                                   !< the one chunksize for each dimension in the variable.
+    integer               :: n_dims = 0            !< number of non-zero elements in chunksizes.
+    logical               :: shuffle = DEF_NC_SHUFFLE             !< If non-zero, turn on the shuffle filter.
+    integer               :: deflate_level = DEF_NC_DEFLATE_LEVEL !< If the deflate parameter is non-zero, set the deflate level to this
+                                                                  !< value. Must be between 1 and 9.
+    logical               :: fletcher32  = DEF_NC_FLETCHER32  !< Set to true to turn on fletcher32 checksums for this variable.
+    integer               :: endianness = DEF_NC_ENDIANNESS   !< Set to NF90_ENDIAN_LITTLE for little-endian format, 
+                                                              !< NF90_ENDIAN_BIG for big-endian format, and NF90_ENDIAN_NATIVE
+                                                              !< (the default) for the native endianness of the platform.
+  end type nc_file_parameter
+
   real(KDOUBLE), parameter :: infinity=huge(1._KDOUBLE), neg_infinity=-huge(1._KDOUBLE)
 
   ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
+  type(nc_file_parameter), save :: nc_par
   CHARACTER(CHARLEN)          :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
   CHARACTER(CHARLEN)          :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
+                                                    !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
   CHARACTER(FULLREC_STRLEN)   :: fullrecstr=''      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
@@ -97,12 +116,39 @@ MODULE io_module
     !! Parses output_nl namelist
     !------------------------------------------------------------------
     SUBROUTINE initIO
+      implicit none
+      CHARACTER(CHARLEN) :: nc_cmode(MAX_NC_CMODE_FLAGS)
+      integer :: nc_deflate_level, nc_contiguous
+      character(CHARLEN) :: nc_endianness
+      logical :: nc_shuffle, nc_fletcher32
+      integer, dimension(MAX_NC_DIMS) :: nc_chunksizes
       namelist / output_nl / &
-        oprefix, & ! output prefix used to specify directory
-        osuffix    ! suffix to name model run
+        oprefix, &  ! output prefix used to specify directory
+        osuffix, &  ! suffix to name model run
+        nc_cmode, & ! creation mode for netCDF files
+        nc_contiguous, nc_chunksizes, nc_shuffle, nc_deflate_level, &
+        nc_fletcher32, nc_endianness
+      
+      ! default values
+      nc_cmode = ''
+      nc_deflate_level = 0
+      nc_contiguous = -99
+      nc_endianness=''
+      nc_shuffle=.false.
+      nc_fletcher32 = .False.
+      nc_chunksizes=0
+      
       open(UNIT_OUTPUT_NL, file = OUTPUT_NL)
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
+      
+      call parse_nc_file_params( &
+        nc_cmode, &
+        nc_contiguous, nc_chunksizes, &
+        nc_shuffle, nc_deflate_level, nc_fletcher32, &
+        nc_endianness &
+      )
+      
       CALL OpenCal
       time_unit = ref_cal
       CALL setCal(modelCalendar, time_unit)
@@ -133,11 +179,11 @@ MODULE io_module
       integer(KINT_NF90), INTENT(in)         :: status          !< Status returned by a call of a netcdf library function
       integer, INTENT(in), OPTIONAL          :: line            !< Line of file where the subroutine was called
       CHARACTER(len=*), INTENT(in), OPTIONAL :: fileName        !< Name of file the function trys to access
-      character(CHARLEN)  :: log_msg
+      character(3 * CHARLEN)  :: log_msg
       if(status /= nf90_noerr) then
         IF (PRESENT(line) .AND. PRESENT(fileName)) THEN
           WRITE(log_msg, '("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
-            line,TRIM(nf90_strerror(status)),TRIM(fileName)
+            line, TRIM(nf90_strerror(status)), TRIM(fileName)
           call log_fatal(log_msg)
         ELSE
           call log_fatal(trim(nf90_strerror(status)))
@@ -157,6 +203,96 @@ MODULE io_module
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask !< missing value mask
       call getVar(FH, var, getNrec(FH), missmask)
     END SUBROUTINE readInitialCondition
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Create an empty netCDF file
+    !------------------------------------------------------------------
+    integer function create_nc_file(fh, par) result(status)
+      implicit none
+      type(fileHandle), intent(inout)     :: fh
+      type(nc_file_parameter), intent(in) :: par
+      status = nf90_create(path=FH%filename, cmode=par%cmode, ncid=FH%ncid)
+    end function create_nc_file
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Create a coordinate variable in a netCDF file
+    !------------------------------------------------------------------
+    integer function create_nc_coord_var(fh, name, dtype, dimids, varid) result(status)
+      implicit none
+      type(fileHandle), intent(in)  :: fh
+      character(len=*), intent(in)  :: name
+      integer, intent(in)           :: dtype, dimids(:)
+      integer, intent(out)          :: varid
+      status = nf90_def_var(fh%ncid, name, dtype, dimids, varid)
+    end function create_nc_coord_var
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Create a variable in a netCDF file
+    !------------------------------------------------------------------
+    integer function create_nc_data_var(fh, xtype, dimids, par) result(status)
+      implicit none
+      type(fileHandle), intent(inout)        :: fh
+      integer, intent(in)                 :: xtype, dimids(:)
+      type(nc_file_parameter), intent(in), optional :: par
+      logical :: is_netcdf4
+      is_netcdf4 = (iand(par%cmode, nf90_netcdf4) .ne. 0)
+      
+      if (.not. present(par) .or. .not. is_netcdf4) then
+        status = nf90_def_var(fh%ncid, fh%varname, xtype, dimids, fh%varid)
+        return
+      end if
+
+      if (par%contiguous .ne. DEF_NC_CONTIGUOUS) then
+        if (par%n_dims .gt. 0) then
+          status = nf90_def_var( &
+            fh%ncid, fh%varname, &
+            xtype, dimids, fh%varid, &
+            contiguous=(par%contiguous .gt. 0), chunksizes=par%chunksizes(1:par%n_dims), &
+            deflate_level=par%deflate_level, shuffle=par%shuffle, &
+            fletcher32=par%fletcher32, endianness=par%endianness &
+          )
+          if (status .eq. nf90_noerr) return
+        else
+          status = nf90_def_var( &
+            fh%ncid, fh%varname, &
+            xtype, dimids, fh%varid, &
+            contiguous=(par%contiguous .gt. 0), &
+            deflate_level=par%deflate_level, shuffle=par%shuffle, &
+            fletcher32=par%fletcher32, endianness=par%endianness &
+          )
+          if (status .eq. nf90_noerr) return
+        end if
+      else
+        if (par%n_dims .gt. 0) then
+          status = nf90_def_var( &
+            fh%ncid, fh%varname, &
+            xtype, dimids, fh%varid, &
+            chunksizes=par%chunksizes(1:par%n_dims), &
+            deflate_level=par%deflate_level, shuffle=par%shuffle, &
+            fletcher32=par%fletcher32, endianness=par%endianness &
+          )
+          if (status .eq. nf90_noerr) return
+        else
+          status = nf90_def_var( &
+            fh%ncid, fh%varname, &
+            xtype, dimids, fh%varid, &
+            deflate_level=par%deflate_level, shuffle=par%shuffle, &
+            fletcher32=par%fletcher32, endianness=par%endianness &
+          )
+          if (status .eq. nf90_noerr) return
+        end if
+      end if
+      if (status .ne. nf90_noerr) then
+        ! fall back to netCDF3 only operations
+        status = nf90_def_var( &
+              fh%ncid, fh%varname, &
+              xtype, dimids, fh%varid &
+        )
+      end if
+    end function create_nc_data_var
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Creates a 3D dataset (2D space + time)
@@ -178,8 +314,7 @@ MODULE io_module
       Ny=SIZE(grid%lat)
       FH%filename = getFname(FH%filename)
       ! create file
-      call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
-                 __LINE__,FH%filename)
+      call check(create_nc_file(FH, nc_par), __LINE__, FH%filename)
       FH%isOpen = .TRUE.
 
       ! create dimensions
@@ -189,22 +324,36 @@ MODULE io_module
 
       ! define variables
       ! longitude vector
-      call check(nf90_def_var(FH%ncid,XAXISNAME,NF90_DOUBLE,(/lon_dimid/),lon_varid))
+      call check(create_nc_coord_var( &
+        FH, XAXISNAME, NF90_DOUBLE, (/lon_dimid/), lon_varid), &
+        __LINE__, FH%filename &
+      )
       call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
       call check(nf90_put_att(FH%ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
 
       ! latitude vector
-      call check(nf90_def_var(FH%ncid,YAXISNAME,NF90_DOUBLE,(/lat_dimid/),lat_varid))
+      call check(create_nc_coord_var( &
+        FH, YAXISNAME, NF90_DOUBLE, (/lat_dimid/), lat_varid), &
+        __LINE__, FH%filename &
+      )
       call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
       call check(nf90_put_att(FH%ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
 
       ! time vector
-      call check(nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
+      call check(create_nc_coord_var( &
+        FH, TAXISNAME, NF90_DOUBLE, (/FH%timedid/), FH%timevid), &
+        __LINE__, FH%filename &
+      )
       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
 
       ! variable field
-      call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/lon_dimid,lat_dimid,FH%timedid/), FH%varid))
+      call check( &
+        create_nc_data_var( &
+          FH, NF90_DOUBLE, (/lon_dimid,lat_dimid,FH%timedid/), nc_par &
+        ), &
+        __LINE__, FH%filename &
+      )
       call check(nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
       ! end define mode
       call check(nf90_enddef(FH%ncid))
@@ -237,8 +386,7 @@ MODULE io_module
        FH%filename = getFname(FH%filename)
 
        ! create file
-       call check(nf90_create(FH%filename, NF90_CLOBBER, FH%ncid),&
-                 __LINE__,FH%filename)
+       call check(create_nc_file(FH, nc_par), __LINE__, FH%filename)
        FH%isOpen = .TRUE.
 
        ! create dimensions
@@ -740,5 +888,161 @@ MODULE io_module
           call check(nf90_inq_varid(FH%ncid, to_lower(TAXISNAME), FH%timevid), __LINE__, FH%filename)
       end if
     end subroutine getTVarId
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse name list arguments related to NetCDF file output
+    !------------------------------------------------------------------
+    subroutine parse_nc_file_params( &
+      cmode, &
+      contiguous, chunksizes, &
+      shuffle, deflate_level, fletcher32, &
+      endianness &
+    )
+    implicit none
+      CHARACTER(len=*) :: cmode(:)
+      integer :: deflate_level, contiguous
+      character(len=*) :: endianness
+      logical :: shuffle, fletcher32
+      integer, dimension(:) :: chunksizes
+      nc_par%cmode = get_NF90_cmode(cmode)
+      nc_par%endianness = get_NF90_endianness(endianness)
+      nc_par%shuffle = get_NF90_shuffle(shuffle)
+      nc_par%deflate_level = get_NF90_deflate_level(deflate_level)
+      nc_par%fletcher32 = get_NF90_fletcher32(fletcher32)
+      nc_par%n_dims = count(chunksizes .ne. 0.)
+      nc_par%chunksizes = get_NF90_chunksizes(chunksizes)
+      nc_par%contiguous = get_NF90_contiguous(contiguous)
+    end subroutine parse_nc_file_params
+
+    
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse endianness argument for NetCDF file output
+    !------------------------------------------------------------------
+    integer function get_NF90_endianness(endianness) result(res)
+      use str, only : to_upper
+      implicit none
+      character(len=*), intent(in) :: endianness
+      select case (to_upper(trim(endianness)))
+      case ("NF90_ENDIAN_NATIVE", "")
+        res = nf90_endian_native
+      case ("NF90_ENDIAN_LITTLE")
+        res = nf90_endian_little
+      case ("NF90_ENDIAN_BIG")
+        res = nf90_endian_big
+      case default
+        call log_fatal( &
+          "NetCDF endianness not recognized. Must be one of 'NF90_ENDIAN_NATIVE', " &
+          // "'NF90_ENDIAN_LITTLE' or 'NF90_ENDIAN_BIG'" &
+        )
+      end select
+
+    end function get_NF90_endianness
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse shuffle argument for NetCDF file output
+    !------------------------------------------------------------------
+    logical function get_NF90_shuffle(shuffle) result(res)
+      implicit none
+      logical, intent(in) :: shuffle
+      res = shuffle
+    end function get_NF90_shuffle
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse deflate_level argument for NetCDF file output
+    !------------------------------------------------------------------
+    integer function get_NF90_deflate_level(deflate_level) result(res)
+      implicit none
+      integer, intent(in) :: deflate_level
+      if (deflate_level .lt. 0 .or. deflate_level .gt. 9) then
+        call log_fatal("Deflate level of NetCDF outut invalid. Must be in 0-9.")
+      end if
+      res = deflate_level
+    end function get_NF90_deflate_level
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse fletcher32 argument for NetCDF file output
+    !------------------------------------------------------------------
+    logical function get_NF90_fletcher32(fletcher32) result(res)
+      implicit none
+      logical, intent(in) :: fletcher32
+      res = fletcher32
+    end function get_NF90_fletcher32
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse chunksizes argument for NetCDF file output
+    !------------------------------------------------------------------
+    function get_NF90_chunksizes(chunksizes) result(res)
+      implicit none
+      integer, dimension(:), intent(in) :: chunksizes
+      integer, dimension(size(chunksizes)) :: res
+      res = chunksizes
+    end function get_NF90_chunksizes
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Parse contiguous argument for NetCDF file output
+    !------------------------------------------------------------------
+    integer function get_NF90_contiguous(contiguous) result(res)
+      implicit none
+      integer :: contiguous
+      res = contiguous
+    end function get_NF90_contiguous
+
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Convert string representation of NetCDF creation mode to propert argument
+    !!
+    !! May fail with a fatal error if provided string is not a valid
+    !! NetCDF file creation mode. See https://docs.unidata.ucar.edu/netcdf-fortran/current/f90_datasets.html#f90-nf90_create
+    !!
+    !! @par Uses:
+    !! str, only : to_upper
+    !------------------------------------------------------------------
+    integer function get_NF90_cmode(mode_strings) result(mode_code)
+      use str, only : split_comma
+      implicit none
+      character(*), intent(in)  :: mode_strings(:)
+      ! character(CHARLEN) :: mode_array(MAX_NC_CMODE_FLAGS)=""
+      integer :: i
+
+      mode_code = 0
+      ! call split_comma(mode_string, mode_array)
+      do i = 1, size(mode_strings)
+        if (trim(mode_strings(i)) .eq. "") exit
+        print *, "'" // mode_strings(i)(1:2) // "'", trim(mode_strings(i)), len(trim(mode_strings(i)))
+        mode_code = ior(mode_code, nf90cmode_string_to_int(mode_strings(i)))
+      end do 
+    end function get_NF90_cmode
+
+    integer function nf90cmode_string_to_int(s) result(code)
+      use str, only : to_upper
+      implicit none
+      character(*), intent(in)  :: s
+      select case (to_upper(trim(s)))
+      case ("NF90_CLOBBER", "")  !< default if no input provided
+        code = nf90_clobber
+      case ("NF90_NOCLOBBER")
+        code = nf90_noclobber
+      case ("NF90_SHARE")
+        code = nf90_share
+      case ("NF90_64BIT_OFFSET")
+        code = nf90_64bit_offset
+      case ("NF90_NETCDF4")
+        code = nf90_netcdf4
+      case ("NF90_CLASSIC_MODEL")
+        code = nf90_classic_model
+      case default
+        call log_fatal( &
+          "NetCDF creation mode not recognized. Must be one of 'NF90_CLOBBER', " &
+          //"'NF90_NOCLOBBER','NF90_SHARE', 'NF90_64BIT_OFFSET', 'NF90_NETCDF4', "&
+          //"or 'NF90_CLASSIC_MODEL'. Got '" // s // "'" &
+        )
+      end select
+    end function nf90cmode_string_to_int
 
 END MODULE io_module

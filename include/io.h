@@ -5,18 +5,26 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define FILE_IO_SEEN
 
 /* Maximal length of Character arrays */
-#define CHARLEN 80
+#define CHARLEN 1024
 #define FULLREC_STRLEN 12
 
 /* Default chunk size for MemChunk */
 #define DEF_NT_CHUNKSIZE 100
 
 /* Default values for fileHandle Type */
-#define DEF_NCID  -99999
+#define DEF_NCID -99999
 #define DEF_VARID -99999
 #define DEF_TIMEDID -99999
 #define DEF_TIMEVID -99999
 #define DEF_NREC -99999
+
+/* Defualt values for the nc_file_parameter type */
+#define DEF_NC_CMODE nf90_clobber
+#define DEF_NC_CONTIGUOUS -99
+#define DEF_NC_SHUFFLE .false.
+#define DEF_NC_DEFLATE_LEVEL 0
+#define DEF_NC_FLETCHER32 .false.
+#define DEF_NC_ENDIANNESS nf90_endian_native
 
 #define NF90_NOTIMEDIM -1
 
@@ -50,6 +58,10 @@ Header file for shallow water model. Meant to set Input/Output constants
 /* Log file unit identifier */
 #define UNIT_LOGFILE 100
 
+/* maximum number of NetCDF file creation mode flags */
+#define MAX_NC_CMODE_FLAGS 10
+#define MAX_NC_DIMS 10
+
 /* Attribute conventions from NetCDF Users' Guide (10.06.2011) */
 #define NUG_ATT_UNITS "units"
 #define NUG_ATT_LONG_NAME "long_name"
@@ -66,16 +78,16 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define XAXISNAME "LONGITUDE"
 #define YAXISNAME "LATITUDE"
 #define IDAXISNAME "ID"
-#define XUNIT     "degrees_east"
-#define YUNIT     "degrees_north"
-#define TUNIT     "seconds since 0000-01-01 00:00:00"
-#define OFILEETA   "eta_out.nc"
-#define OFILEU     "u_out.nc"
-#define OFILEV     "v_out.nc"
-#define OFILEH     "H_out.nc"
-#define OFILEFX    "fx_out.nc"
-#define OFILEFY    "fy_out.nc"
-#define OFILEPSI   "psi_out.nc"
+#define XUNIT "degrees_east"
+#define YUNIT "degrees_north"
+#define TUNIT "seconds since 0000-01-01 00:00:00"
+#define OFILEETA "eta_out.nc"
+#define OFILEU "u_out.nc"
+#define OFILEV "v_out.nc"
+#define OFILEH "H_out.nc"
+#define OFILEFX "fx_out.nc"
+#define OFILEFY "fy_out.nc"
+#define OFILEPSI "psi_out.nc"
 #define OFILETRACER "C1.nc"
 #define OFILEGAMMA_N "gamma_n.nc"
 #define OFILEGAMMA_U "gamma_u.nc"
@@ -89,9 +101,9 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OFILEV2MEAN "v2_mean_out.nc"
 #define OFILEPSI2MEAN "psi2_mean_out.nc"
 #define OVARNAMEETA "ETA"
-#define OVARNAMEU   "U"
-#define OVARNAMEV   "V"
-#define OVARNAMEH   "H"
+#define OVARNAMEU "U"
+#define OVARNAMEV "V"
+#define OVARNAMEH "H"
 #define OVARNAMEETAMEAN "ETAMEAN"
 #define OVARNAMEUMEAN "UMEAN"
 #define OVARNAMEVMEAN "VMEAN"
@@ -100,8 +112,8 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OVARNAMEU2MEAN "U2MEAN"
 #define OVARNAMEV2MEAN "V2MEAN"
 #define OVARNAMEPSI2MEAN "PSI2MEAN"
-#define OVARNAMEFX  "TAUX"
-#define OVARNAMEFY  "TAUY"
+#define OVARNAMEFX "TAUX"
+#define OVARNAMEFY "TAUY"
 #define OVARNAMEPSI "PSI"
 #define OVARNAMETRACER "C"
 #define OVARNAMEGAMMA_N "GAMMA_N"

@@ -5,6 +5,7 @@
 !! This module should not have any dependency!
 !----------------------------------------------------------------------------
 module str
+#include "io.h"
   implicit none
 
   contains
