@@ -17,32 +17,32 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
 #define stderr 0
 #endif
 
-#define LEVEL_ERROR 1
-#define LEVEL_WARN 2
-#define LEVEL_INFO 3
-#define LEVEL_DEBUG 4
-
   implicit none
   private
 
   public :: log_debug, log_info, log_warn, log_error, log_fatal, &
             log_alloc_fatal, &
+            loglevel_error, loglevel_warn, loglevel_info, loglevel_debug, &
             initLogging, finishLogging
 
-  ! TODO: namelist handling
+  integer, parameter :: loglevel_error = 1, loglevel_warn = 2, loglevel_info = 3, loglevel_debug = 4 
+  
   integer :: log_unit=stdout       !< unit to write log message to
-  integer :: log_level=LEVEL_INFO  !< default log level
+  integer :: log_level=loglevel_info    !< default log level
 
   contains
 
     subroutine initLogging()
       use str, only : to_lower
       integer :: stat
-      integer :: level=LEVEL_INFO
-      character(CHARLEN) :: file="", err_msg
+      integer :: level
+      character(CHARLEN) :: file, err_msg
       character(len=*), parameter :: err_fmt="(A, X, I4)"
       logical :: file_exists
       namelist / logging_nl / level, file
+
+      level = loglevel_info
+      file = ""
 
       open(UNIT_LOGGING_NL, file = LOGGING_NL, iostat=stat, status="old")
       if (stat .ne. 0) then
@@ -118,22 +118,22 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
 
     subroutine log_debug(msg)
       character(len=*), intent(in) :: msg
-      if (log_level .ge. LEVEL_DEBUG) call formattedWrite("DEBUG", msg)
+      if (log_level .ge. loglevel_debug) call formattedWrite("DEBUG", msg)
     end subroutine log_debug
 
     subroutine log_info(msg)
         character(len=*), intent(in) :: msg
-        if (log_level .ge. LEVEL_INFO) call formattedWrite("INFO", msg)
+        if (log_level .ge. loglevel_info) call formattedWrite("INFO", msg)
     end subroutine log_info
 
     subroutine log_warn(msg)
       character(len=*), intent(in) :: msg
-      if (log_level .ge. LEVEL_WARN) call formattedWrite("WARNING", msg)
+      if (log_level .ge. loglevel_warn) call formattedWrite("WARNING", msg)
     end subroutine log_warn
 
     subroutine log_error(msg)
       character(len=*), intent(in) :: msg
-      if (log_level .ge. LEVEL_ERROR) call formattedWrite("ERROR", msg)
+      if (log_level .ge. loglevel_error) call formattedWrite("ERROR", msg)
     end subroutine log_error
 
     subroutine log_fatal(msg, unit)
