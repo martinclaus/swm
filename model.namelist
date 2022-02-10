@@ -265,16 +265,46 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! output namelist
 !
+! All NetCDF output options (except nc_cmode) are only considered if the files are
+! netCDF 4 format, i.e. nc_cmode contains "nf90_netcdf4".
+!
 ! Arguments:
 ! ----------
 ! oprefix: string]
 !     Prefix of the ouput file path. Can be used to write output to a different directory.
 ! osuffix: string
 !     Suffix to append to the output file path.
+! nc_cmode: array of strings = "nf90_clobber"
+!     Comma separated list of netCDF file creation mode flags names (as strings)
+! nc_contiguous: int
+!     Flag indicating the storage format of the variables.
+!     0 if variable data is contiguous, non-contiguous for anything else
+!     Note that contiguous is not supported and will raise a fatal error
+!     since the time axis is unlimited. By default, unlimited coordinate variables and
+!     the data variable will be "chunked" while the remaining coordinate variables will be
+!     "contiguous".
+! nc_chunksizes: array of int
+!     Chunksizes of variables along the respective dimensions. Note that the order
+!     of dimensions is reversed with respect to the netCDF C library. In particular,
+!     it is reversed with respect to the output of `ncdump`.
+! nc_shuffle: bool = .false.
+!     turns on the shuffle filter
+! nc_deflate_level: int = 0
+!     Compression level. Must be between 0-9.
+! nc_fletcher32: bool = .false.
+!     Set to true to turn on fletcher32 checksums for this variable.
+! nc_endianness: string = "nf90_endian_native"
+!     Endianness of the stored data. Default is to use endianness native to the machine.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
+  nc_cmode = "nf90_netcdf4", "nf90_classic_model",
+  !nc_contiguous = 1
+  !nc_chunksizes = 10, 10, 1,
+  !nc_shuffle = .true.
+  nc_deflate_level=1
+  !nc_fletcher32 = .true.
 /
 
 
