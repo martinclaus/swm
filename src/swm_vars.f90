@@ -110,7 +110,7 @@ module swm_vars
 
 #ifdef LINEARISED_MEAN_STATE
       ALLOCATE(psi_bs(1:Nx,1:Ny,1), u_bs(1:Nx,1:Ny,1),v_bs(1:Nx,1:Ny,1), zeta_bs(1:Nx,1:Ny,1),  stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_allloc_fatal(__FILE__, __LINE__)
+      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
       call initVar(psi_bs, 0._KDOUBLE)
       call initVar(u_bs, 0._KDOUBLE)
       call initVar(v_bs, 0._KDOUBLE)

@@ -7,6 +7,9 @@
 !! @par Include Files:
 !! io.h
 !!
+!! @par Uses:
+!! logging, types, generic_list, grid_module, io_module, str, init_vars 
+!!
 !! @note Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
 !------------------------------------------------------------------
 MODULE vars_module
@@ -45,7 +48,8 @@ MODULE vars_module
   TYPE(fileHandle),SAVE       :: FH_u
   TYPE(fileHandle),SAVE       :: FH_v
 
-  real(KDOUBLE)                :: diag_start
+  real(KDOUBLE)               :: diag_start
+  integer(KINT)               :: diag_start_ind
 
 
   ! runtime variables
@@ -129,6 +133,9 @@ MODULE vars_module
       close(UNIT_MODEL_NL)
       ! set vars depending on run_length, dt
       Nt = INT(run_length / dt)
+
+      ! set time index of diagnostics start
+      diag_start_ind = int(diag_start / dt)
 
       ! allocate vars depending on Nx, Ny, Ns
       allocate(u(1:Nx, 1:Ny, 1:Ns))

@@ -6,15 +6,15 @@
 !! controling routines to handle both.
 !!
 !! @par Includes:
-!! io.h, diag_module.h
+!! io.h, diag_module.h, model.h
 !! @par Uses:
-!! io_module, vars_module, domain_module, generic_list, diagVar
+!! logging, types, io_module, vars_module, grid_module, generic_list, diagVar, str, init_vars
 !------------------------------------------------------------------
 MODULE diagTask
   use logging
   use types
-  USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, fullrecstr, updateNrec
-  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start
+  USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, updateNrec
+  USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start_ind
   use grid_module, only : grid_t, t_grid_lagrange
   USE generic_list
   USE diagVar
@@ -39,7 +39,6 @@ MODULE diagTask
     PRIVATE
     integer(KINT)                              :: ID=0         !< Task index, starting at 1, incrementing by 1
     TYPE(fileHandle)                           :: FH           !< File handle to variable in output dataset
-    integer(KINT)                              :: fullrec=1    !< Number of records written to all files
     CHARACTER(CHARLEN)                         :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
     integer(KINT)                              :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
     real(KDOUBLE)                              :: period       !< Sampling period in seconds for AVERAGE output.
@@ -53,7 +52,7 @@ MODULE diagTask
     real(KDOUBLE)                              :: bufferCount=0.   !< Counter, counting time
     real(KDOUBLE)                              :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
     integer(KINT)                              :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
-    integer(KINT)                              :: NoutChunk        !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
+    logical                                    :: unlimited_tdim   !< Make time an unlimited dimension.
     TYPE(diagVar_t), POINTER                   :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
   END TYPE diagTask_t
 
@@ -78,7 +77,7 @@ MODULE diagTask
     !! will be allocated. Finally, the output dataset is created.
     !!
     !------------------------------------------------------------------
-    TYPE(diagTask_t) FUNCTION initDiagTask(FH,type,frequency, period, process, varname, NoutChunk, ID) RESULT(self)
+    TYPE(diagTask_t) FUNCTION initDiagTask(FH, type, frequency, period, process, varname, unlimited_tdim, ID) RESULT(self)
       IMPLICIT NONE
       TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
@@ -87,7 +86,7 @@ MODULE diagTask
       CHARACTER(CHARLEN), intent(in)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), intent(in)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       integer(KINT), intent(in)       :: ID          !< ID of diagTask
-      integer(KINT), intent(in)       :: NoutChunk   !< Maximum number of timesteps in output file. New file will be opened, when this number is reached.
+      logical, intent(in)             :: unlimited_tdim !< Use an unlimited time dimension in output dataset.
       POINTER :: self
       integer(KINT) :: alloc_error, i
 
@@ -101,7 +100,7 @@ MODULE diagTask
       self%process = process
       self%varname = varname
       self%ID = ID
-      self%NoutChunk = NoutChunk
+      self%unlimited_tdim = unlimited_tdim
 
       !< Check for diagnostic variable
       DiagVar: SELECT CASE (to_upper(TRIM(self%varname)))
@@ -118,7 +117,7 @@ MODULE diagTask
       SELECT CASE (self%type(1:1))
 
         CASE ("S","s")
-          self%nstep = MAX(INT((Nt - (diag_start / dt)) / self%frequency),1)
+          self%nstep = MAX(int((Nt - diag_start_ind) / self%frequency), 1)
 
         CASE ("A","a")
           if(associated(self%varData2D)) then !< euler grid
@@ -178,7 +177,12 @@ MODULE diagTask
     !! Values not given are guessed from input (like ovarname).
     !!
     !------------------------------------------------------------------
-    SUBROUTINE readDiagNL(io_stat, nlist, filename, ovarname, varname, type, frequency, period, process,NoutChunk)
+    SUBROUTINE readDiagNL( &
+      io_stat, nlist, &
+      filename, ovarname, varname, &
+      type, frequency, period, process, &
+      unlimited_tdim &
+      )
       IMPLICIT NONE
       integer(KINT), INTENT(out)       :: io_stat   !< Status of the read statement
       integer(KINT), INTENT(inout)     :: nlist     !< Number of lists processed
@@ -189,8 +193,10 @@ MODULE diagTask
       real(KDOUBLE), INTENT(out)       :: period    !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN), INTENT(out)  :: process   !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN), INTENT(out)  :: varname   !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
-      integer(KINT), INTENT(out)       :: NoutChunk !< Maximum number of timesteps in output file. New file will be opend, when this numer is reached.
-      NAMELIST / diag_nl / filename, ovarname, varname, type, frequency, period, process, NoutChunk
+      logical, intent(out)             :: unlimited_tdim !< use unlimited time dimension.
+      NAMELIST / diag_nl / &
+        filename, ovarname, varname, type, &
+        frequency, period, process, unlimited_tdim
       character(CHARLEN) :: log_msg
 
       !< Set default values
@@ -200,7 +206,7 @@ MODULE diagTask
       frequency = DEF_DIAG_FREQUENCY
       period    = DEF_DIAG_PERIOD
       process   = DEF_DIAG_PROCESS
-      NoutChunk = DEF_NOUT_CHUNK
+      unlimited_tdim = DEF_DIAG_UNLIMITED_TDIM
       varname=""
 
       !< read list
@@ -238,14 +244,11 @@ MODULE diagTask
           if (associated(self%varData1D)) outData1D => self%varData1D
       END SELECT
 
-      IF (MOD(self%fullrec ,self%NoutChunk) .EQ. 0) CALL createTaskDS(self)
-
       if (associated(outData2D).and.associated(self%grid)) then
         CALL putVar(self%FH, outData2D * self%oScaleFactor, time, self%grid)
       else if (associated(outData1D).and.associated(self%grid_l)) then
         call putVar(self%FH, outData1D * self%oScaleFactor, time, self%grid_l)
       end if
-      self%fullrec = self%fullrec+1
 
     END SUBROUTINE writeTaskToFile
 
@@ -265,7 +268,7 @@ MODULE diagTask
       TYPE(diagTask_t), POINTER, INTENT(inout) :: task !< Task to process
       real(KDOUBLE)     :: deltaT                         !< residual length of time interval
 
-      IF (mod(itt, task%nstep).NE.0) RETURN !< check if task have to be processed
+      IF (mod(itt - diag_start_ind, task%nstep).NE.0) RETURN !< check if task have to be processed
 
       IF (ASSOCIATED(task%diagVar)) THEN    !< compute diagnostic variable if necessary
         IF (.NOT.getComputed(task%diagVar)) CALL computeDiagVar(task%diagVar)
@@ -278,19 +281,19 @@ MODULE diagTask
 
         CASE ("A","a") !< Averaging output
           IF (task%period .NE. DEF_DIAG_PERIOD) THEN
-              deltaT=MIN(mod(dt*itt, task%period),dt)
+              deltaT=MIN(mod(dt * (itt - diag_start_ind), task%period), dt)
           ELSE
-              deltaT=MIN(mod(dt*itt, meant_out),dt)
+              deltaT=MIN(mod(dt * (itt - diag_start_ind), meant_out), dt)
           END IF
-          IF (deltaT.LT.dt .AND. itt .NE. 0) THEN
-            CALL addDataToTaskBuffer(task,dt-deltaT)
-            task%buffer = task%buffer/task%bufferCount
-            CALL writeTaskToFile(task,dt*itt-deltaT)
+          IF (deltaT .LT. dt .AND. (itt - diag_start_ind) .NE. 0) THEN
+            CALL addDataToTaskBuffer(task, dt - deltaT)
+            task%buffer = task%buffer / task%bufferCount
+            CALL writeTaskToFile(task, dt * itt - deltaT)
             !< reset task buffer
-            task%buffer=0.
-            task%bufferCount=0.
+            task%buffer = 0.
+            task%bufferCount = 0.
           END IF
-          CALL addDataToTaskBuffer(task,deltaT)
+          CALL addDataToTaskBuffer(task, deltaT)
 
         CASE ("I","i") !< Initial output
           IF (itt.EQ.0) CALL writeTaskToFile(task,itt*dt)
@@ -335,25 +338,31 @@ MODULE diagTask
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Create output dataset of the task
     !!
-    !! The dataset will be closed, if it already exists. Then, io_module::fullrecstr
-    !! will be updated with task%fullrec and the dataset will be created. Finally, the
-    !! file record index, task%rec, will be reseted to 1.
+    !! The dataset will be closed, if it already exists. The dataset will be created
+    !! and the file record index, task%rec, will be reseted to 1.
     !------------------------------------------------------------------
     SUBROUTINE createTaskDS(task)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout) :: task
       character(CHARLEN) :: format_str
+      integer(KINT) :: n_out
 
       !< close dataset if exists
       CALL closeDS(task%FH)
 
-      !< update io_module::fullrecstr
-      write(format_str, '("(I", I0, ".", I0, ")")') FULLREC_STRLEN, FULLREC_STRLEN
-      WRITE (fullrecstr, format_str) task%fullrec
+      !< set size of output dataset in filehandle
+      if (.not. task%unlimited_tdim) then
+        select case (task%type(1:1))
+        case ("S","s") !< snapshot output
+          call updateNrec(task%FH, task%frequency + 1)
+        case ("A", "a") !< averaging output
+          call updateNrec(task%FH, int((Nt - diag_start_ind) * dt / task%period))
+        END SELECT
+      end if
 
       !< create dataset
       if (associated(task%grid)) then
-        call createDS(task%FH,task%grid)
+        call createDS(task%FH, task%grid)
       else if (associated(task%grid_l)) then
         call createDS(task%FH, task%grid_l)
       end if
@@ -384,15 +393,16 @@ MODULE diagTask
       real(KDOUBLE)       :: period      !< Sampling period for AVERAGE output.
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
+      logical             :: unlimited_tdim !< use an unlmited time dimension in output dataset.
       integer(KINT)       :: NoutChunk
       !< Read namelist
       OPEN(UNIT_DIAG_NL, file=DIAG_NL, iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
-        CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, NoutChunk)
+        CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, unlimited_tdim)
         IF (io_stat.EQ.0) THEN
           !< create and add task
           CALL initFH(filename,ovarname,FH)
-          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, NoutChunk, nlist)
+          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, unlimited_tdim, nlist)
           IF (.NOT.ASSOCIATED(diagTaskList)) THEN
             CALL list_init(diagTaskList,TRANSFER(task_ptr,list_data))
             currentNode => diagTaskList

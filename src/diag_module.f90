@@ -51,7 +51,7 @@ MODULE diag_module
     !------------------------------------------------------------------
     SUBROUTINE Diag
       IMPLICIT NONE
-      IF (itt*dt .lt. diag_start) RETURN
+      IF (itt .lt. diag_start_ind) RETURN
       CALL processTaskList
     END SUBROUTINE Diag
 
