@@ -1,3 +1,33 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Basic model parameters
+!
+! Arguments:
+! ----------
+! G: float
+!     Gravitational acceleration [m s^{-2}]
+! Ah: float
+!     Horizontal eddy viscosity [m^2 s^{-1}]
+! run_length: float
+!     length of the model run [s]
+! dt: float
+!     Time step [s]
+! diag_start: float
+!     Time after which diagnostics are done [s].
+! meant_out: float
+!     Default interval for averaged output [s].
+! file_eta_init: string
+!     File containing the initial condition for the interface displacement.
+! varname_eta_init: string
+!     Variable name of the initial condition for the interface displacement.
+! file_u_init: string
+!     File containing the initial condition for the zonal velocity.
+! varname_u_init: string
+!     Variable name of the initial condition for the zonal velocity.
+! file_v_init: string
+!     File containing the initial condition for the meridional velocity.
+! varname_v_init: string
+!     Variable name of the initial condition for the meridional velocity.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &model_nl
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
   run_length = 8.67e5, ! length of run in seconds
@@ -7,10 +37,64 @@
   diag_start=0.
 /
 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calendar settings
+!
+! Arguments:
+! ----------
+! model_start: string
+!     Date and time corresponding to time step 0 of the model. The string must conform
+!     to the format "YYYY-MM-DD HH:SS".
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &calendar_nl
   model_start="1945-01-01 12:00"
 /
 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Domain parameters
+!
+! Arguments:
+! ----------
+! A: float
+!     Radius of the Earth [m].
+! OMEGA: float
+!     Angular frequency of Earths rotation [1/s].
+! coriolis_approx: int
+!     Approximation used for the Coriolis parameter.
+!     0: no rotation
+!     1: f-plane
+!     2: beta-plane (also set theta0)
+!     3: spherical geometry, i.e. f = 2 * OMEGA * sin(theta)
+! theta0: float
+!     Reference latitude of f-plane and beta-plane approximation
+! RHO0: float
+!     Reference density of sea water [kg/m^3].
+! Nx: int
+!     Number of grid points in zonal direction.
+! Ny: int
+!     Number of grif points in meridional direction.
+! lon_s: float
+!     Minimum longitude of the H grid.
+! lon_e: float
+!     Maximum longitude of the H grid.
+! lat_s: float
+!     Minimum latitude of the H grid.
+! lat_e: float
+!     Maximum latitude of the H grid.
+! in_file_H: string
+!     File containing the input bathimetry define on H grid. If not set,
+!     a closed box with a flat bottom at depth 1m will be used.
+! in_varname_H: string
+!     Variable name of the input bathimetry define on H grid.
+! H_overwrite: float
+!     Set bathimetry to constant. Must be used for 1 1/2 or baroclinic mode setup.
+! lbc: float
+!     Lateral boundary condition
+!     0.0: free-slip
+!     2.0: no-slip
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &domain_nl
   A = 6371000,          ! radius of the earth (m)
   OMEGA = 7.272205e-05, ! 1/day (1/s)
@@ -24,18 +108,107 @@
   lat_e = 10.         ! max. lat. of the domain (H-grid)
   in_file_H = "input/H_sc.nc" ! topography input dataset
   H_overwrite=3.
+  lbc=0.0,
 /
 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Configuration of background state
+!
+! Only parsed if model is compile with
+! LINEARISED_MEAN_STATE CPP macro set.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &swm_timestep_nl
   filename="input/bs_sc.nc"
   varname="PSI"
   chunksize=1
-  AB_Chi = .1
 /
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Forcing namelists
+!
+! Arguments:
+! ----------
+! filename: string
+!     Path to netCDF forcing dataset relative to present working directory.
+! varname: string
+!     Name of the variable to read from the forcing dataset.
+! filename2: string
+!     Same as for filename, only used for forcing type "O".
+! varname2: string]
+!     Same as for varname, only used for forcing type "O".
+! forcingtype: string
+!     Type of forcing. Choice defines how the input is preprocessed.
+!     Valid values are:
+!     - "W": Wind forcing. The input is interpreted as wind stress and
+!            will be scaled by the reference density and, in case of a
+!            BAROTROPIC or FULLY_NONLINEAR model, by the thickness of the
+!            layer. Valid components for this forcing are "Z"onal and "M"eridional.
+!     - "H": Heating. The input is directly added to the rhs of the continuity
+!            equation. The component argument is not used for this type.
+!     - "O": Oscillating forcing. The first input, defined by filename and varname,
+!            is interpreted as the real part of a complex amplitude `A` and the
+!            second input, defined by varname2 and filename2, as the imaginary part.
+!            The forcing at time `t` is then computed as
+!            `2 * (Re(A) * cos(omega * t) - Im(A) * sin(omega * t))`, where `omega`
+!            is defined by the namelist argument `omega`. Valid components are
+!            "Z"onal, "M"eridional and "C"ontinuity.
+!     - "C": Custom forcing. Input is not further processed and directly added to
+!            the rhs of the respective equation. Valid components are "Z"onal,
+!            "M"eridional and "C"ontinuity.
+!     - "E": Eddy momentum flux convergence. Terms that arise from a Raynolds
+!            decomposition of the vertically averaged momentum equations
+!            (see Greatbatch et al. 2012) and that drive the mean circulation.
+!            The input is interpreted either as `\overline{u'u'}`,
+!            `\overline{v'v'}` or `\overline{u'v'}`, depending on the component.
+!            Valid components are "U", "V" and "R".
+! component: string
+!     One of "Z", "M", "C", "U", "V", "R". The meaning depends on the type of forcing.
+! omega: float
+!     Angular frequency of the oscillating forcing. See forcing type "O".
+! chunksize: int
+!     Number of time slice to read into memory at once. This number may be adapted
+!     to increase performance.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &swm_forcing_nl filename="input/taux_sc.nc", varname="TAUX", forcingtype="W", component="Z" /
 &swm_forcing_nl filename="input/tauy_sc.nc", varname="TAUY", forcingtype="W", component="M" /
 
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Damping namelists
+!
+! Arguments:
+! ----------
+! type: string
+!     Type of damping input. Valid types are:
+!     - "uniform": Uniform damping rate. Requires arguments `term` and `value`
+!                  to be set.
+!     - "sponge":  Exponentially decaying sponge layer at the rim of the domain.
+!                  Requires arguments `term`, `value`, `sl_location`, `sl_length`
+!                  and `sl_cutoff`.
+!     - "file":    Damping rate specified in netCDF dataset. Requires arguments
+!                  `filename`, `varname` and `term`.
+! term: string
+!     Where to add the damping. Valid input is "GAMMA_LIN_U", "GAMMA_LIN_V",
+!     "GAMMA_LIN_ETA", "GAMMA_SQ_U", "GAMMA_SQ_V". "LIN" specifies linear damping,
+!     "SQ" quadratic damping (only available for the momentum equations). The suffix
+!     "U" stands for the zonal momentum equation, "V" for the meridional momentum
+!     equation, and "ETA" for the continuity equation.
+! filename: string
+!     Path to the netCDF file to read. Only used if `type`=="file".
+! varname: string
+!     Name of the variable to read from the netCDF file. Only used if `type`=="file".
+! value: float
+!     Value of the damping rate. Used if `type` is "uniform" or "sponge". In case of
+!     "sponge", it is the maximum damping rate in the sponge layer.
+! sl_length: float
+!     E-folding length scale of the spinge layer measured in degrees.
+! sl_cutoff: float
+!     Width of the sponge layer measured in e-folding length. 
+! sl_location: string
+!     Location of sponge layer. One of or combination of "N"orth, "E"ast, "S"outh, "W"est.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &swm_damping_nl
   term="GAMMA_LIN_ETA"
   type="file"
@@ -67,17 +240,126 @@
   sl_cutoff=15.
 /
 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Passive tracer namelists
+!
+! Values of spatially varying coefficients supersede constant coefficients.
+!
+! Arguments:
+! ----------
+! varid: string
+!     Identification string used as prefix when registering tracer variables
+!     for diagnostics.
+! filename_C: string
+!     File containing inital tracer concentration.
+! varname_C: string
+!     Variable name of initial tracer concentration within input file.
+! filename_C0: string
+!     File containing tracer restoring field.
+! varname_C0: string
+!     Variable name of tracer restoring field within input file.
+! filename_gamma_C: string
+!     File containing spatially varying relaxation coefficient.
+! varname_gamma_C: string
+!     Variable name of spatially varying relaxation coefficient within input file.
+! filename_cons: string
+!     File containing spatially varying consumption rate.
+! varname_cons: string
+!     Variable name of spatially varying consumption rate within input file.
+! kappa_h: float
+!     Horizontal diffusivity [m^2 s^{-1}]
+! cons: float
+!     Spatially constant consumption rate [s^{-1}]
+! gamma_C: float
+!     Spatially homogenious relaxation coefficient [s^{-1}]
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &tracer_nl
   TRC_C1_A = 1e2
   TRC_file_C0 = "C0_sc.nc"
   TRC_file_relax = "Crelax_sc.nc"
 /
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! output namelist
+!
+! All NetCDF output options (except nc_cmode) are only considered if the files are
+! netCDF 4 format, i.e. nc_cmode contains "nf90_netcdf4".
+!
+! Arguments:
+! ----------
+! oprefix: string]
+!     Prefix of the ouput file path. Can be used to write output to a different directory.
+! osuffix: string
+!     Suffix to append to the output file path.
+! nc_cmode: array of strings = "nf90_clobber"
+!     Comma separated list of netCDF file creation mode flags names (as strings)
+! nc_contiguous: int
+!     Flag indicating the storage format of the variables.
+!     0 if variable data is contiguous, non-contiguous for anything else
+!     Note that contiguous is not supported and will raise a fatal error
+!     since the time axis is unlimited. By default, unlimited coordinate variables and
+!     the data variable will be "chunked" while the remaining coordinate variables will be
+!     "contiguous".
+! nc_chunksizes: array of int
+!     Chunksizes of variables along the respective dimensions. Note that the order
+!     of dimensions is reversed with respect to the netCDF C library. In particular,
+!     it is reversed with respect to the output of `ncdump`.
+! nc_shuffle: bool = .false.
+!     turns on the shuffle filter
+! nc_deflate_level: int = 0
+!     Compression level. Must be between 0-9.
+! nc_fletcher32: bool = .false.
+!     Set to true to turn on fletcher32 checksums for this variable.
+! nc_endianness: string = "nf90_endian_native"
+!     Endianness of the stored data. Default is to use endianness native to the machine.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &output_nl
   oprefix = "output/new_",  ! output prefix used to specify directory
   osuffix = "",  ! suffix to name model run
+  nc_cmode = "nf90_netcdf4", "nf90_classic_model",
+  !nc_contiguous = 1
+  !nc_chunksizes = 10, 10, 1,
+  !nc_shuffle = .true.
+  nc_deflate_level=1
+  !nc_fletcher32 = .true.
 /
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Diagnostics namelists
+!
+! Arguments:
+! ----------
+! filename: string
+!     File name identifier. The final filname will have `oprefix` and `osuffix`
+!     from `output_nl` added and an integer giving the time step index of the
+!     first time slice in the file.
+! ovarname: string
+!     Name of the variable in the output file. By default, the name of the variable
+!     used in the model's variable register is used.
+! varname: string
+!     Name of the variable to output. This must be identical to the identifier used
+!     when registering the variable in the variable register.
+! type: string
+!     Type of output. One of:
+!     - "S"napshot: outputs the variable at a given sampling frequency. Requires
+!                  `frequency` to be defined.
+!     - "A"verage:  outputs the average of a variable over a given period defined
+!                   by `period`.
+!     - "I"nitial:  outputs the value of the variable at the first time step.
+! frequency: int
+!     Sampling frequency of snapshot output measured in samples per model run.
+!     Note that the actual number of output time steps is `frequency + 1` since
+!     the initial values at t=0 will always be diagnosed.
+! period: float
+!     Averaging periods measured in seconds.
+! process: string
+!     optional preprocessing of the variable before averaging. Currently implemented
+!     is "S"quaring, which squares the data before it is added to the averaging buffer.
+! NoutChunk: int
+!     Number of time slices to write into a single file. If the output exceeds this
+!     number a new file is created.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 /
 &diag_nl filename="v_out.nc", varname="v", type="snapshot", period=2.628e6, frequency=10 /
 &diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 /
@@ -103,3 +385,24 @@
 &diag_nl filename="mu.nc", varname="swm_mu", type="S" frequency=10 /
 &diag_nl filename="mv.nc", varname="swm_mv", type="S" frequency=10 /
 &diag_nl filename="d.nc", varname="swm_d", type="S" frequency=10 /
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Logging namelist
+!
+! Arguments:
+! ----------
+! file: string
+!     File name to write into. If the file already exists, the logging output will be
+!     appended to this file. The default is to log to stdout.
+! level: int
+!     The loglevel controls the verbosity of the output. Valid levels are
+!     1: errors
+!     2: warnings
+!     3: info
+!     4: debug
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+&logging_nl
+  level = 3,
+  !file = "log.txt"
+/

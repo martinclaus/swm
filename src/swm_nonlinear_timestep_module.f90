@@ -26,6 +26,7 @@ MODULE swm_timestep_module
 #include "swm_module.h"
 #include "io.h"
   use types
+  use logging
   use swm_vars, only : SWM_u, SWM_v, SWM_eta, NG, NG0, NG0m1, G_u, G_v, G_eta, EDens, D, Dh, Du, Dv, &
                        EDens, Pot, zeta, MV, MU, &
                        psi_bs, u_bs, v_bs, zeta_bs, SWM_MC_bs_psi, minD

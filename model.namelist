@@ -339,11 +339,10 @@
 ! process: string
 !     optional preprocessing of the variable before averaging. Currently implemented
 !     is "S"quaring, which squares the data before it is added to the averaging buffer.
-! NoutChunk: int
-!     Number of time slices to write into a single file. If the output exceeds this
-!     number a new file is created.
+! unlimited_tdim: bool=.True.
+!     Use an unlimited time dimension in the output dataset.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-&diag_nl filename="u_out.nc", varname="u", type="S", frequency=10 /
+&diag_nl filename="u_out.nc", varname="u", type="S", frequency=10, unlimited_tdim=.false. /
 &diag_nl filename="v_out.nc", varname="v", type="snapshot", period="1M", frequency=10 /
 &diag_nl filename="eta_out.nc", varname="eta", type="S", frequency=10 /
 !&diag_nl filename="psi_out.nc", varname="psi", type="S", frequency=10 /

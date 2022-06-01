@@ -9,7 +9,7 @@
 !! io.h
 !!
 !! @par Uses:
-!! netcdf, clendar_module, grid_module
+!! netcdf, clendar_module, grid_module, logging, types, grid_module
 !------------------------------------------------------------------
 MODULE io_module
 #include "io.h"
@@ -45,7 +45,7 @@ MODULE io_module
     integer(KINT), PRIVATE          :: nrec=DEF_NREC         !< Length of record variable
     LOGICAL, PRIVATE                :: isOpen = .FALSE.      !< Flag, if the file is open at the moment
     real(KDOUBLE), PRIVATE          :: missval=MISS_VAL_DEF  !< Missing value
-    TYPE(calendar), PRIVATE         :: calendar               !< Calendar the fileHandle uses
+    TYPE(calendar), PRIVATE         :: calendar              !< Calendar the fileHandle uses
   END TYPE fileHandle
 
   type, private :: nc_file_parameter
@@ -72,7 +72,6 @@ MODULE io_module
   CHARACTER(CHARLEN)          :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
   CHARACTER(CHARLEN)          :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
                                                     !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
-  CHARACTER(FULLREC_STRLEN)   :: fullrecstr=''      !< String representation of the first time step index of the file. Appended to file name in io_module::getFname
   CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
 
   TYPE(calendar), save        :: modelCalendar !< Internal Calendar of the model
@@ -303,24 +302,31 @@ MODULE io_module
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
     !------------------------------------------------------------------
-    SUBROUTINE createDSEuler(FH,grid)
+    SUBROUTINE createDSEuler(FH, grid)
       IMPLICIT NONE
-      TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file. FH%filename will be overwritten by io_module::getFname(FH%filename)
-      TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Grid used to create dataset
+      TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file.
+                                                    !< FH%filename will be overwritten by io_module::getFname(FH%filename)
+      TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Spatial grid used to create dataset
       integer(KINT_NF90)                :: lat_dimid, lon_dimid, &
                                            lat_varid, lon_varid, &
-                                           Nx, Ny
+                                           Nx, Ny, Ntime
       Nx=SIZE(grid%lon)
       Ny=SIZE(grid%lat)
+      if (FH%nrec .gt. 0) then
+        Ntime = FH%nrec
+      else
+        Ntime = NF90_UNLIMITED
+      end if
       FH%filename = getFname(FH%filename)
+      
       ! create file
       call check(create_nc_file(FH, nc_par), __LINE__, FH%filename)
       FH%isOpen = .TRUE.
 
       ! create dimensions
-      call check(nf90_def_dim(FH%ncid,XAXISNAME,Nx,lon_dimid))
-      call check(nf90_def_dim(FH%ncid,YAXISNAME,Ny,lat_dimid))
-      call check(nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
+      call check(nf90_def_dim(FH%ncid, XAXISNAME, Nx, lon_dimid))
+      call check(nf90_def_dim(FH%ncid, YAXISNAME, Ny, lat_dimid))
+      call check(nf90_def_dim(FH%ncid, TAXISNAME, Ntime, FH%timedid))
 
       ! define variables
       ! longitude vector
@@ -730,14 +736,14 @@ MODULE io_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Constructs a file name from a file name stem
     !!
-    !! Prepends io_module::oprefix and fullrecstr and appends osuffix to fname
+    !! Prepends io_module::oprefix and appends osuffix to fname
     !! Called by io_module::createDS
     !! @return Character array of complete output file name
     !------------------------------------------------------------------
     CHARACTER(CHARLEN) FUNCTION getFname(fname)
       IMPLICIT NONE
       CHARACTER(*), INTENT(in)   :: fname               !< File name stem
-      getFname = trim(trim(oprefix)//fullrecstr//'_'//trim(fname)//trim(osuffix))
+      getFname = trim(trim(oprefix)//trim(fname)//trim(osuffix))
       RETURN
     END FUNCTION getFname
 
