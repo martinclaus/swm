@@ -20,6 +20,7 @@ MODULE diagTask
   USE diagVar
   USE str
   use init_vars
+  use adios2, only: pushSlice, streamHandle
   IMPLICIT NONE
 #include "io.h"
 #include "diag_module.h"
@@ -39,6 +40,7 @@ MODULE diagTask
     PRIVATE
     integer(KINT)                              :: ID=0         !< Task index, starting at 1, incrementing by 1
     TYPE(fileHandle)                           :: FH           !< File handle to variable in output dataset
+    type(streamHandle)                         :: stream       !< Handle to a stream for publishing data to an IO server
     CHARACTER(CHARLEN)                         :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
     integer(KINT)                              :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
     real(KDOUBLE)                              :: period       !< Sampling period in seconds for AVERAGE output.
@@ -53,7 +55,7 @@ MODULE diagTask
     real(KDOUBLE)                              :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
     integer(KINT)                              :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
     logical                                    :: unlimited_tdim   !< Make time an unlimited dimension.
-    TYPE(diagVar_t), POINTER                   :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
+    TYPE(diagVar_t), POINTER                   :: diagVar=>null()   !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
   END TYPE diagTask_t
 
 
@@ -77,9 +79,10 @@ MODULE diagTask
     !! will be allocated. Finally, the output dataset is created.
     !!
     !------------------------------------------------------------------
-    TYPE(diagTask_t) FUNCTION initDiagTask(FH, type, frequency, period, process, varname, unlimited_tdim, ID) RESULT(self)
+    TYPE(diagTask_t) FUNCTION initDiagTask(filename, ovarname, type, frequency, period, process, varname, unlimited_tdim, ID) RESULT(self)
       IMPLICIT NONE
-      TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
+      CHARACTER(CHARLEN), intent(in)  :: filename    !< Name and path of output file
+      CHARACTER(CHARLEN), intent(in)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
       integer(KINT), intent(in)       :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
       real(KDOUBLE), intent(in)       :: period      !< Sampling period for AVERAGE output.
@@ -88,12 +91,13 @@ MODULE diagTask
       integer(KINT), intent(in)       :: ID          !< ID of diagTask
       logical, intent(in)             :: unlimited_tdim !< Use an unlimited time dimension in output dataset.
       POINTER :: self
+      TYPE(fileHandle)                :: FH          !< Filehandle of output file
+      type(streamHandle)              :: stream      !< Handle to a stream for publishing data to an IO server
       integer(KINT) :: alloc_error, i
 
       ALLOCATE(self, stat=alloc_error)
       IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
 
-      self%FH = FH
       self%type = type
       self%frequency = frequency
       self%period = period
@@ -136,9 +140,17 @@ MODULE diagTask
           self%bufferCount = 0.
       END SELECT
 
-      !< create dataset
-      CALL createTaskDS(self)
-      RETURN
+      !< create output handle
+      select case (type(1:1))
+      case ("P","p") !< streaming output
+        stream%id = ID
+        self%stream = stream
+      case default   !< file IO
+        CALL initFH(filename,ovarname,FH)
+        self%FH = FH
+        !< create dataset
+        CALL createTaskDS(self)
+      end select
 
     END FUNCTION initDiagTask
 
@@ -253,6 +265,24 @@ MODULE diagTask
     END SUBROUTINE writeTaskToFile
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Publish data of task to io server
+    !!
+    !! Hands over a pointer to the data which shall be published to the
+    !! IO server.
+    !------------------------------------------------------------------
+    SUBROUTINE publishData(self)
+      IMPLICIT NONE
+      TYPE(diagTask_t), POINTER, INTENT(in) :: self !< Task to output
+
+      if (associated(self%varData2D)) then
+        call pushSlice(trim(self%varname), self%varData2D, self%stream)
+      else if (associated(self%varData1D)) then
+        call pushSlice(trim(self%varname), self%varData1D, self%stream)
+      end if
+
+    END SUBROUTINE publishData
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Perform the task
     !!
     !! The task is only processed, if task%nstep is a devisor of itt.
@@ -297,6 +327,9 @@ MODULE diagTask
 
         CASE ("I","i") !< Initial output
           IF (itt.EQ.0) CALL writeTaskToFile(task,itt*dt)
+
+        case ("P", "p") !< publish to IO server
+          call publishData(task)
 
       END SELECT
 
@@ -385,7 +418,6 @@ MODULE diagTask
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagTask_ptr)  :: task_ptr
       integer(KINT)       :: io_stat=0, nlist=0
-      TYPE(fileHandle)    :: FH
       CHARACTER(CHARLEN)  :: filename    !< Name and path of output file
       CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
@@ -394,15 +426,13 @@ MODULE diagTask
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       logical             :: unlimited_tdim !< use an unlmited time dimension in output dataset.
-      integer(KINT)       :: NoutChunk
       !< Read namelist
       OPEN(UNIT_DIAG_NL, file=DIAG_NL, iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
         CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, unlimited_tdim)
         IF (io_stat.EQ.0) THEN
           !< create and add task
-          CALL initFH(filename,ovarname,FH)
-          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, unlimited_tdim, nlist)
+          task_ptr%task => initDiagTask(filename, ovarname, type, frequency, period, process, varname, unlimited_tdim, nlist)
           IF (.NOT.ASSOCIATED(diagTaskList)) THEN
             CALL list_init(diagTaskList,TRANSFER(task_ptr,list_data))
             currentNode => diagTaskList

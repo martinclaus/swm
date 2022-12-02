@@ -58,7 +58,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
+modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module types init_vars logging adios2
 
 objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
@@ -107,6 +107,9 @@ diagTask.$(OBJEXT) : diagTask.f90 io.h model.h diag_module.h io_module.$(OBJEXT)
 	$(COMPILE)
 
 diagVar.$(OBJEXT) : diagVar.f90 vars_module.$(OBJEXT) io.h domain_module.$(OBJEXT) calc_lib.$(OBJEXT) generic_list.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
+	$(COMPILE)
+
+adios2.$(OBJEXT) : adios2.f90 types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
 io_module.$(OBJEXT) : io_module.f90 io.h calendar_module.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) logging.$(OBJEXT)
