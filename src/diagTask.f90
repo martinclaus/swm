@@ -207,7 +207,7 @@ MODULE diagTask
       period    = DEF_DIAG_PERIOD
       process   = DEF_DIAG_PROCESS
       unlimited_tdim = DEF_DIAG_UNLIMITED_TDIM
-      varname=""
+      varname   = ""
 
       !< read list
       nlist=nlist+1
@@ -413,6 +413,9 @@ MODULE diagTask
         END IF
       END DO
       CLOSE(UNIT_DIAG_NL)
+
+      ! Print out diagnostic task summary
+      call printTaskSummary
     END SUBROUTINE initDiagTaskList
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -481,32 +484,52 @@ MODULE diagTask
     SUBROUTINE printTask(self)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout)    :: self  !< Task to print information about
-      CHARACTER(CHARLEN) :: formatedString, formatedInteger, msg
+      CHARACTER(len=CHARLEN) :: formatter, msg
       IF (.NOT.associated(self)) THEN
         call log_error("Try to print non-existent diagnostic task!")
         RETURN
       END IF
-      formatedString = '("**",X,A10,X,A80,/)'
-      formatedInteger = '("**",X,A10,X,I4,/)'
+      formatter = '("**",X,A10,X,A80)'
       call log_info("** Diag task info **********************************")
-      write(msg, formatedInteger) "ID:", self%ID
+      write(msg, formatter) "ID:", int_to_string(self%ID)
       call log_info(msg)
-      write(msg, formatedString) "Varname:", self%varname
+      write(msg, formatter) "Varname:", self%varname
+      call log_info(trim(msg))
+      write(msg, formatter) "Filename:", getFileNameFH(self%FH)
       call log_info(msg)
-      write(msg, formatedString) "Filename:", getFileNameFH(self%FH)
+      write(msg, formatter) "OVarname:", getVarNameFH(self%FH)
       call log_info(msg)
-      write(msg, formatedString) "OVarname:", getVarNameFH(self%FH)
+      write(msg, formatter) "Type:", self%type
       call log_info(msg)
-      write(msg, formatedString) "Type:", self%type
+      write(msg, formatter) "Process:", self%process
       call log_info(msg)
-      write(msg, formatedString) "Process:", self%process
+      write(msg, formatter) "Period:", float_to_string(self%period)
       call log_info(msg)
-      write(msg, formatedString) "Period:", self%period
-      call log_info(msg)
-      write(msg, formatedInteger) "Frequency:", self%frequency
+      write(msg, formatter) "Frequency:", int_to_string(self%frequency)
       call log_info(msg)
       call log_info("****************************************************")
     END SUBROUTINE
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Convert Integer to character array
+    !------------------------------------------------------------------
+    character(len=80) function int_to_string(int) result(char)
+      implicit none
+      integer(KINT), intent(in) :: int
+      write(char, '(I8)') int
+      char = adjustl(char)
+    end function int_to_string
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Convert Float to character array
+    !------------------------------------------------------------------
+    character(len=80) function float_to_string(float) result(char)
+      implicit none
+      real(KDOUBLE), intent(in) :: float
+      write(char, '(E10.4)') float
+      char = adjustl(char)
+    end function float_to_string
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Set vardata pointer of a diagTask object to a variable stored in
