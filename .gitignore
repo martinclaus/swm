@@ -7,5 +7,6 @@ bin/*
 selfcheck/*/output/new_*.nc
 selfcheck/test_logging/test.log
 src/*.mod
+.vscode
 
 ftrace.out
