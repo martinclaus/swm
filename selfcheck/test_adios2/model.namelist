@@ -1,6 +1,6 @@
 &model_nl
   Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
-  run_length = 8.67e5, ! length of run in seconds
+  run_length = 1000, ! length of run in seconds
   dt = 25,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
   file_eta_init=""
@@ -41,7 +41,7 @@
   osuffix = "",  ! suffix to name model run
 /
 
-&diag_nl filename="taux.nc", varname="f_x", type="S", frequency=10 /
-&diag_nl filename="u.nc", varname="u", type="S", frequency=10 /
+&diag_nl filename="taux.nc", varname="f_x", type="I"/
+&diag_nl filename="u.nc", varname="u", type="A", period=2e5 /
 &diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 /
 &diag_nl varname="u", type="P"/
