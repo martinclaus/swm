@@ -1,0 +1,47 @@
+&model_nl
+  Ah = 5e3,               ! horizontal eddy viscosity (m^2/s)
+  run_length = 8.67e5, ! length of run in seconds
+  dt = 25,      ! time step (s)
+  meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
+  file_eta_init=""
+  diag_start=0.
+/
+
+&calendar_nl
+  model_start="1945-01-01 12:00"
+/
+
+&domain_nl
+  A = 6371000,          ! radius of the earth (m)
+  OMEGA = 7.272205e-05, ! 1/day (1/s)
+  RHO0 = 1024,          ! ref. dens. of water (kg/m^3)
+  Nx = 61,               ! number of grid points in x-dir.
+  Ny = 41,               ! number of grif points in y-dir.
+  theta0 = 20.,
+  lon_s = -30.,           ! min. lon. of the domain (H-grid)
+  lon_e = 0.          ! max. lon. of the domain (H-grid),
+  lat_s = -10.     ! min. lat. of the domain (H-grid),
+  lat_e = 10.         ! max. lat. of the domain (H-grid)
+  in_file_H = "input/H_sc.nc" ! topography input dataset
+  H_overwrite=3.
+/
+
+&swm_forcing_nl
+  filename="input/taux_sc.nc",
+  filename2="input/taux_sc.nc",
+  varname="TAUX_REAL",
+  varname2="TAUX_IMAG",
+  omega=7.24704187679e-06,
+  forcingtype="O",
+  component="Z",
+/
+
+&output_nl
+  oprefix = "output/new_",  ! output prefix used to specify directory
+  osuffix = "",  ! suffix to name model run
+/
+
+&diag_nl filename="taux.nc", varname="f_x", type="S", frequency=10 /
+&diag_nl filename="u.nc", varname="u", type="S", frequency=10 /
+&diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 /
+&diag_nl varname="u", type="P"/
