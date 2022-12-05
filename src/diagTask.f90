@@ -16,7 +16,7 @@ MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, updateNrec
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start_ind
   use grid_module, only : grid_t, t_grid_lagrange
-  USE generic_list
+  USE generic_list, only: list_node_t, list_data, list_get, list_next, list_init, list_free, list_insert
   USE diagVar
   USE str
   use init_vars
