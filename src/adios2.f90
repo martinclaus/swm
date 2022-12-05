@@ -8,6 +8,8 @@ module adios2
 
     private
     public :: initAdios2, finishAdios2
+
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief pushes a slice of data to the server
     !------------------------------------------------------------------
@@ -45,6 +47,16 @@ module adios2
  
     type(list_node_t), pointer    :: publisherList=>null()  !< Head node of diagnostic task linked list
 
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Subroutines applicable to all elements of a list
+    !------------------------------------------------------------------
+    abstract interface
+        subroutine mapable(self)
+            import publisher
+            type(publisher), pointer, intent(inout) :: self
+        end subroutine mapable
+    end interface 
 
     contains
 
@@ -169,14 +181,7 @@ module adios2
         !------------------------------------------------------------------
         subroutine finishPublisherList
             implicit none
-            type(list_node_t), POINTER     :: currentNode
-            type(streamIO_ptr)             :: publisher_ptr
-            currentNode => publisherList
-            do while (associated(currentNode))
-              if (associated(list_get(currentNode))) publisher_ptr = transfer(list_get(currentNode), publisher_ptr)
-              if (associated(publisher_ptr%publisher)) call finishPublisher(publisher_ptr%publisher)
-              currentNode => list_next(currentNode)
-            end do
+            call for_each_publisher(finishPublisher)
             call list_free(publisherList)
         end subroutine finishPublisherList
 
@@ -235,7 +240,7 @@ module adios2
 
 
         subroutine printPublisher(self)
-            type(publisher), pointer, intent(in) :: self
+            type(publisher), pointer, intent(inout) :: self
             character(len=CHARLEN) :: msg
 
             if (.not. associated(self)) then
@@ -244,26 +249,32 @@ module adios2
             end if
 
             write(msg, '(3(A), X, I2)') "Publish variable '", trim(self%varname), "' via stream with id", self%stream%id
-            call log_info(msg)
-            
+            call log_info(msg)   
         end subroutine printPublisher
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Summary of published variables
         !------------------------------------------------------------------
         SUBROUTINE printPublishSummary
+            call log_info("Publishing Summary:")
+            call for_each_publisher(printPublisher)
+          END SUBROUTINE printPublishSummary
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Apply subroutine for each publisher in publisherList
+        !------------------------------------------------------------------
+          subroutine for_each_publisher(apply)
+            procedure(mapable) :: apply
             TYPE(list_node_t), POINTER :: currentNode
             TYPE(streamIO_ptr)         :: publisher_ptr
-            call log_info("Publishing Summary:")
             currentNode => publisherList
-            do while (ASSOCIATED(currentNode))
-                if (ASSOCIATED(list_get(currentNode))) publisher_ptr = transfer(list_get(currentNode), publisher_ptr)
-            !   if (ASSOCIATED(publisher_ptr%publisher)) then
-                call printPublisher(publisher_ptr%publisher)
-            !   end if
+            do while (associated(currentNode))
+                if (associated(list_get(currentNode))) publisher_ptr = transfer(list_get(currentNode), publisher_ptr)
+                if (ASSOCIATED(publisher_ptr%publisher)) then
+                    call apply(publisher_ptr%publisher)
+                end if
                 currentNode => list_next(currentNode)
-            end do
-          END SUBROUTINE printPublishSummary
-      
+            end do            
+        end subroutine for_each_publisher
 
 end module adios2
