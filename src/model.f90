@@ -36,6 +36,7 @@ PROGRAM model
 #ifdef TRACER
   USE tracer_module
 #endif
+  use adios2, only: initAdios2, finishAdios2
   IMPLICIT NONE
 
 
@@ -136,6 +137,12 @@ PROGRAM model
         call log_info('initDiag done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !! Initialize IO manager connections
+        !------------------------------------------------------------------
+        call initAdios2
+        call log_info('initAdios2 done')
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! write initial fields to file
         !------------------------------------------------------------------
         call Diag
@@ -205,6 +212,8 @@ PROGRAM model
     SUBROUTINE finishModel
       IMPLICIT NONE
 
+        call finishAdios2
+        
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Close opened files
         !------------------------------------------------------------------
