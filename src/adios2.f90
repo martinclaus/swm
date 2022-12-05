@@ -95,17 +95,13 @@ module adios2
             type(streamIO_ptr) :: publisher_ptr
             integer(KINT)  :: n_list=0
 
-            print *, "DEBUG1"
-
             !< Read namelist
             open(UNIT_ADIOS2_NL, file=ADIOS2_NL, iostat=io_stat)
             do
-                print *, "DEBUG2"
                 io_stat = createFromNamelist(UNIT_ADIOS2_NL, n_list, publisher_ptr%publisher)
                 ! No list found or IO error encountered
                 if (io_stat .NE. 0) exit
                 ! create and add task
-                print *, "DEBUG3"
                 if (.NOT.ASSOCIATED(publisherList)) then
                     call list_init(publisherList,TRANSFER(publisher_ptr, list_data))
                     currentNode => publisherList
