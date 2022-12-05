@@ -36,7 +36,7 @@ PROGRAM model
 #ifdef TRACER
   USE tracer_module
 #endif
-  use adios2, only: initAdios2, finishAdios2
+  use adios2, only: initAdios2, finishAdios2, stepAdios2
   IMPLICIT NONE
 
 
@@ -193,6 +193,12 @@ PROGRAM model
           !------------------------------------------------------------------
           call Diag
 
+
+          !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+          !! push data to IO manager
+          !------------------------------------------------------------------
+          call stepAdios2
+
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! be verbose
           !------------------------------------------------------------------
@@ -213,7 +219,7 @@ PROGRAM model
       IMPLICIT NONE
 
         call finishAdios2
-        
+
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Close opened files
         !------------------------------------------------------------------

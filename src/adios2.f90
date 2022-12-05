@@ -7,7 +7,7 @@ module adios2
 #include "io.h"
 
     private
-    public :: initAdios2, finishAdios2
+    public :: initAdios2, finishAdios2, stepAdios2
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -76,6 +76,14 @@ module adios2
             implicit none
             call finishPublisherList
         end subroutine finishAdios2
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief  Publish at every step
+        !------------------------------------------------------------------
+        subroutine stepAdios2
+            implicit none
+            call for_each_publisher(push)
+        end subroutine stepAdios2
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief  Read config to create publisher objects
@@ -200,6 +208,26 @@ module adios2
             nullify(self)
         end subroutine finishPublisher
 
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief  Push data to IO Manager
+        !------------------------------------------------------------------
+        subroutine push(self)
+            type(publisher), pointer, intent(inout) :: self
+
+            if (.not. associated(self)) then
+                call log_error("Use of null pointer when publishing data")
+                return
+            end if
+
+            if (associated(self%varData3D)) then
+                call pushSlice(self%varname, self%varData3D, self%stream)
+            else if (associated(self%varData2D)) then
+                call pushSlice(self%varname, self%varData2D, self%stream)
+            else if (associated(self%varData1D)) then
+                call pushSlice(self%varname, self%varData1D, self%stream)
+            end if   
+        end subroutine push
 
         subroutine pushSlice1D(name, data, stream)
             implicit none

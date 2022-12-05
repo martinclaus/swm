@@ -46,3 +46,4 @@
 &diag_nl filename="eta.nc", varname="eta", type="S", frequency=10 /
 
 &publish_nl varname="u" /
+&publish_nl varname="v" /
