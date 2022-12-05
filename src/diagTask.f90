@@ -20,7 +20,6 @@ MODULE diagTask
   USE diagVar
   USE str
   use init_vars
-  use adios2, only: pushSlice, streamHandle
   IMPLICIT NONE
 #include "io.h"
 #include "diag_module.h"
@@ -40,7 +39,6 @@ MODULE diagTask
     PRIVATE
     integer(KINT)                              :: ID=0         !< Task index, starting at 1, incrementing by 1
     TYPE(fileHandle)                           :: FH           !< File handle to variable in output dataset
-    type(streamHandle)                         :: stream       !< Handle to a stream for publishing data to an IO server
     CHARACTER(CHARLEN)                         :: type         !< Type of diagnostics. One of SNAPSHOT, INITIAL or AVERAGE. First character will be enough.
     integer(KINT)                              :: frequency    !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
     real(KDOUBLE)                              :: period       !< Sampling period in seconds for AVERAGE output.
@@ -92,7 +90,6 @@ MODULE diagTask
       logical, intent(in)             :: unlimited_tdim !< Use an unlimited time dimension in output dataset.
       POINTER :: self
       TYPE(fileHandle)                :: FH          !< Filehandle of output file
-      type(streamHandle)              :: stream      !< Handle to a stream for publishing data to an IO server
       integer(KINT) :: alloc_error, i
 
       ALLOCATE(self, stat=alloc_error)
@@ -140,17 +137,10 @@ MODULE diagTask
           self%bufferCount = 0.
       END SELECT
 
-      !< create output handle
-      select case (type(1:1))
-      case ("P","p") !< streaming output
-        stream%id = ID
-        self%stream = stream
-      case default   !< file IO
-        CALL initFH(filename,ovarname,FH)
-        self%FH = FH
-        !< create dataset
-        CALL createTaskDS(self)
-      end select
+      !< create dataset
+      CALL initFH(filename,ovarname,FH)
+      self%FH = FH
+      CALL createTaskDS(self)
 
     END FUNCTION initDiagTask
 
@@ -264,23 +254,6 @@ MODULE diagTask
 
     END SUBROUTINE writeTaskToFile
 
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Publish data of task to io server
-    !!
-    !! Hands over a pointer to the data which shall be published to the
-    !! IO server.
-    !------------------------------------------------------------------
-    SUBROUTINE publishData(self)
-      IMPLICIT NONE
-      TYPE(diagTask_t), POINTER, INTENT(in) :: self !< Task to output
-
-      if (associated(self%varData2D)) then
-        call pushSlice(trim(self%varname), self%varData2D, self%stream)
-      else if (associated(self%varData1D)) then
-        call pushSlice(trim(self%varname), self%varData1D, self%stream)
-      end if
-
-    END SUBROUTINE publishData
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Perform the task
@@ -327,9 +300,6 @@ MODULE diagTask
 
         CASE ("I","i") !< Initial output
           IF (itt.EQ.0) CALL writeTaskToFile(task,itt*dt)
-
-        case ("P", "p") !< publish to IO server
-          call publishData(task)
 
       END SELECT
 
