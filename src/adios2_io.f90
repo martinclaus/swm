@@ -1,4 +1,4 @@
-module adios2
+module adios2_io
     use types
     use logging
     use generic_list, only: list_node_t, list_data, list_insert, list_next, list_get, list_free, list_init
@@ -20,7 +20,7 @@ module adios2
     end interface pushSlice
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Handle to an adios2 IO/transport/??? object
+    !> @brief  Handle to an adios2_io IO/transport/??? object
     !------------------------------------------------------------------
     type streamHandle
         integer(KINT) :: id !< Some numeric ID to the output stream
@@ -31,7 +31,7 @@ module adios2
     !------------------------------------------------------------------
     type publisher
         integer(KINT)          :: id      !< Stream task identifyer
-        type(streamHandle)     :: stream  !< handle to an ADIOS2 transport (??) object
+        type(streamHandle)     :: stream  !< handle to an ADIOS2_IO transport (??) object
         character(len=CHARLEN) :: varname !< name of the variable to stream as declared in `addToRegister` calls
         real(KDOUBLE), DIMENSION(:,:, :), pointer  :: varData3D=>null()   !< 3D data, which should be send
         real(KDOUBLE), DIMENSION(:,:), pointer     :: varData2D=>null()   !< 2D data, which should be send
@@ -96,9 +96,9 @@ module adios2
             integer(KINT)  :: n_list=0
 
             !< Read namelist
-            open(UNIT_ADIOS2_NL, file=ADIOS2_NL, iostat=io_stat)
+            open(UNIT_ADIOS2_IO_NL, file=ADIOS2_IO_NL, iostat=io_stat)
             do
-                io_stat = createFromNamelist(UNIT_ADIOS2_NL, n_list, publisher_ptr%publisher)
+                io_stat = createFromNamelist(UNIT_ADIOS2_IO_NL, n_list, publisher_ptr%publisher)
                 ! No list found or IO error encountered
                 if (io_stat .NE. 0) exit
                 ! create and add task
@@ -110,7 +110,7 @@ module adios2
                     currentNode => list_next(currentNode)
                 end if
             end do
-            close(UNIT_ADIOS2_NL)
+            close(UNIT_ADIOS2_IO_NL)
         end subroutine initPublisherList
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -301,4 +301,4 @@ module adios2
             end do            
         end subroutine for_each_publisher
 
-end module adios2
+end module adios2_io

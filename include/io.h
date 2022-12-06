@@ -42,7 +42,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define DOMAIN_NL MODEL_NL
 #define CALENDAR_NL MODEL_NL
 #define LOGGING_NL MODEL_NL
-#define ADIOS2_NL MODEL_NL
+#define ADIOS2_IO_NL MODEL_NL
 
 /* Namlist unit identifier */
 #define UNIT_MODEL_NL 17
@@ -55,7 +55,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_DOMAIN_NL 24
 #define UNIT_CALENDAR_NL 25
 #define UNIT_LOGGING_NL 26
-#define UNIT_ADIOS2_NL 27
+#define UNIT_ADIOS2_IO_NL 27
 
 /* Log file unit identifier */
 #define UNIT_LOGFILE 100
