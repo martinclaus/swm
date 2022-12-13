@@ -36,7 +36,7 @@ PROGRAM model
 #ifdef TRACER
   USE tracer_module
 #endif
-  use adios2_io, only: initAdios2, finishAdios2, stepAdios2
+  use adios2io, only: initAdios2, finishAdios2, stepAdios2
   IMPLICIT NONE
 
 

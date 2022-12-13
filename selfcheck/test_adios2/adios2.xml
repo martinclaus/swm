@@ -26,7 +26,7 @@
         ==========================================-->
 
     <io name="SimulationOutput">
-        <engine type="FileStream">
+        <engine type="BPFile">
             <parameter key="OpenTimeoutSecs" value="10.0"/>
         </engine>
     </io>

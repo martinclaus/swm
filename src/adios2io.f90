@@ -1,9 +1,9 @@
-module adios2_io
+module adios2io
     use types
     use logging
     use generic_list, only: list_node_t, list_data, list_insert, list_next, list_get, list_free, list_init
     use vars_module, only: getVarPtrFromRegister, variable_t
-
+    use adios2
 #include "io.h"
 
     private
@@ -36,6 +36,7 @@ module adios2_io
         real(KDOUBLE), DIMENSION(:,:, :), pointer  :: varData3D=>null()   !< 3D data, which should be send
         real(KDOUBLE), DIMENSION(:,:), pointer     :: varData2D=>null()   !< 2D data, which should be send
         real(KDOUBLE), dimension(:), pointer       :: varData1D=>null()   !< 1D data, which should be send
+        type(adios2_variable) :: var !< ADIOS2 variable, which describes data to be send
     end type publisher
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -46,7 +47,9 @@ module adios2_io
     end type streamIO_ptr
  
     type(list_node_t), pointer    :: publisherList=>null()  !< Head node of diagnostic task linked list
-
+    type(adios2_adios)    :: adios
+    type(adios2_io)       :: io
+    type(adios2_engine)   :: bp_writer
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Subroutines applicable to all elements of a list
@@ -65,6 +68,10 @@ module adios2_io
         !------------------------------------------------------------------
         subroutine initAdios2
             implicit none
+            integer :: ierr
+            call adios2_init(adios, "adios2.xml", adios2_debug_mode_on, ierr)
+            call adios2_declare_io(io, adios, 'SimulationOutput', ierr )
+            call adios2_open (bp_writer, io, "outputfile", adios2_mode_write, ierr)
             call initPublisherList
             call printPublishSummary
         end subroutine initAdios2
@@ -74,6 +81,9 @@ module adios2_io
         !------------------------------------------------------------------
         subroutine finishAdios2
             implicit none
+            integer :: ierr
+            call adios2_close(bp_writer, ierr)  
+            call adios2_finalize(adios, ierr)
             call finishPublisherList
         end subroutine finishAdios2
 
@@ -82,7 +92,14 @@ module adios2_io
         !------------------------------------------------------------------
         subroutine stepAdios2
             implicit none
+            integer :: adios2_err, istatus
+            
+            call adios2_begin_step(bp_writer, adios2_step_mode_append, -1., &
+                            istatus, adios2_err)
+            call sleep(1)
             call for_each_publisher(push)
+            call adios2_end_step( bp_writer, adios2_err)
+            
         end subroutine stepAdios2
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -147,28 +164,71 @@ module adios2_io
             type(publisher), pointer :: self
             integer :: alloc_stat
             type(variable_t), pointer :: var_obj
-
+            type(adios2_variable) :: var
+            integer :: adios2_err
+            integer*8, dimension(:), allocatable :: shape_dims, count_dims, start_dims
             allocate(self, stat=alloc_stat)
+
             if (alloc_stat .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
 
             self%id = id
             self%varname = varname
-
+            
             ! get pointer to variable data
             var_obj => getVarPtrFromRegister(varname)
             if (.not. associated(var_obj)) call log_fatal("Variable '" // trim(varname) // "' not found in register")
             
             if (associated(var_obj%data3d)) then
                 self%varData3D => var_obj%data3d
+                allocate(shape_dims(3))
+                allocate(count_dims(3))
+                allocate(start_dims(3))
+
+                shape_dims = shape(var_obj%data3d)
+                count_dims = shape(var_obj%data3d)
+                start_dims = 0
+                call adios2_define_variable (var, io, varname, adios2_type_dp, &
+                                        3, shape_dims, &
+                                        start_dims, count_dims, &
+                                        adios2_constant_dims,  &
+                                        adios2_err )
             else if (associated(var_obj%data2d)) then
                 self%varData2D => var_obj%data2d
+                allocate(shape_dims(2))
+                allocate(count_dims(2))
+                allocate(start_dims(2))
+
+                shape_dims = shape(var_obj%data2d)
+                count_dims = shape(var_obj%data2d)
+                start_dims = 0
+                call adios2_define_variable (var, io, varname, adios2_type_dp, &
+                                        2, shape_dims, &
+                                        start_dims, count_dims, &
+                                        adios2_constant_dims,  &
+                                        adios2_err )
             else if (associated(var_obj%data1d)) then
                 self%varData1D => var_obj%data1d
-            end if
+                allocate(shape_dims(1))
+                allocate(count_dims(1))
+                allocate(start_dims(1))
 
+                shape_dims = shape(var_obj%data1d)
+                count_dims = shape(var_obj%data1d)
+                start_dims = 0
+                call adios2_define_variable (var, io, varname, adios2_type_dp, &
+                                        1, shape_dims, &
+                                        start_dims, count_dims, &
+                                        adios2_constant_dims,  &
+                                        adios2_err )
+            end if
+            
+            self%var = var
+            
             ! create transport object
             self%stream = createStream(id)
-
+            deallocate(shape_dims)
+            deallocate(count_dims)
+            deallocate(start_dims)
         end function createPublisher
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -198,7 +258,7 @@ module adios2_io
             nullify(self%varData3D)
             nullify(self%varData2D)
             nullify(self%varData1D)
-
+            
             deallocate(self, stat=alloc_error)
             if ( alloc_error .NE. 0 ) call log_error("Deallocation failed in " // __FILE__)
             nullify(self)
@@ -210,19 +270,22 @@ module adios2_io
         !------------------------------------------------------------------
         subroutine push(self)
             type(publisher), pointer, intent(inout) :: self
-
+            integer :: adios_err
             if (.not. associated(self)) then
                 call log_error("Use of null pointer when publishing data")
                 return
             end if
-
+            
             if (associated(self%varData3D)) then
                 call pushSlice(self%varname, self%varData3D, self%stream)
+                call adios2_put(bp_writer, self%var, self%varData3D, adios_err)
             else if (associated(self%varData2D)) then
                 call pushSlice(self%varname, self%varData2D, self%stream)
+                call adios2_put(bp_writer, self%var, self%varData2D, adios_err)
             else if (associated(self%varData1D)) then
                 call pushSlice(self%varname, self%varData1D, self%stream)
-            end if   
+                call adios2_put(bp_writer, self%var, self%varData1D, adios_err)
+            end if 
         end subroutine push
 
         subroutine pushSlice1D(name, data, stream)
@@ -231,7 +294,7 @@ module adios2_io
             real(KDOUBLE), dimension(:), pointer :: data
             type(streamHandle), intent(inout)   :: stream
             character(80) :: id_str
-
+            
             write(id_str, "(I80)") stream%id
             
             call log_info("Push 1D var '" // trim(name) // "' to server via stream " // adjustl(id_str))
@@ -244,9 +307,8 @@ module adios2_io
             real(KDOUBLE), dimension(:, :), pointer :: data
             type(streamHandle), intent(inout)   :: stream
             character(80) :: id_str
-            
+
             write(id_str, "(I80)") stream%id
-            
             call log_info("Push 2D var '" // trim(name) // "' to server via stream " // adjustl(id_str))
         end subroutine pushSlice2D
 
@@ -256,7 +318,7 @@ module adios2_io
             real(KDOUBLE), dimension(:, :, :), pointer :: data
             type(streamHandle), intent(inout)   :: stream
             character(80) :: id_str
-            
+
             write(id_str, "(I80)") stream%id
             
             call log_info("Push 3D var '" // trim(name) // "' to server via stream " // adjustl(id_str))
@@ -301,4 +363,4 @@ module adios2_io
             end do            
         end subroutine for_each_publisher
 
-end module adios2_io
+end module adios2io
