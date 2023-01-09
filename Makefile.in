@@ -45,7 +45,10 @@ DOXYGEN = @DOXYGEN@
 
 LDFLAGS = @LDFLAGS@ @LIBS@ $(libnc)
 
-COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(defClElSolv) $(includenc) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
+include_adios2 = $(FC_MODINC)/usr/local/include/adios2/fortran
+lib_adios2 = /usr/local/lib/libadios2_fortran.2.8.3.dylib
+
+COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(defClElSolv) $(includenc) $(include_adios2) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
 # conditional modules
 ifeq ($(strip @ELSOLV@), SOR)
@@ -74,7 +77,7 @@ $(bindir):
 	$(MKDIR) $(bindir)
 
 model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT) $(bindir)
-	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libcu)
+	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(lib_adios2) $(libcu)
 
 model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) adios2io.$(OBJEXT) model.h io.h
 	$(COMPILE)
