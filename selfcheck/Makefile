@@ -13,7 +13,7 @@ test_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
 test_performance : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_performance/
 test_logging : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_logging/
 test_fixed_length_output : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_fixed_length_output/
-test_adios2_io : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_adios2/
+test_adios2 : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_adios2/
 
 test% : clean model
 	@echo run $@ with $(bindir)model
