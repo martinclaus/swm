@@ -166,7 +166,7 @@ module adios2io
             type(variable_t), pointer :: var_obj
             type(adios2_variable) :: var
             integer :: adios2_err
-            integer*8, dimension(:), allocatable :: shape_dims, count_dims, start_dims
+            integer(8), dimension(:), allocatable :: shape_dims, count_dims, start_dims
             allocate(self, stat=alloc_stat)
 
             if (alloc_stat .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
