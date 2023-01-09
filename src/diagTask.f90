@@ -16,7 +16,7 @@ MODULE diagTask
   USE io_module, ONLY : fileHandle, initFH, closeDS, createDS, getFileNameFH, getVarNameFH, putVar, updateNrec
   USE vars_module, ONLY : getFromRegister, Nt, dt, itt, meant_out, diag_start_ind
   use grid_module, only : grid_t, t_grid_lagrange
-  USE generic_list
+  USE generic_list, only: list_node_t, list_data, list_get, list_next, list_init, list_free, list_insert
   USE diagVar
   USE str
   use init_vars
@@ -53,7 +53,7 @@ MODULE diagTask
     real(KDOUBLE)                              :: oScaleFactor=1.  !< Scaling factor for unit conversions etc.
     integer(KINT)                              :: nstep=1          !< Number of idle timesteps between task processing, changed if type is SNAPSHOT
     logical                                    :: unlimited_tdim   !< Make time an unlimited dimension.
-    TYPE(diagVar_t), POINTER                   :: diagVar=>null()     !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
+    TYPE(diagVar_t), POINTER                   :: diagVar=>null()   !< Pointer to diagnostic variable object used for this task. NULL if no diagnostic variable have to be computed.
   END TYPE diagTask_t
 
 
@@ -77,9 +77,10 @@ MODULE diagTask
     !! will be allocated. Finally, the output dataset is created.
     !!
     !------------------------------------------------------------------
-    TYPE(diagTask_t) FUNCTION initDiagTask(FH, type, frequency, period, process, varname, unlimited_tdim, ID) RESULT(self)
+    TYPE(diagTask_t) FUNCTION initDiagTask(filename, ovarname, type, frequency, period, process, varname, unlimited_tdim, ID) RESULT(self)
       IMPLICIT NONE
-      TYPE(fileHandle), intent(in)    :: FH          !< Filehandle of output file
+      CHARACTER(CHARLEN), intent(in)  :: filename    !< Name and path of output file
+      CHARACTER(CHARLEN), intent(in)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN), intent(in)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
       integer(KINT), intent(in)       :: frequency   !< Number of SNAPSHOTs to output. IF 0 only the initial conditions are written
       real(KDOUBLE), intent(in)       :: period      !< Sampling period for AVERAGE output.
@@ -88,12 +89,12 @@ MODULE diagTask
       integer(KINT), intent(in)       :: ID          !< ID of diagTask
       logical, intent(in)             :: unlimited_tdim !< Use an unlimited time dimension in output dataset.
       POINTER :: self
+      TYPE(fileHandle)                :: FH          !< Filehandle of output file
       integer(KINT) :: alloc_error, i
 
       ALLOCATE(self, stat=alloc_error)
       IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
 
-      self%FH = FH
       self%type = type
       self%frequency = frequency
       self%period = period
@@ -137,8 +138,9 @@ MODULE diagTask
       END SELECT
 
       !< create dataset
+      CALL initFH(filename,ovarname,FH)
+      self%FH = FH
       CALL createTaskDS(self)
-      RETURN
 
     END FUNCTION initDiagTask
 
@@ -207,7 +209,7 @@ MODULE diagTask
       period    = DEF_DIAG_PERIOD
       process   = DEF_DIAG_PROCESS
       unlimited_tdim = DEF_DIAG_UNLIMITED_TDIM
-      varname=""
+      varname   = ""
 
       !< read list
       nlist=nlist+1
@@ -251,6 +253,7 @@ MODULE diagTask
       end if
 
     END SUBROUTINE writeTaskToFile
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Perform the task
@@ -385,7 +388,6 @@ MODULE diagTask
       TYPE(list_node_t), POINTER :: currentNode
       TYPE(diagTask_ptr)  :: task_ptr
       integer(KINT)       :: io_stat=0, nlist=0
-      TYPE(fileHandle)    :: FH
       CHARACTER(CHARLEN)  :: filename    !< Name and path of output file
       CHARACTER(CHARLEN)  :: ovarname    !< Name of output variable
       CHARACTER(CHARLEN)  :: type        !< Type of diagnostics. One of SNAPSHOT or AVERAGE. First character will be enough.
@@ -394,15 +396,13 @@ MODULE diagTask
       CHARACTER(CHARLEN)  :: process     !< Additional data processing, like AVERAGING, SQUAREAVERAGE.
       CHARACTER(CHARLEN)  :: varname     !< Variable name to diagnose. Special variable is PSI. It will be computed, if output is requested.
       logical             :: unlimited_tdim !< use an unlmited time dimension in output dataset.
-      integer(KINT)       :: NoutChunk
       !< Read namelist
       OPEN(UNIT_DIAG_NL, file=DIAG_NL, iostat=io_stat)
       DO WHILE ( io_stat .EQ. 0 )
         CALL readDiagNL(io_stat,nlist, filename, ovarname, varname, type, frequency, period, process, unlimited_tdim)
         IF (io_stat.EQ.0) THEN
           !< create and add task
-          CALL initFH(filename,ovarname,FH)
-          task_ptr%task => initDiagTask(FH,type,frequency,period, process, varname, unlimited_tdim, nlist)
+          task_ptr%task => initDiagTask(filename, ovarname, type, frequency, period, process, varname, unlimited_tdim, nlist)
           IF (.NOT.ASSOCIATED(diagTaskList)) THEN
             CALL list_init(diagTaskList,TRANSFER(task_ptr,list_data))
             currentNode => diagTaskList
@@ -413,6 +413,9 @@ MODULE diagTask
         END IF
       END DO
       CLOSE(UNIT_DIAG_NL)
+
+      ! Print out diagnostic task summary
+      call printTaskSummary
     END SUBROUTINE initDiagTaskList
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -481,32 +484,52 @@ MODULE diagTask
     SUBROUTINE printTask(self)
       IMPLICIT NONE
       TYPE(diagTask_t), POINTER, INTENT(inout)    :: self  !< Task to print information about
-      CHARACTER(CHARLEN) :: formatedString, formatedInteger, msg
+      CHARACTER(len=CHARLEN) :: formatter, msg
       IF (.NOT.associated(self)) THEN
         call log_error("Try to print non-existent diagnostic task!")
         RETURN
       END IF
-      formatedString = '("**",X,A10,X,A80,/)'
-      formatedInteger = '("**",X,A10,X,I4,/)'
+      formatter = '("**",X,A10,X,A80)'
       call log_info("** Diag task info **********************************")
-      write(msg, formatedInteger) "ID:", self%ID
+      write(msg, formatter) "ID:", int_to_string(self%ID)
       call log_info(msg)
-      write(msg, formatedString) "Varname:", self%varname
+      write(msg, formatter) "Varname:", self%varname
+      call log_info(trim(msg))
+      write(msg, formatter) "Filename:", getFileNameFH(self%FH)
       call log_info(msg)
-      write(msg, formatedString) "Filename:", getFileNameFH(self%FH)
+      write(msg, formatter) "OVarname:", getVarNameFH(self%FH)
       call log_info(msg)
-      write(msg, formatedString) "OVarname:", getVarNameFH(self%FH)
+      write(msg, formatter) "Type:", self%type
       call log_info(msg)
-      write(msg, formatedString) "Type:", self%type
+      write(msg, formatter) "Process:", self%process
       call log_info(msg)
-      write(msg, formatedString) "Process:", self%process
+      write(msg, formatter) "Period:", float_to_string(self%period)
       call log_info(msg)
-      write(msg, formatedString) "Period:", self%period
-      call log_info(msg)
-      write(msg, formatedInteger) "Frequency:", self%frequency
+      write(msg, formatter) "Frequency:", int_to_string(self%frequency)
       call log_info(msg)
       call log_info("****************************************************")
     END SUBROUTINE
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Convert Integer to character array
+    !------------------------------------------------------------------
+    character(len=80) function int_to_string(int) result(char)
+      implicit none
+      integer(KINT), intent(in) :: int
+      write(char, '(I8)') int
+      char = adjustl(char)
+    end function int_to_string
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Convert Float to character array
+    !------------------------------------------------------------------
+    character(len=80) function float_to_string(float) result(char)
+      implicit none
+      real(KDOUBLE), intent(in) :: float
+      write(char, '(E10.4)') float
+      char = adjustl(char)
+    end function float_to_string
+
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Set vardata pointer of a diagTask object to a variable stored in
