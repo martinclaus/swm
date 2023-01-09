@@ -93,7 +93,9 @@ module adios2io
         subroutine stepAdios2
             implicit none
             integer :: adios2_err, istatus
-            
+            ! early stopping if no publisher registered
+            if (.not. associated(publisherList)) return
+
             call adios2_begin_step(bp_writer, adios2_step_mode_append, -1., &
                             istatus, adios2_err)
             call sleep(1)
