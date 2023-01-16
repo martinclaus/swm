@@ -17,7 +17,7 @@
 !! vars_module, calc_lib, diag_module, domain_module,
 !! dynFromFile_module, swm_module, tracer_module, time_integration_module
 !------------------------------------------------------------------
-PROGRAM model
+PROGRAM main
 #include "model.h"
 #include "io.h"
   use logging
@@ -258,4 +258,4 @@ PROGRAM model
       CALL advanceCalcLib
     END SUBROUTINE model_advance
 
-END PROGRAM model
+END PROGRAM main

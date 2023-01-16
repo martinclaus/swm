@@ -73,10 +73,10 @@ $(builddir):
 $(bindir):
 	$(MKDIR) $(bindir)
 
-model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) model.$(OBJEXT) $(bindir)
-	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)model.$(OBJEXT) $(LDFLAGS) $(libcu)
+model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) main.$(OBJEXT) $(bindir)
+	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)main.$(OBJEXT) $(LDFLAGS) $(libcu)
 
-model.$(OBJEXT) : model.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
+main.$(OBJEXT) : main.f90 io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
 	$(COMPILE)
 
 types.$(OBJEXT) : types.f90 types.h
