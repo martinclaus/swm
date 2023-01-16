@@ -6,6 +6,8 @@ Date: 2023-01-16
 
 Accepted
 
+Amended by [3. Apply Dependency Inversion Principle](0003-apply-dependency-inversion-principle.md)
+
 ## Context
 
 Most numerical ocean models are a mess leading to excessively high costs for developing new features.
@@ -17,8 +19,7 @@ System is decomposed into following components:
 - `main`: wires everything together.
 - `state`: in-memory application state.
 - `core`: Commonly used data types and interfaces, such as `Grid`, `Variable`.
-- `components`: Contains abstract types declaring common interfaces for all components, e.g. `BaseComponent` with methods `initialize` and `finalize` or `DynComponent` extending `BaseComponent` with methods `step` and `advance`.
-- `app`: Application controller in which the main loop runs. It orchestrates all components.
+- `app`: Contains abstract types declaring common interfaces for all components, e.g. `BaseComponent` with methods `initialize` and `finalize` or `DynComponent` extending `BaseComponent` with methods `step` and `advance`.
 - `swm`: Solver of the shallow water equations.
 - `tracer`: Solver of the tracer equation including sources and sinks.
 - `log`: Implements logging to stdout.
