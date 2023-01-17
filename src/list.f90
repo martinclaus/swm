@@ -1,9 +1,19 @@
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+!> @brief  Polymorphic list type
+!! @author Martin Claus, mclaus@geomar.de
+!!
+!! Provides a polymorphic abstract list type. A list for a concrete type
+!! can be obtained by extending `list`.
+!------------------------------------------------------------------
 module list_mod
     implicit none
     private
     
     public :: list
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  A list node
+    !------------------------------------------------------------------
     type link
         private
         class(*), pointer :: value => null()
@@ -18,6 +28,30 @@ module list_mod
         procedure link_constructor
     end interface
 
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Polymorphic list type
+    !!
+    !! Provides a polymorphic abstract list type. A list for a concrete type
+    !! can be obtained by extending `list`.
+    !! When extending the type, procedures for adding an element and obtianing
+    !! the current element must be implemented.
+    !! The list offers an iterator API via the `next` subroutine.
+    !!
+    !! Example
+    !! =======
+    !! ValueType is the concrete type of the list value and `current` is the concrete
+    !! implementation of the function returing the value of the current list node.
+    !! ```fortran
+    !! class(list), pointer :: my_list
+    !! class(ValueType), pointer :: value
+    !! call my_list%reset()
+    !! do while(my_list%has_more())
+    !!     value => my_list%current()
+    !!     ! do something with value
+    !!     call my_list%next()
+    !! end do
+    !! ```
+    !------------------------------------------------------------------
     type, abstract :: list
         class(link), pointer :: first_link => null()
         class(link), pointer :: last_link => null()
