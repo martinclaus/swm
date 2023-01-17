@@ -29,6 +29,7 @@ docdir = $(srcdir)/doc/
 includedir = $(srcdir)/include/
 sdir = $(srcdir)/src/
 selfcheck_dir = $(srcdir)/selfcheck/
+utest_dir = $(srcdir)/unit_tests/
 
 VPATH = $(srcdir):$(sdir):$(includedir)
 
@@ -157,7 +158,10 @@ logging.$(OBJEXT) : logging.f90 io.h str.$(OBJEXT)
 %.$(OBJEXT) : %.f90
 	$(COMPILE)
 
+include $(utest_dir)Makefile
+
 include $(selfcheck_dir)Makefile
+
 
 doc : doc/Doxyfile doc/html doc/latex
 	@cd $(docdir) && $(DOXYGEN) $(<F)
