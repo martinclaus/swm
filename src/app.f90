@@ -21,18 +21,33 @@ module app
     !! After all components have performed its `step`, the components get their
     !! `advance` methods called by the app. 
     !------------------------------------------------------------------
-    type :: Component
+    type, abstract :: Component
     contains
-        procedure :: initialize => do_nothing
-        procedure :: finalize => do_nothing
-        procedure :: step => do_nothing
-        procedure :: advance => do_nothing
-    end type Component
+        procedure(call_on_component), deferred, pass :: initialize
+        procedure(call_on_component), deferred, pass :: finalize
+        procedure(call_on_component), deferred, pass :: step
+        procedure(call_on_component), deferred, pass :: advance
+        end type Component
+
+    abstract interface
+        subroutine call_on_component(self)
+            import Component
+            class(Component), intent(inout) :: self            
+        end subroutine call_on_component
+    end interface
                 
     type, abstract, extends(Component) :: AbstractApp
     contains
         procedure(run), deferred, pass :: run
     end type AbstractApp
+
+    abstract interface
+        subroutine run(self, steps)
+            import AbstractApp
+            class(AbstractApp), intent(inout) :: self
+            integer, intent(in) :: steps
+        end subroutine run
+    end interface
 
     type, abstract :: AbstractAppBuilder
         type(ComponentList), pointer :: component_list => null()
@@ -42,6 +57,18 @@ module app
     end type AbstractAppBuilder
 
     abstract interface
+        function build(self) result(app)
+            import AbstractAppBuilder, AbstractApp
+            class(AbstractAppBuilder), intent(inout) :: self
+            class(AbstractApp), allocatable :: app
+        end function build
+
+        subroutine add_component(self, comp)
+            import AbstractAppBuilder, Component
+            class(AbstractAppBuilder), intent(inout) :: self
+            class(Component), intent(in) :: comp
+        end subroutine add_component
+
     end interface
 
     type, extends(AbstractApp) :: DefaultApp
@@ -60,27 +87,6 @@ module app
             procedure, pass :: add_component => add_component_impl
     end type DefaultAppBuilder
 
-    abstract interface
-        subroutine run(self, steps)
-            import AbstractApp
-            class(AbstractApp), intent(inout) :: self
-            integer, intent(in) :: steps
-        end subroutine run
-
-        function build(self) result(app)
-            import AbstractAppBuilder, AbstractApp
-            class(AbstractAppBuilder), intent(inout) :: self
-            class(AbstractApp), allocatable :: app
-        end function build
-
-        subroutine add_component(self, comp)
-            import AbstractAppBuilder, Component
-            class(AbstractAppBuilder), intent(inout) :: self
-            class(Component), intent(in) :: comp
-        end subroutine add_component
-
-    end interface
-
     type, extends(list) :: ComponentList
         contains
         procedure :: add_component_to_list
@@ -97,11 +103,6 @@ module app
     end interface
 
 contains
-    subroutine do_nothing(self)
-        class(Component), intent(inout) :: self
-        ! do nothing
-    end subroutine do_nothing
-
     subroutine run_app(self, steps)
         class(DefaultApp), intent(inout) :: self
         integer, intent(in) :: steps
@@ -166,7 +167,7 @@ contains
         class(*), pointer :: val
         val => self%current_value()
         select type(val)
-        type is (Component)
+        class is (Component)
             current_component => val
         class default
             current_component => null()
