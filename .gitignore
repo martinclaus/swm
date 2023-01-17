@@ -6,5 +6,5 @@ bin/*
 *.L
 selfcheck/*/output/new_*.nc
 selfcheck/test_logging/test.log
-
+*.mod
 ftrace.out
