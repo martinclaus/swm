@@ -7,7 +7,9 @@
 !------------------------------------------------------------------
 
 module app
+    use list_mod, only: list
     implicit none
+
     public Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder
     private
 
@@ -19,7 +21,7 @@ module app
     !! After all components have performed its `step`, the components get their
     !! `advance` methods called by the app. 
     !------------------------------------------------------------------
-    type, abstract :: Component
+    type :: Component
     contains
         procedure :: initialize => do_nothing
         procedure :: finalize => do_nothing
@@ -33,7 +35,7 @@ module app
     end type AbstractApp
 
     type, abstract :: AbstractAppBuilder
-        type(ComponentList), pointer :: component_list_head => null()
+        type(ComponentList), pointer :: component_list => null()
         contains
             procedure(build), deferred, pass :: build
             procedure(add_component), deferred, pass :: add_component
@@ -79,14 +81,12 @@ module app
 
     end interface
 
-    type ComponentList
-        class(Component), pointer :: value
-        type(ComponentList), pointer :: next_node => null()
+    type, extends(list) :: ComponentList
         contains
-            procedure, pass :: next
-            procedure, pass :: add_node
-            procedure, pass :: has_more
-            procedure, pass :: get_value
+        procedure :: add_component_to_list
+        procedure :: current => current_component
+        generic :: add => add_component_to_list
+        procedure :: map => map_self
     end type ComponentList
 
     abstract interface
@@ -118,29 +118,29 @@ contains
 
     subroutine initialize_app(self)
         class(DefaultApp), intent(inout) :: self
-        call map(self%components, initialize)
+        call self%components%map(initialize)
     end subroutine initialize_app
 
     subroutine finalize_app(self)
         class(DefaultApp), intent(inout) :: self
-        call map(self%components, finalize)
+        call self%components%map(finalize)
     end subroutine finalize_app
 
     subroutine step_app(self)
         class(DefaultApp), intent(inout) :: self
-        call map(self%components, step)
+        call self%components%map(step)
     end subroutine step_app
 
     subroutine advance_app(self)
         class(DefaultApp), intent(inout) :: self
-        call map(self%components, advance)
+        call self%components%map(advance)
     end subroutine advance_app
 
     function build_impl(self) result(app)
         class(DefaultAppBuilder), intent(inout) :: self
         class(AbstractApp), allocatable :: app
         type(DefaultApp) :: concrete_app
-        concrete_app%components => self%component_list_head
+        concrete_app%components => self%component_list
         ! make polymorphic type
         allocate(app, source=concrete_app)
     end function build_impl
@@ -148,60 +148,43 @@ contains
     subroutine add_component_impl(self, comp)
         class(DefaultAppBuilder), intent(inout) :: self
         class(Component), intent(in) :: comp
-        type(ComponentList), pointer :: list_node => null()
-        type(ComponentList), pointer :: seek
-        allocate(list_node, source=ComponentList(comp, null()))
-        if (.not.associated(self%component_list_head)) then
-            self%component_list_head => list_node
-        else
-            seek => self%component_list_head
-            do while (seek%has_more())
-                seek => seek%next()
-            end do
-            call seek%add_node(list_node)
-        end if
+        call self%component_list%add(comp)
     end subroutine add_component_impl
 
-    function next(self) result(next_node)
-        class(ComponentList) :: self
-        class(ComponentList), pointer :: next_node
-        if (self%has_more()) then
-            next_node => self%next_node
-        else
-            next_node => null()
-        end if
-    end function next
-
-    logical function has_more(self)
-        class(ComponentList) :: self
-        has_more = associated(self%next_node)
-    end function
-
-    subroutine add_node(self, node)
+    subroutine add_component_to_list(self, comp)
         class(ComponentList), intent(inout) :: self
-        class(ComponentList), intent(in), pointer :: node
-        node%next_node => self%next_node
-        self%next_node => node
-    end subroutine add_node
+        class(Component) :: comp
+        class(*), pointer :: new_comp
 
-    class(Component) function get_value(self)
+        allocate(new_comp, source=comp)
+        call self%add_value(new_comp)
+    end subroutine add_component_to_list
+
+    function current_component(self)
         class(ComponentList) :: self
-        pointer :: get_value
-        get_value => self%value
-    end function 
+        class(Component), pointer :: current_component
+        class(*), pointer :: val
+        val => self%current_value()
+        select type(val)
+        type is (Component)
+            current_component => val
+        class default
+            current_component => null()
+        end select
 
-    subroutine map(self, routine)
-        class(ComponentList), pointer :: self
-        class(ComponentList), pointer :: current
+    end function current_component
+
+    subroutine map_self(self, routine)
+        class(ComponentList) :: self
         class(Component), pointer :: comp
         procedure(mappable) :: routine
-        current => self
-        do while (associated(current))
-            comp =>  current%get_value()
+        call self%reset()
+        do while (self%has_more())
+            comp => self%current()
             call routine(comp)
-            current => current%next()
+            call self%next()
         end do
-    end subroutine
+    end subroutine map_self
 
     subroutine initialize(self)
         class(Component), intent(inout) :: self
