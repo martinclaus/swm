@@ -7,7 +7,10 @@ program test_list
     end type
 
     call new_list_is_empty()
-    call can_add_items()
+    call can_add_and_get_items()
+    call adding_not_changing_current_pointer()
+    call iterates_over_all_values_sequentially()
+    call reset_set_current_to_first()
     
     contains
     subroutine new_list_is_empty()
@@ -17,7 +20,7 @@ program test_list
         call print_test_result(assert, "test_list::new_list_is_empty")
     end subroutine new_list_is_empty
 
-    subroutine can_add_items()
+    subroutine can_add_and_get_items()
         type(MyList) :: my_list
         integer :: i
         class(*), pointer :: value
@@ -31,38 +34,63 @@ program test_list
             i = value
         end select
         assert = (i .eq. 3)
-        call print_test_result(assert, "test_list::can_add_items")
-    end subroutine can_add_items
+        call print_test_result(assert, "test_list::can_add_and_get_items")
+    end subroutine can_add_and_get_items
+
+    subroutine adding_not_changing_current_pointer()
+        type(MyList) :: my_list
+        class(*), pointer :: value
+        class(*), pointer :: first_value
+        logical :: assert
+        allocate(value, source=3)
+        call my_list%add_value(value)
+        first_value => my_list%current_value()
+        allocate(value, source=4)
+        call my_list%add_value(value)
+        assert = associated(first_value, my_list%current_value())
+        call print_test_result(assert, "test_list::adding_not_changing_current_pointer")        
+    end subroutine adding_not_changing_current_pointer
+
+    subroutine iterates_over_all_values_sequentially()
+        type(MyList) :: my_list
+        integer :: i
+        class(*), pointer :: value
+        logical :: assert
+        do i = 1, 5
+            allocate(value, source=i)
+            call my_list%add_value(value)
+        end do
+        i = 0
+        assert = .true.
+        do while (my_list%has_more())
+            i = i + 1
+            value => my_list%current_value()
+            select type(value)
+            type is (integer)
+                assert = assert .and. (i .eq. value)
+            class default
+                assert = .false.
+            end select
+            call my_list%next()
+        end do
+        call print_test_result(assert, "test_list::iterates_over_all_values_sequentially")                
+    end subroutine iterates_over_all_values_sequentially
+
+    subroutine reset_set_current_to_first()
+        type(MyList) :: my_list
+        integer :: i
+        class(*), pointer :: value
+        logical :: assert
+        do i = 1, 5
+            allocate(value, source=i)
+            call my_list%add_value(value)
+        end do
+        do while (my_list%has_more())
+            call my_list%next()
+        end do
+        call my_list%reset()
+        assert = associated(my_list%current_value(), my_list%first_value())
+        call print_test_result(assert, "test_list::reset_set_current_to_first")                
+    end subroutine reset_set_current_to_first
+
 end program test_list
-
-! module integer_list
-!     use list_mod, only : list
-!     type, extends(list) :: IntegerList
-!     contains
-!         procedure :: add_integer
-!         procedure :: current
-!         generic :: add => add_integer
-!     end type IntegerList
-
-!     contains
-!     subroutine add_integer(self, value)
-!         class(IntegerList), intent(inout) :: self
-!         integer, intent(in) :: value
-!         class(*), pointer :: value_ptr
-!         allocate(value_ptr, source=value)
-!         call self%add_value(value_ptr)
-!     end subroutine add_integer
-
-!     function current(self) result(retval)
-!         class(IntegerList), intent(in) :: self
-!         integer, pointer :: retval
-!         class(*), pointer :: v
-!         v => self%current_value()
-!         select type(v)
-!         type is (integer)
-!             retval => v
-!         class default
-!             retval => null()
-!         end select
-!     end function current
-! end module integer_list
