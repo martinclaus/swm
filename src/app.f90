@@ -7,7 +7,7 @@
 !------------------------------------------------------------------
 
 module app
-    use list_mod, only: List
+    use list_mod, only: list, ListIterator, apply_to_list_value
     implicit none
 
     public Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder
@@ -23,11 +23,11 @@ module app
     !------------------------------------------------------------------
     type, abstract :: Component
     contains
-        procedure(call_on_component), deferred, pass :: initialize
-        procedure(call_on_component), deferred, pass :: finalize
-        procedure(call_on_component), deferred, pass :: step
-        procedure(call_on_component), deferred, pass :: advance
-        end type Component
+        procedure(call_on_component), private, deferred, pass :: initialize
+        procedure(call_on_component), private, deferred, pass :: finalize
+        procedure(call_on_component), private, deferred, pass :: step
+        procedure(call_on_component), private, deferred, pass :: advance
+    end type Component
 
     abstract interface
         subroutine call_on_component(self)
@@ -36,9 +36,13 @@ module app
         end subroutine call_on_component
     end interface
                 
-    type, abstract, extends(Component) :: AbstractApp
+    type, abstract :: AbstractApp
     contains
         procedure(run), deferred, pass :: run
+        procedure(call_on_app), private, deferred, pass :: initialize
+        procedure(call_on_app), private, deferred, pass :: finalize
+        procedure(call_on_app), private, deferred, pass :: step
+        procedure(call_on_app), private, deferred, pass :: advance
     end type AbstractApp
 
     abstract interface
@@ -47,6 +51,11 @@ module app
             class(AbstractApp), intent(inout) :: self
             integer, intent(in) :: steps
         end subroutine run
+
+        subroutine call_on_app(self)
+            import AbstractApp
+            class(AbstractApp), intent(inout) :: self
+        end subroutine
     end interface
 
     type, abstract :: AbstractAppBuilder
@@ -68,17 +77,16 @@ module app
             class(AbstractAppBuilder), intent(inout) :: self
             class(Component), intent(in) :: comp
         end subroutine add_component
-
     end interface
 
     type, extends(AbstractApp) :: DefaultApp
         class(ComponentList), pointer :: components
     contains
-        procedure, pass :: run => run_app
-        procedure, pass :: initialize => initialize_app
-        procedure, pass :: finalize => finalize_app
-        procedure, pass :: step => step_app
-        procedure, pass :: advance => advance_app
+        procedure, pass :: run => run_default_app
+        procedure, private, pass :: initialize => initialize_default_app
+        procedure, private, pass :: finalize => finalize_default_app
+        procedure, private, pass :: step => step_default_app
+        procedure, private, pass :: advance => advance_default_app
     end type DefaultApp
 
     type, extends(AbstractAppBuilder) :: DefaultAppBuilder
@@ -89,10 +97,7 @@ module app
 
     type, extends(List) :: ComponentList
         contains
-        procedure :: add_component_to_list
-        procedure :: current => current_component
-        generic :: add => add_component_to_list
-        procedure :: map => map_self
+        procedure :: add => add_component_to_list
     end type ComponentList
 
     abstract interface
@@ -103,39 +108,45 @@ module app
     end interface
 
 contains
-    subroutine run_app(self, steps)
+    subroutine run_default_app(self, steps)
         class(DefaultApp), intent(inout) :: self
         integer, intent(in) :: steps
         integer :: nt
         call self%initialize()
-
         do nt = 1, steps
             call self%step()
             call self%advance()
         end do
-
         call self%finalize()
+    end subroutine run_default_app
+
+    subroutine apply_to_app_components(self, routine)
+        class(DefaultApp), intent(inout) :: self
+        procedure(apply_to_list_value) :: routine
+        type(ListIterator) :: iterator
+        iterator = self%components%iter()
+        call iterator%map(routine)
     end subroutine
 
-    subroutine initialize_app(self)
+    subroutine initialize_default_app(self)
         class(DefaultApp), intent(inout) :: self
-        call self%components%map(initialize)
-    end subroutine initialize_app
+        call apply_to_app_components(self, initialize)
+    end subroutine initialize_default_app
 
-    subroutine finalize_app(self)
+    subroutine finalize_default_app(self)
         class(DefaultApp), intent(inout) :: self
-        call self%components%map(finalize)
-    end subroutine finalize_app
+        call apply_to_app_components(self, finalize)
+    end subroutine finalize_default_app
 
-    subroutine step_app(self)
+    subroutine step_default_app(self)
         class(DefaultApp), intent(inout) :: self
-        call self%components%map(step)
-    end subroutine step_app
+        call apply_to_app_components(self, step)
+    end subroutine step_default_app
 
-    subroutine advance_app(self)
+    subroutine advance_default_app(self)
         class(DefaultApp), intent(inout) :: self
-        call self%components%map(advance)
-    end subroutine advance_app
+        call apply_to_app_components(self, advance)
+    end subroutine advance_default_app
 
     function build_impl(self) result(app)
         class(DefaultAppBuilder), intent(inout) :: self
@@ -156,52 +167,37 @@ contains
         class(ComponentList), intent(inout) :: self
         class(Component) :: comp
         class(*), pointer :: new_comp
-
         allocate(new_comp, source=comp)
         call self%add_value(new_comp)
     end subroutine add_component_to_list
 
-    function current_component(self)
-        class(ComponentList) :: self
-        class(Component), pointer :: current_component
-        class(*), pointer :: val
-        val => self%current_value()
-        select type(val)
-        class is (Component)
-            current_component => val
-        class default
-            current_component => null()
-        end select
-
-    end function current_component
-
-    subroutine map_self(self, routine)
-        class(ComponentList) :: self
-        class(Component), pointer :: comp
-        procedure(mappable) :: routine
-        call self%reset()
-        do while (self%has_more())
-            comp => self%current()
-            call routine(comp)
-            call self%next()
-        end do
-    end subroutine map_self
-
     subroutine initialize(self)
-        class(Component), intent(inout) :: self
-        call self%initialize()
+        class(*), intent(inout) :: self
+        select type(self)
+        class is (Component)
+            call self%initialize()
+        end select
     end subroutine initialize
     subroutine finalize(self)
-        class(Component), intent(inout) :: self
-        call self%finalize()
+        class(*), intent(inout) :: self
+        select type(self)
+        class is (Component)
+            call self%finalize()
+        end select
     end subroutine finalize
     subroutine step(self)
-        class(Component), intent(inout) :: self
-        call self%step()
+        class(*), intent(inout) :: self
+        select type(self)
+        class is (Component)
+            call self%step()
+        end select
     end subroutine step
     subroutine advance(self)
-        class(Component), intent(inout) :: self
-        call self%advance()
+        class(*), intent(inout) :: self
+        select type(self)
+        class is (Component)
+            call self%advance()
+        end select
     end subroutine advance
 
 end module app

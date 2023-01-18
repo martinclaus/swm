@@ -9,7 +9,7 @@ module list_mod
     implicit none
     private
     
-    public :: List, ListIterator
+    public :: List, ListIterator, apply_to_list_value
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  A list node
@@ -71,9 +71,9 @@ module list_mod
     end type ListIterator
 
     abstract interface
-        subroutine apply_to_self(self)
+        subroutine apply_to_list_value(self)
             class(*), intent(inout) :: self
-        end subroutine apply_to_self
+        end subroutine apply_to_list_value
     end interface
 
     contains
@@ -142,7 +142,7 @@ module list_mod
 
     subroutine map_to_self(self,  sub)
         class(ListIterator), intent(in) :: self
-        procedure(apply_to_self) ::  sub
+        procedure(apply_to_list_value) ::  sub
         class(*), pointer :: val
         do while (self%has_more())
             val => self%next()
