@@ -9,7 +9,7 @@ module list_mod
     implicit none
     private
     
-    public :: List
+    public :: List, ListIterator
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  A list node
@@ -35,35 +35,46 @@ module list_mod
     !! can be obtained by extending `list`.
     !! When extending the type, procedures for adding an element and obtianing
     !! the current element must be implemented.
-    !! The list offers an iterator API via the `next` subroutine.
+    !! The list offers an iterator API via the `iter` function.
     !!
     !! Example
     !! =======
-    !! ValueType is the concrete type of the list value and `current` is the concrete
-    !! implementation of the function returing the value of the current list node.
     !! ```fortran
     !! class(list), pointer :: my_list
-    !! class(ValueType), pointer :: value
-    !! call my_list%reset()
-    !! do while(my_list%has_more())
-    !!     value => my_list%current()
-    !!     ! do something with value
-    !!     call my_list%next()
-    !! end do
+    !! type(ListIterator) :: iterator
+    !! iterator = my_list%iter()
+    !! call iter%map(some_routine)
     !! ```
+    !! `some_routine` is a subroutine conforming the interface `apply_to_self`
+    !! usefull for in-place modification of list values.
     !------------------------------------------------------------------
     type, abstract :: List
         class(Link), pointer :: first_link => null()
         class(Link), pointer :: last_link => null()
-        class(Link), pointer :: current_link => null()
         contains
         procedure :: add_value => list_add_value
-        procedure :: next => list_next
-        procedure :: reset => list_reset
-        procedure :: current_value => list_current_value
-        procedure :: first_value => list_first_value
-        procedure :: has_more => list_has_more
+        procedure :: iter => list_iter
     end type List
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Iterator type for lists
+    !!
+    !! Provides an iterator API for types extending `List`.
+    !------------------------------------------------------------------
+    type :: ListIterator
+        class(Link), pointer :: current => null()
+        contains
+        procedure :: next => iterator_next
+        procedure :: has_more => iterator_has_more
+        procedure :: map_to_self
+        generic :: map => map_to_self
+    end type ListIterator
+
+    abstract interface
+        subroutine apply_to_self(self)
+            class(*), intent(inout) :: self
+        end subroutine apply_to_self
+    end interface
 
     contains
     function link_next(self)
@@ -100,7 +111,6 @@ module list_mod
         if (.not. associated(self%first_link)) then
             self%first_link => Link(value, null())
             self%last_link => self%first_link
-            self%current_link => self%first_link
         else
             new_link => Link(value, self%last_link%next())
             call self%last_link%set_next(new_link)
@@ -108,31 +118,36 @@ module list_mod
         end if
     end subroutine list_add_value
 
-    subroutine list_next(self)
+    function list_iter(self)
         class(List) :: self
-        self%current_link => self%current_link%next()
-    end subroutine list_next
+        type(ListIterator) :: list_iter
+        list_iter%current => self%first_link
+    end function list_iter
 
-    function list_current_value(self)
-        class(List) :: self
-        class(*), pointer :: list_current_value
-        list_current_value => self%current_link%get_value()
-    end function list_current_value
+    function iterator_next(self)
+        class(ListIterator) :: self
+        class(*), pointer :: iterator_next
+        iterator_next => null()
+        if (associated(self%current)) then
+            iterator_next => self%current%get_value()
+            self%current => self%current%next()
+        end if
+    end function iterator_next
 
-    function list_first_value(self)
-        class(List) :: self
-        class(*), pointer :: list_first_value
-        list_first_value => self%first_link%get_value()
-    end function list_first_value
+    function iterator_has_more(self)
+        class(ListIterator) :: self
+        logical :: iterator_has_more
+        iterator_has_more = associated(self%current%next())
+    end function iterator_has_more
 
-    subroutine list_reset(self)
-        class(List), intent(inout) :: self
-        self%current_link => self%first_link
-    end subroutine list_reset
-
-    logical function list_has_more(self)
-        class(List) :: self
-        list_has_more = associated(self%current_link)
-    end function list_has_more
+    subroutine map_to_self(self,  sub)
+        class(ListIterator), intent(in) :: self
+        procedure(apply_to_self) ::  sub
+        class(*), pointer :: val
+        do while (self%has_more())
+            val => self%next()
+            call sub(val)
+        end do
+    end subroutine map_to_self
 
 end module list_mod

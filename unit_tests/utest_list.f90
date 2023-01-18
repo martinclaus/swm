@@ -1,5 +1,5 @@
 program test_list
-    use list_mod, only: List
+    use list_mod, only: List, ListIterator
     use testing, only: print_test_result
     implicit none
 
@@ -8,15 +8,14 @@ program test_list
 
     call new_list_is_empty()
     call can_add_and_get_items()
-    call adding_not_changing_current_pointer()
     call iterates_over_all_values_sequentially()
-    call reset_set_current_to_first()
+    call map_applied_to_value_updates()
     
     contains
     subroutine new_list_is_empty()
         type(MyList) :: my_list
         logical :: assert    
-        assert = .not. my_list%has_more()
+        assert = .not. associated(my_list%first_link) .and. .not. associated(my_list%last_link)
         call print_test_result(assert, "test_list::new_list_is_empty")
     end subroutine new_list_is_empty
 
@@ -28,7 +27,7 @@ program test_list
         allocate(value, source=3)
         call my_list%add_value(value)
         nullify(value)
-        value => my_list%current_value()
+        value => my_list%first_link%get_value()
         select type(value)
         type is (integer)
             i = value
@@ -37,60 +36,69 @@ program test_list
         call print_test_result(assert, "test_list::can_add_and_get_items")
     end subroutine can_add_and_get_items
 
-    subroutine adding_not_changing_current_pointer()
-        type(MyList) :: my_list
-        class(*), pointer :: value
-        class(*), pointer :: first_value
-        logical :: assert
-        allocate(value, source=3)
-        call my_list%add_value(value)
-        first_value => my_list%current_value()
-        allocate(value, source=4)
-        call my_list%add_value(value)
-        assert = associated(first_value, my_list%current_value())
-        call print_test_result(assert, "test_list::adding_not_changing_current_pointer")        
-    end subroutine adding_not_changing_current_pointer
-
     subroutine iterates_over_all_values_sequentially()
-        type(MyList) :: my_list
+        type(MyList), target :: my_list
         integer :: i
         class(*), pointer :: value
+        type(ListIterator) :: iterator
         logical :: assert
         do i = 1, 5
             allocate(value, source=i)
             call my_list%add_value(value)
         end do
-        i = 0
+        iterator = my_list%iter()
         assert = .true.
-        do while (my_list%has_more())
+        i = 0
+        do while (iterator%has_more())
             i = i + 1
-            value => my_list%current_value()
+            value => iterator%next()
             select type(value)
             type is (integer)
                 assert = assert .and. (i .eq. value)
             class default
                 assert = .false.
             end select
-            call my_list%next()
         end do
         call print_test_result(assert, "test_list::iterates_over_all_values_sequentially")                
     end subroutine iterates_over_all_values_sequentially
 
-    subroutine reset_set_current_to_first()
-        type(MyList) :: my_list
+
+    subroutine map_applied_to_value_updates()
+        type(MyList), target :: my_list
         integer :: i
         class(*), pointer :: value
+        type(ListIterator) :: iterator
         logical :: assert
         do i = 1, 5
             allocate(value, source=i)
             call my_list%add_value(value)
         end do
-        do while (my_list%has_more())
-            call my_list%next()
+
+        iterator = my_list%iter()
+        call iterator%map(add_one)
+
+        iterator = my_list%iter()
+        assert = .true.
+        i = 1
+        do while (iterator%has_more())
+            i = i + 1
+            value => iterator%next()
+            select type(value)
+            type is (integer)
+                assert = assert .and. (i .eq. value)
+            class default
+                assert = .false.
+            end select
         end do
-        call my_list%reset()
-        assert = associated(my_list%current_value(), my_list%first_value())
-        call print_test_result(assert, "test_list::reset_set_current_to_first")                
-    end subroutine reset_set_current_to_first
+        call print_test_result(assert, "test_list::map_applied_to_value_updates")                        
+    end subroutine map_applied_to_value_updates
+
+    subroutine add_one(self)
+        class(*), intent(inout) :: self
+        select type(self)
+        type is (integer)
+            self = self + 1
+        end select
+    end subroutine add_one
 
 end program test_list
