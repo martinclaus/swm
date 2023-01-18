@@ -5,16 +5,16 @@ tests = utest_str test1 test_diaglist
 selfcheck : $(tests)
 	@echo Done testing!
 
-test_1 : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_1/
-test_diaglist : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_diaglist/
-test_nonlinear : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nonlinear/
-test_nl_tracer : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nl_tracer/
-test_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
-test_performance : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_performance/
-test_logging : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_logging/
-test_fixed_length_output : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_fixed_length_output/
+selftest_1 : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_1/
+selftest_diaglist : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_diaglist/
+selftest_nonlinear : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nonlinear/
+selftest_nl_tracer : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_nl_tracer/
+selftest_oscfrc : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_oscfrc/
+selftest_performance : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_performance/
+selftest_logging : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_logging/
+selftest_fixed_length_output : include_selfcheck:=$(FC_MODINC)$(selfcheck_dir)test_fixed_length_output/
 
-test_% : clean model
+selftest_% : clean model
 	@echo run $@ with $(bindir)model
 	$(SHELL) $(selfcheck_dir)runselfcheck.sh $@ $(bindir)model
 

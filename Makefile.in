@@ -155,6 +155,9 @@ grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT) logging.$(OBJEXT
 logging.$(OBJEXT) : logging.f90 io.h str.$(OBJEXT)
 	$(COMPILE)
 
+app.$(OBJEXT) : app.f90 list_mod.$(OBJEXT)
+	$(COMPILE)
+
 %.$(OBJEXT) : %.f90
 	$(COMPILE)
 

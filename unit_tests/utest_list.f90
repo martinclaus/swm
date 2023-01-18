@@ -1,17 +1,21 @@
-program test_list
+module test_list
     use list_mod, only: List, ListIterator
     use testing, only: print_test_result
     implicit none
+    private
+    public :: run_list_tests
 
     type, extends(List) :: MyList
     end type
 
-    call new_list_is_empty()
-    call can_add_and_get_items()
-    call iterates_over_all_values_sequentially()
-    call map_applied_to_value_updates()
-    
     contains
+    subroutine run_list_tests()
+        call new_list_is_empty()
+        call can_add_and_get_items()
+        call iterates_over_all_values_sequentially()
+        call map_applied_to_value_updates()
+    end subroutine run_list_tests
+
     subroutine new_list_is_empty()
         type(MyList) :: my_list
         logical :: assert    
@@ -102,4 +106,4 @@ program test_list
         end select
     end subroutine add_one
 
-end program test_list
+end module test_list
