@@ -7,14 +7,32 @@ program test_list
     end type
 
     call new_list_is_empty()
+    call can_add_items()
     
     contains
     subroutine new_list_is_empty()
         type(MyList) :: my_list
         logical :: assert    
         assert = .not. my_list%has_more()
-        call print_test_result(assert, "new_list_is_empty")
+        call print_test_result(assert, "test_list::new_list_is_empty")
     end subroutine new_list_is_empty
+
+    subroutine can_add_items()
+        type(MyList) :: my_list
+        integer :: i
+        class(*), pointer :: value
+        logical :: assert
+        allocate(value, source=3)
+        call my_list%add_value(value)
+        nullify(value)
+        value => my_list%current_value()
+        select type(value)
+        type is (integer)
+            i = value
+        end select
+        assert = (i .eq. 3)
+        call print_test_result(assert, "test_list::can_add_items")
+    end subroutine can_add_items
 end program test_list
 
 ! module integer_list

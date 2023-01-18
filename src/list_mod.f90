@@ -100,6 +100,7 @@ module list_mod
         if (.not. associated(self%first_link)) then
             self%first_link => link(value, null())
             self%last_link => self%first_link
+            self%current_link => self%first_link
         else
             new_link => link(value, self%last_link%next())
             call self%last_link%set_next(new_link)
