@@ -24,6 +24,7 @@ program test_list
         integer :: i
         class(*), pointer :: value
         logical :: assert
+        i =  3
         allocate(value, source=3)
         call my_list%add_value(value)
         nullify(value)
