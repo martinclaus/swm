@@ -7,7 +7,7 @@
 !------------------------------------------------------------------
 
 module app
-    use list_mod, only: list
+    use list_mod, only: List
     implicit none
 
     public Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder
@@ -87,7 +87,7 @@ module app
             procedure, pass :: add_component => add_component_impl
     end type DefaultAppBuilder
 
-    type, extends(list) :: ComponentList
+    type, extends(List) :: ComponentList
         contains
         procedure :: add_component_to_list
         procedure :: current => current_component

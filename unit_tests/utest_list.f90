@@ -1,9 +1,9 @@
 program test_list
-    use list_mod, only: list
+    use list_mod, only: List
     use testing, only: print_test_result
     implicit none
 
-    type, extends(list) :: MyList
+    type, extends(List) :: MyList
     end type
 
     call new_list_is_empty()
