@@ -12,7 +12,8 @@ module test_list
     subroutine run_list_tests()
         call new_list_is_empty()
         call can_add_and_get_items()
-        call iterates_over_all_values_sequentially()
+        call iterates_over_all_values()
+        call iterates_over_values_sequentially()
         call map_applied_to_value_updates()
     end subroutine run_list_tests
 
@@ -41,7 +42,26 @@ module test_list
         call print_test_result(assert, "test_list::can_add_and_get_items")
     end subroutine can_add_and_get_items
 
-    subroutine iterates_over_all_values_sequentially()
+    subroutine iterates_over_all_values()
+        type(MyList), target :: my_list
+        integer :: i
+        class(*), pointer :: value
+        type(ListIterator) :: iterator
+        do i = 1, 5
+            allocate(value, source=i)
+            call my_list%add_value(value)
+        end do
+        iterator = my_list%iter()
+        i = 0
+        do while (iterator%has_more())
+            i = i + 1
+            value => iterator%next()
+        end do
+        call print_test_result((i .eq. 5), "test_list::iterates_over_all_values")                
+    end subroutine iterates_over_all_values
+
+
+    subroutine iterates_over_values_sequentially()
         type(MyList), target :: my_list
         integer :: i
         class(*), pointer :: value
@@ -65,7 +85,7 @@ module test_list
             end select
         end do
         call print_test_result(assert, "test_list::iterates_over_all_values_sequentially")                
-    end subroutine iterates_over_all_values_sequentially
+    end subroutine iterates_over_values_sequentially
 
 
     subroutine map_applied_to_value_updates()

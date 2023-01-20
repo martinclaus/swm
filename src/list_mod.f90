@@ -137,11 +137,11 @@ module list_mod
     function iterator_has_more(self)
         class(ListIterator) :: self
         logical :: iterator_has_more
-        iterator_has_more = associated(self%current%next())
+        iterator_has_more = associated(self%current)
     end function iterator_has_more
 
     subroutine map_to_self(self,  sub)
-        class(ListIterator), intent(in) :: self
+        class(ListIterator) :: self
         procedure(apply_to_list_value) ::  sub
         class(*), pointer :: val
         do while (self%has_more())
