@@ -10,8 +10,8 @@ module app
     use list_mod, only: list, ListIterator, apply_to_list_value
     implicit none
 
-    public Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder
     private
+    public :: Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder, ComponentList
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief A component of the app.
@@ -38,7 +38,7 @@ module app
                 
     type, abstract :: AbstractApp
     contains
-        procedure(run), deferred, pass :: run
+        procedure(run_app), deferred, pass :: run
         procedure(call_on_app), private, deferred, pass :: initialize
         procedure(call_on_app), private, deferred, pass :: finalize
         procedure(call_on_app), private, deferred, pass :: step
@@ -46,11 +46,11 @@ module app
     end type AbstractApp
 
     abstract interface
-        subroutine run(self, steps)
+        subroutine run_app(self, steps)
             import AbstractApp
             class(AbstractApp), intent(inout) :: self
             integer, intent(in) :: steps
-        end subroutine run
+        end subroutine run_app
 
         subroutine call_on_app(self)
             import AbstractApp
@@ -62,7 +62,7 @@ module app
         type(ComponentList), pointer :: component_list => null()
         contains
             procedure(build), deferred, pass :: build
-            procedure(add_component), deferred, pass :: add_component
+            procedure, pass :: add_component => add_component_impl
     end type AbstractAppBuilder
 
     abstract interface
@@ -80,7 +80,7 @@ module app
     end interface
 
     type, extends(AbstractApp) :: DefaultApp
-        class(ComponentList), pointer :: components
+        class(ComponentList), pointer :: components => null()
     contains
         procedure, pass :: run => run_default_app
         procedure, private, pass :: initialize => initialize_default_app
@@ -92,7 +92,6 @@ module app
     type, extends(AbstractAppBuilder) :: DefaultAppBuilder
         contains
             procedure, pass :: build => build_impl
-            procedure, pass :: add_component => add_component_impl
     end type DefaultAppBuilder
 
     type, extends(List) :: ComponentList
@@ -158,8 +157,9 @@ contains
     end function build_impl
     
     subroutine add_component_impl(self, comp)
-        class(DefaultAppBuilder), intent(inout) :: self
+        class(AbstractAppBuilder), intent(inout) :: self
         class(Component), intent(in) :: comp
+        if (.not. associated(self%component_list)) allocate(self%component_list)
         call self%component_list%add(comp)
     end subroutine add_component_impl
 
