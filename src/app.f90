@@ -11,7 +11,7 @@ module app
     implicit none
 
     private
-    public :: Component, AbstractApp, AbstractAppBuilder, DefaultAppBuilder, ComponentList
+    public :: Component, AbstractApp, AbstractAppBuilder, new_default_app_builder
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief A component of the app.
@@ -59,10 +59,11 @@ module app
     end interface
 
     type, abstract :: AbstractAppBuilder
-        type(ComponentList), pointer :: component_list => null()
+        type(ComponentList), pointer, private :: component_list => null()
         contains
             procedure(build), deferred, pass :: build
             procedure, pass :: add_component => add_component_impl
+            procedure, pass :: get_component_list => builder_get_component_list
     end type AbstractAppBuilder
 
     abstract interface
@@ -80,7 +81,7 @@ module app
     end interface
 
     type, extends(AbstractApp) :: DefaultApp
-        class(ComponentList), pointer :: components => null()
+        class(ComponentList), pointer, private :: components => null()
     contains
         procedure, pass :: run => run_default_app
         procedure, private, pass :: initialize => initialize_default_app
@@ -162,6 +163,19 @@ contains
         if (.not. associated(self%component_list)) allocate(self%component_list)
         call self%component_list%add(comp)
     end subroutine add_component_impl
+
+    function new_default_app_builder()
+        class(AbstractAppBuilder), pointer :: new_default_app_builder
+        type(DefaultAppBuilder) :: concret_builder
+        allocate(concret_builder%component_list)
+        allocate(new_default_app_builder, source=concret_builder)
+    end function
+
+    function builder_get_component_list(self) result(component_list)
+        class(AbstractAppBuilder) :: self
+        class(ComponentList), pointer :: component_list
+        component_list => self%component_list
+    end function builder_get_component_list
 
     subroutine add_component_to_list(self, comp)
         class(ComponentList), intent(inout) :: self

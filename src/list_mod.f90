@@ -35,25 +35,24 @@ module list_mod
     !! can be obtained by extending `list`.
     !! When extending the type, procedures for adding an element and obtianing
     !! the current element must be implemented.
-    !! The list offers an iterator API via the `iter` function.
+    !! The list offers an iterator API via the `iter` function and the `map` subroutine.
     !!
     !! Example
     !! =======
     !! ```fortran
     !! class(list), pointer :: my_list
-    !! type(ListIterator) :: iterator
-    !! iterator = my_list%iter()
-    !! call iter%map(some_routine)
+    !! procedure(apply_to_list_value) :: some_routine
+    !! call my_list%map(some_routine)
     !! ```
-    !! `some_routine` is a subroutine conforming the interface `apply_to_self`
-    !! usefull for in-place modification of list values.
     !------------------------------------------------------------------
     type, abstract :: List
-        class(Link), pointer :: first_link => null()
-        class(Link), pointer :: last_link => null()
+        class(Link), pointer, private :: first_link => null()
+        class(Link), pointer, private :: last_link => null()
         contains
         procedure :: add_value => list_add_value
         procedure :: iter => list_iter
+        procedure, private :: list_map_to_values
+        generic :: map => list_map_to_values
     end type List
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -123,6 +122,14 @@ module list_mod
         type(ListIterator) :: list_iter
         list_iter%current => self%first_link
     end function list_iter
+
+    subroutine list_map_to_values(self, sub)
+        class(List), intent(in) :: self
+        procedure(apply_to_list_value) :: sub
+        type(ListIterator) :: iterator
+        iterator = self%iter()
+        call iterator%map_to_self(sub)        
+    end subroutine list_map_to_values
 
     function iterator_next(self)
         class(ListIterator) :: self

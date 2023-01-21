@@ -1,6 +1,5 @@
 module test_app
-    use app, only: Component, DefaultAppBuilder, AbstractApp, ComponentList
-    use list_mod, only: ListIterator
+    use app, only: Component, AbstractAppBuilder, AbstractApp, new_default_app_builder
     use testing, only: print_test_result
     implicit none
     private
@@ -19,35 +18,12 @@ module test_app
     contains
 
     subroutine run_app_tests()
-        call default_app_builder_adds_multiple_components()
         call default_app_steps_through_all_components()
     end subroutine run_app_tests
 
-    subroutine default_app_builder_adds_multiple_components()
-        use list_mod, only: ListIterator
-        type(DefaultAppBuilder) :: builder
-        type(MockComponent) :: comp1, comp2
-        integer :: i = 0
-        type(ListIterator) :: iterator
-        class(*), pointer :: next_val
-        logical :: assert
-        allocate(builder%component_list)
-        call builder%add_component(comp1)
-        call builder%add_component(comp2)
-
-        iterator = builder%component_list%iter()
-        do while (iterator%has_more())
-            i = i + 1
-            next_val => iterator%next()
-        end do
-        assert = (i .eq. 2)
-        call print_test_result(assert, "default_app_builder_adds_multiple_components")
-
-    end subroutine default_app_builder_adds_multiple_components
-
     subroutine default_app_steps_through_all_components()
         class(AbstractApp), allocatable :: application
-        type(DefaultAppBuilder) :: builder
+        class(AbstractAppBuilder), pointer :: builder
         type(MockComponent) :: comp1, comp2
         character(len=256), dimension(:), pointer :: data1, data2
         integer :: i
@@ -56,6 +32,7 @@ module test_app
         allocate(data1(20))
         data1 = " "
         comp1%called_procedures => data1
+        builder => new_default_app_builder()
         call builder%add_component(comp1)
         comp2%id = 2
         allocate(data2(20))
@@ -85,7 +62,7 @@ module test_app
                 if (.not. assert) print *, "Assert failed for ", i
             end select
         end do
-        call print_test_result(assert, "default_app_steps_through_all_components")
+        call print_test_result(assert, "test_app::default_app_steps_through_all_components")
     end subroutine default_app_steps_through_all_components
 
     subroutine initialize_mock_component(self)
