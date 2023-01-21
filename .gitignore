@@ -1,6 +1,6 @@
 config.log
 config.status
-Makefile
+/Makefile
 build/*
 bin/*
 *.L
