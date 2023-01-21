@@ -10,10 +10,26 @@ module test_list
 
     contains
     subroutine run_list_tests()
+        call can_iterate_over_an_empty_list()
         call iterates_over_all_values()
         call iterates_over_values_sequentially()
         call map_applied_to_value_updates()
     end subroutine run_list_tests
+
+    subroutine can_iterate_over_an_empty_list()
+        type(MyList), target :: my_list
+        integer :: i
+        class(*), pointer :: value
+        type(ListIterator) :: iterator
+        ! list is empty, first_link and last_link are null()
+        iterator = my_list%iter()
+        i = 0
+        do while (iterator%has_more())
+            i = i + 1
+            value => iterator%next()
+        end do
+        call print_test_result((i .eq. 0), "test_list::can_iterate_over_an_empty_list")                
+    end subroutine can_iterate_over_an_empty_list
 
     subroutine iterates_over_all_values()
         type(MyList), target :: my_list
