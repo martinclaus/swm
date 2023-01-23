@@ -39,14 +39,14 @@ bin_PROGRAMS = model$(EXEEXT)
 O := $(OPENMP_FCFLAGS)
 DEBUG = #-Wall #-g
 FFLAGS = $(FCFLAGS) $(FCFLAGS_f90) $(defSelfCheck) $(DEBUG) $(O)
-libnc = @NCLIB@ -lnetcdf -lnetcdff
+libnc = @NCLIB@ 
 includenc = $(FC_MODINC)@NCINC@
 DOXYGEN = @DOXYGEN@
 
 LDFLAGS = @LDFLAGS@ @LIBS@ $(libnc)
 
-include_adios2 = $(FC_MODINC)/usr/local/include/adios2/fortran
-lib_adios2 = /usr/local/lib/libadios2_fortran.2.8.3.dylib
+include_adios2 = $(shell adios2-config -s --fortran-flags)
+lib_adios2 = $(shell adios2-config -s --fortran-libs)
 
 COMPILE = $(FC) $(FFLAGS) $(CPPFLAGS) $(defClElSolv) $(includenc) $(include_adios2) $(FC_MODINC)$(builddir) $(include_selfcheck) $(FC_MODINC)$(includedir) -c $< $(FC_MODOUT)$(builddir) -o$(builddir)$@
 
