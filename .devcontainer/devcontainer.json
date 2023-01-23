@@ -1,0 +1,32 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "Ubuntu",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+	"features": {
+		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+			"packages": "autoconf,make,gfortran,libgomp1,libnetcdff7,libnetcdff-dev,libexpat-dev,libudunits2-0"
+		},
+		"ghcr.io/mamba-org/devcontainer-features/micromamba:1": {
+			"channels": "conda-forge"
+		}
+	},
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+	"onCreateCommand": {
+		"installAdios2": "micromamba install --yes libadios2"
+	},
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": {
+		"makeLibudunitsFindable": "sudo ln -s /usr/lib/x86_64-linux-gnu/libudunits2.so.0 /usr/lib/x86_64-linux-gnu/libudunits2.so",
+		"addCondaLibsToRuntimeSearchPath": "echo \"export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/opt/conda/lib:$LD_LIBRARY_PATH\" >> ~/.bashrc"
+	}
+	// "postStartCommand": "export LD_LIBRARY_PATH=/opt/conda/lib:$LD_LIBRARY_PATH"
+	// Configure tool-specific properties.
+	// "customizations": {},
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}
