@@ -17,11 +17,12 @@
 !! vars_module, calc_lib, diag_module, domain_module,
 !! dynFromFile_module, swm_module, tracer_module, time_integration_module
 !------------------------------------------------------------------
-PROGRAM main
+PROGRAM main_program
 #include "model.h"
 #include "io.h"
+  use app, only: AbstractApp, new_default_app_builder, AbstractAppBuilder
   use logging
-  USE io_module
+  USE io_module, only: make_io_component, IoComponent
   USE vars_module
   USE domain_module
   USE calc_lib
@@ -31,7 +32,7 @@ PROGRAM main
   USE dynFromFile_module
 #endif
 #ifdef SWM
-  USE swm_module
+  USE swm_module, only: make_swm_component
 #endif
 #ifdef TRACER
   USE tracer_module
@@ -42,17 +43,17 @@ PROGRAM main
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! Call initialization routines
   !------------------------------------------------------------------
-  CALL initModel
+  ! CALL initModel
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! Do the timestepping
   !------------------------------------------------------------------
-  CALL timestepModel
+  ! CALL timestepModel
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! Call the finishing routines
   !------------------------------------------------------------------
-  CALL finishModel
+  ! CALL finishModel
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! Normal programm termination
@@ -61,6 +62,30 @@ PROGRAM main
 
   CONTAINS
 
+    subroutine main()
+      class(AbstractApp), pointer :: application
+
+      application => make_app()
+      call application%run(100)
+      
+    end subroutine main
+
+    function make_app() result(application)
+      class(AbstractApp), pointer :: application
+      class(AbstractAppBuilder), pointer :: app_factory
+      type(IoComponent), pointer :: io_comp
+
+      app_factory => new_default_app_builder()
+      call app_factory%add_component(io_comp)
+
+#ifdef SWM
+      call app_factory%add_component(make_swm_component())
+#endif
+
+      application => app_factory%build()
+
+      deallocate(app_factory)
+    end function make_app
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -78,8 +103,8 @@ PROGRAM main
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise io module (read output suffix and prefix from namelist)
         !------------------------------------------------------------------
-        call initIO
-        call log_info('initIO done')
+        ! call initIO
+        ! call log_info('initIO done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialize the domain, indices, land masks
@@ -117,7 +142,7 @@ PROGRAM main
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initializes the shallow water model
         !------------------------------------------------------------------
-        call SWM_initSWM
+        call initialize
         call log_info('SWM_init done')
 #endif
 
@@ -166,7 +191,7 @@ PROGRAM main
 #endif
 
 #if defined(SWM)
-          call SWM_timestep
+          call step
 #endif
 
 #ifdef TRACER
@@ -217,7 +242,7 @@ PROGRAM main
 #endif
 
 #ifdef SWM
-        call SWM_finishSWM
+        call finalize
 #endif
 
 #ifdef DYNFROMFILE
@@ -250,7 +275,7 @@ PROGRAM main
       CALL DFF_advance
 #endif
 #ifdef SWM
-      CALL SWM_advance
+      CALL advance
 #endif
 #ifdef TRACER
       CALL TRC_advance
@@ -258,4 +283,4 @@ PROGRAM main
       CALL advanceCalcLib
     END SUBROUTINE model_advance
 
-END PROGRAM main
+END PROGRAM main_program

@@ -70,7 +70,7 @@ module app
         function build(self) result(app)
             import AbstractAppBuilder, AbstractApp
             class(AbstractAppBuilder), intent(inout) :: self
-            class(AbstractApp), allocatable :: app
+            class(AbstractApp), pointer :: app
         end function build
 
         subroutine add_component(self, comp)
@@ -150,7 +150,7 @@ contains
 
     function build_impl(self) result(app)
         class(DefaultAppBuilder), intent(inout) :: self
-        class(AbstractApp), allocatable :: app
+        class(AbstractApp), pointer :: app
         type(DefaultApp) :: concrete_app
         concrete_app%components => self%component_list
         ! make polymorphic type

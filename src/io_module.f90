@@ -13,6 +13,7 @@
 !------------------------------------------------------------------
 MODULE io_module
 #include "io.h"
+  use app, only: Component
   use logging
   use types
   USE netcdf
@@ -20,6 +21,48 @@ MODULE io_module
                               freeCal, closeCal, convertTime, isSetCal
   USE grid_module
   IMPLICIT NONE
+  private
+  public :: make_io_component, IoComponent
+  
+  real(KDOUBLE), parameter :: infinity=huge(1._KDOUBLE), neg_infinity=-huge(1._KDOUBLE)
+  
+  type, private :: nc_file_parameter
+    integer               :: cmode = DEF_NC_CMODE  !< NetCDF creation mode. Need to match one of NF90_CLOBBER, NF90_NOCLOBBER,
+                                                  !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
+    integer               :: contiguous = DEF_NC_CONTIGUOUS  !< -99: not set, 0: .False., 1: .True.
+    integer, dimension(MAX_NC_DIMS) :: chunksizes = 0 !< An array of chunk number of elements. This array has the number of
+                                                  !< elements along each dimension of the data chunk. The array must have
+                                                  !< the one chunksize for each dimension in the variable.
+    integer               :: n_dims = 0            !< number of non-zero elements in chunksizes.
+    logical               :: shuffle = DEF_NC_SHUFFLE             !< If non-zero, turn on the shuffle filter.
+    integer               :: deflate_level = DEF_NC_DEFLATE_LEVEL !< If the deflate parameter is non-zero, set the deflate level to this
+                                                                  !< value. Must be between 1 and 9.
+    logical               :: fletcher32  = DEF_NC_FLETCHER32  !< Set to true to turn on fletcher32 checksums for this variable.
+    integer               :: endianness = DEF_NC_ENDIANNESS   !< Set to NF90_ENDIAN_LITTLE for little-endian format, 
+                                                              !< NF90_ENDIAN_BIG for big-endian format, and NF90_ENDIAN_NATIVE
+                                                              !< (the default) for the native endianness of the platform.
+  end type nc_file_parameter
+
+  type, extends(Component) :: IoComponent
+    ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
+    type(nc_file_parameter) :: nc_par
+    character(CHARLEN) :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
+    character(CHARLEN) :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
+                                             !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
+    character(CHARLEN) :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
+    type(calendar) :: modelCalendar !< Internal Calendar of the model
+  contains
+    procedure :: initialize => initIO
+    procedure :: finalize => finishIO
+    procedure :: step => do_nothing
+    procedure :: advance => do_nothing
+    procedure, private :: createDSEuler, createDSLagrange
+    generic :: createDS => createDSEuler, createDSLagrange  !< creates a dataset with a given grid
+    procedure, private :: getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
+    generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
+    procedure, private :: putVarEuler, putVarLagrange
+    generic :: putVar => putVarEuler, putVarLagrange !< Write time slice of a variable to a dataset
+  end type IoComponent
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to store variables associated with a variable of
@@ -48,57 +91,6 @@ MODULE io_module
     TYPE(calendar), PRIVATE         :: calendar              !< Calendar the fileHandle uses
   END TYPE fileHandle
 
-  type, private :: nc_file_parameter
-    integer               :: cmode = DEF_NC_CMODE  !< NetCDF creation mode. Need to match one of NF90_CLOBBER, NF90_NOCLOBBER,
-                                                   !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
-    integer               :: contiguous = DEF_NC_CONTIGUOUS  !< -99: not set, 0: .False., 1: .True.
-    integer, dimension(MAX_NC_DIMS) :: chunksizes = 0 !< An array of chunk number of elements. This array has the number of
-                                                   !< elements along each dimension of the data chunk. The array must have
-                                                   !< the one chunksize for each dimension in the variable.
-    integer               :: n_dims = 0            !< number of non-zero elements in chunksizes.
-    logical               :: shuffle = DEF_NC_SHUFFLE             !< If non-zero, turn on the shuffle filter.
-    integer               :: deflate_level = DEF_NC_DEFLATE_LEVEL !< If the deflate parameter is non-zero, set the deflate level to this
-                                                                  !< value. Must be between 1 and 9.
-    logical               :: fletcher32  = DEF_NC_FLETCHER32  !< Set to true to turn on fletcher32 checksums for this variable.
-    integer               :: endianness = DEF_NC_ENDIANNESS   !< Set to NF90_ENDIAN_LITTLE for little-endian format, 
-                                                              !< NF90_ENDIAN_BIG for big-endian format, and NF90_ENDIAN_NATIVE
-                                                              !< (the default) for the native endianness of the platform.
-  end type nc_file_parameter
-
-  real(KDOUBLE), parameter :: infinity=huge(1._KDOUBLE), neg_infinity=-huge(1._KDOUBLE)
-
-  ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-  type(nc_file_parameter), save :: nc_par
-  CHARACTER(CHARLEN)          :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
-  CHARACTER(CHARLEN)          :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
-                                                    !< NF90_SHARE, NF90_64BIT_OFFSET, NF90_NETCDF4, or NF90_CLASSIC_MODEL
-  CHARACTER(CHARLEN)          :: time_unit=TUNIT    !< Calendar string obeying the recommendations of the Udunits package.
-
-  TYPE(calendar), save        :: modelCalendar !< Internal Calendar of the model
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief creates a dataset with a given grid
-  !------------------------------------------------------------------
-  interface createDS
-    module procedure createDSEuler
-    module procedure createDSLagrange
-  end interface createDS
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Read time slice of a variable from a dataset
-  !------------------------------------------------------------------
-  INTERFACE getVar
-    MODULE PROCEDURE getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
-  END INTERFACE getVar
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Write time slice of a variable to a dataset
-  !------------------------------------------------------------------
-  interface putVar
-    module procedure putVarEuler
-    module procedure putVarLagrange
-  end interface putVar
-
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Read attribute from a variable in a dataset
   !!
@@ -109,18 +101,33 @@ MODULE io_module
   END INTERFACE getAtt
 
   CONTAINS
+
+    function make_io_component() result(io_comp)
+      type(IoComponent), pointer :: io_comp
+      allocate(io_comp)
+    end function make_io_component
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Does nothing
+    !------------------------------------------------------------------
+    subroutine do_nothing(self)
+      class(IoComponent), intent(inout) :: self
+    end subroutine do_nothing
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise io_module
     !!
     !! Parses output_nl namelist
     !------------------------------------------------------------------
-    SUBROUTINE initIO
-      implicit none
+    SUBROUTINE initIO(self)
+      class(IoComponent), intent(inout) :: self
       CHARACTER(CHARLEN) :: nc_cmode(MAX_NC_CMODE_FLAGS)
       integer :: nc_deflate_level, nc_contiguous
       character(CHARLEN) :: nc_endianness
       logical :: nc_shuffle, nc_fletcher32
-      integer, dimension(MAX_NC_DIMS) :: nc_chunksizes
+      character(CHARLEN) :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
+      character(CHARLEN) :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
+        integer, dimension(MAX_NC_DIMS) :: nc_chunksizes
       namelist / output_nl / &
         oprefix, &  ! output prefix used to specify directory
         osuffix, &  ! suffix to name model run
@@ -141,16 +148,19 @@ MODULE io_module
       read(UNIT_OUTPUT_NL, nml = output_nl)
       close(UNIT_OUTPUT_NL)
       
-      call parse_nc_file_params( &
+      self%nc_par = parse_nc_file_params( &
         nc_cmode, &
         nc_contiguous, nc_chunksizes, &
         nc_shuffle, nc_deflate_level, nc_fletcher32, &
         nc_endianness &
       )
+
+      self%oprefix = oprefix
+      self%osuffix = osuffix
       
       CALL OpenCal
-      time_unit = ref_cal
-      CALL setCal(modelCalendar, time_unit)
+      self%time_unit = ref_cal
+      CALL setCal(self%modelCalendar, self%time_unit)
     END SUBROUTINE initIO
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -158,8 +168,8 @@ MODULE io_module
     !!
     !! Terminates usage of udunits package
     !------------------------------------------------------------------
-    SUBROUTINE finishIO
-      IMPLICIT NONE
+    SUBROUTINE finishIO(self)
+      class(IoComponent), intent(inout) :: self
       CALL CloseCal
     END SUBROUTINE finishIO
 
@@ -195,12 +205,12 @@ MODULE io_module
     !!
     !! Calls getVar to retrieve the last timeslice of a variable.
     !------------------------------------------------------------------
-    SUBROUTINE readInitialCondition(FH,var,missmask)
-      IMPLICIT NONE
+    SUBROUTINE readInitialCondition(self, FH, var, missmask)
+      class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)                        :: FH       !< File handle pointing to the requested variable
       real(KDOUBLE), DIMENSION(:,:), INTENT(out)          :: var      !< Data to return
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask !< missing value mask
-      call getVar(FH, var, getNrec(FH), missmask)
+      call getVar(FH, var, getNrec(self, FH), missmask)
     END SUBROUTINE readInitialCondition
 
 
@@ -302,8 +312,8 @@ MODULE io_module
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
     !------------------------------------------------------------------
-    SUBROUTINE createDSEuler(FH, grid)
-      IMPLICIT NONE
+    SUBROUTINE createDSEuler(self, FH, grid)
+      class(IoComponent)                :: self
       TYPE(fileHandle), INTENT(inout)   :: FH       !< Initialised file handle pointing to a non-existend file.
                                                     !< FH%filename will be overwritten by io_module::getFname(FH%filename)
       TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Spatial grid used to create dataset
@@ -317,10 +327,10 @@ MODULE io_module
       else
         Ntime = NF90_UNLIMITED
       end if
-      FH%filename = getFname(FH%filename)
+      FH%filename = getFname(self, FH%filename)
       
       ! create file
-      call check(create_nc_file(FH, nc_par), __LINE__, FH%filename)
+      call check(create_nc_file(FH, self%nc_par), __LINE__, FH%filename)
       FH%isOpen = .TRUE.
 
       ! create dimensions
@@ -350,13 +360,13 @@ MODULE io_module
         FH, TAXISNAME, NF90_DOUBLE, (/FH%timedid/), FH%timevid), &
         __LINE__, FH%filename &
       )
-      call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
+      call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, self%time_unit))
       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
 
       ! variable field
       call check( &
         create_nc_data_var( &
-          FH, NF90_DOUBLE, (/lon_dimid,lat_dimid,FH%timedid/), nc_par &
+          FH, NF90_DOUBLE, (/lon_dimid,lat_dimid,FH%timedid/), self%nc_par &
         ), &
         __LINE__, FH%filename &
       )
@@ -367,9 +377,9 @@ MODULE io_module
       call check(nf90_put_var(FH%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
       call check(nf90_put_var(FH%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
       FH%nrec = 0
-      CALL setCal(FH%calendar, time_unit)
+      CALL setCal(FH%calendar, self%time_unit)
 #ifdef DIAG_FLUSH
-      call closeDS(FH)
+      call closeDS(self, FH)
 #endif
     END SUBROUTINE createDSEuler
 
@@ -382,17 +392,18 @@ MODULE io_module
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
     !------------------------------------------------------------------
-    subroutine createDSLagrange(FH, grid)
+    subroutine createDSLagrange(self, FH, grid)
+       class(IoComponent)                  :: self
        type(filehandle), intent(inout)     :: FH
        type(t_grid_lagrange), intent(in)   :: grid
        integer(KINT_NF90)                  :: id_dimid, id_varid
        integer(KINT_NF90)                  :: Nr
 
        Nr=SIZE(grid%id)
-       FH%filename = getFname(FH%filename)
+       FH%filename = getFname(self, FH%filename)
 
        ! create file
-       call check(create_nc_file(FH, nc_par), __LINE__, FH%filename)
+       call check(create_nc_file(FH, self%nc_par), __LINE__, FH%filename)
        FH%isOpen = .TRUE.
 
        ! create dimensions
@@ -405,7 +416,7 @@ MODULE io_module
        call check(nf90_put_att(FH%ncid,id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
        ! time vector
        call check(nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
-       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, time_unit))
+       call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, self%time_unit))
        call check(nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
        ! variable field
        call check(nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/id_dimid,FH%timedid/), FH%varid))
@@ -416,9 +427,9 @@ MODULE io_module
        call check(nf90_put_var(FH%ncid, id_varid, grid%id))   ! Fill id dimension variable
 
        FH%nrec = 0
-       call setCal(FH%calendar, time_unit)
+       call setCal(FH%calendar, self%time_unit)
 #ifdef DIAG_FLUSH
-       call closeDS(FH)
+       call closeDS(self, FH)
 #endif
      end subroutine createDSLagrange
 
@@ -429,8 +440,8 @@ MODULE io_module
     !! and querry information if it is not already provided by the fileHandle.
     !! If the dataset is already open nothing will happen.
     !------------------------------------------------------------------
-    SUBROUTINE openDS(FH)
-      IMPLICIT NONE
+    SUBROUTINE openDS(self, FH)
+      class(IoComponent) :: self
       TYPE(fileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
       TYPE(fileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
       character(CHARLEN)               :: t_string  !< String of time unit
@@ -451,14 +462,14 @@ MODULE io_module
       IF (.NOT.isSetCal(FH%calendar)) THEN
         IF (FH%nrec.NE.1 .AND. FH%timevid.NE.DEF_TIMEVID) THEN ! dataset is not constant in time and has a time axis
           FH_time = getTimeFH(FH)
-          CALL getAtt(FH_time,NUG_ATT_UNITS,t_string)
+          CALL getAtt(self, FH_time, NUG_ATT_UNITS, t_string)
           IF (LEN_TRIM(t_string).EQ.0) THEN
-            t_string = time_unit
+            t_string = self%time_unit
             call log_warn("Input dataset "//TRIM(FH%filename)//" has no time axis. Assumed time axis: "//TRIM(t_string))
           END IF
           CALL setCal(FH%calendar,t_string)
         ELSE ! datset has no non-singleton time axis
-          CALL setCal(FH%calendar,time_unit)
+          CALL setCal(FH%calendar,self%time_unit)
         END IF
       END IF
     END SUBROUTINE openDS
@@ -468,8 +479,8 @@ MODULE io_module
     !!
     !! If the dataset is not open, nothing will happen.
     !------------------------------------------------------------------
-    SUBROUTINE closeDS(FH)
-      IMPLICIT NONE
+    SUBROUTINE closeDS(self, FH)
+      class(IoComponent) :: self
       TYPE(fileHandle), INTENT(inout) :: FH     !< File handle pointing to an existing dataset.
       IF ( .NOT. FH%isOpen ) RETURN
       CALL check(nf90_close(FH%ncid),&
@@ -501,8 +512,8 @@ MODULE io_module
     !!
     !! Write a variables time slice to a existing dataset.
     !------------------------------------------------------------------
-    SUBROUTINE putVarEuler(FH,varData,time,grid)
-      IMPLICIT NONE
+    SUBROUTINE putVarEuler(self, FH, varData, time, grid)
+      class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)                           :: FH        !< Initialised file handle pointing to the variable to write data to
       real(KDOUBLE), DIMENSION(:,:), INTENT(in)                 :: varData   !< Data to write
       real(KDOUBLE), DIMENSION(SIZE(varData,1),SIZE(varData,2)) :: var_dummy !< Copy of varData to apply missing values to
@@ -517,7 +528,7 @@ MODULE io_module
       where (var_dummy > infinity .or. var_dummy < neg_infinity .or. var_dummy .ne. var_dummy) var_dummy = FH%missval
       IF (PRESENT(time)) local_time = time
       wasOpen = FH%isOpen
-      call openDS(FH)
+      call openDS(self, FH)
       CALL check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
                               start = (/1, 1 , int(FH%nrec, KINT_NF90)/), &
                               count=(/SIZE(varData,1),SIZE(varData,2),1/)),&
@@ -525,7 +536,7 @@ MODULE io_module
       CALL check(nf90_put_var(FH%ncid, FH%timevid,local_time,start=(/int(FH%nrec, KINT_NF90)/)),&
                  __LINE__,TRIM(FH%filename))
       CALL updateNrec(FH)
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE putVarEuler
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -534,7 +545,8 @@ MODULE io_module
      !! Write a lagrangian variable time slice to a existing dataset.
      !! @par Uses:
      !------------------------------------------------------------------
-     subroutine putVarLagrange(FH,varData,time,grid)
+     subroutine putVarLagrange(self, FH, varData, time, grid)
+      class(IoComponent), intent(in) :: self
       type(fileHandle), intent(inout)              :: FH            !< Initialised file handle pointing to the variable to write data to
       real(KDOUBLE), dimension(:), intent(in)      :: varData       !< Data to write
       real(KDOUBLE), dimension(size(varData,1))    :: var_dummy     !< Copy of varData to apply missing values to
@@ -547,7 +559,7 @@ MODULE io_module
       if (present(grid))  where(grid%valid .ne. 1_KSHORT) var_dummy = FH%missval
       if (present(time))  local_time = time
       wasOpen = FH%isOpen
-      call openDS(FH)
+      call openDS(self, FH)
       call check(nf90_put_var(FH%ncid, FH%varid, var_dummy, &
                               start = (/1, int(FH%nrec, KINT_NF90)/), &
                               count=(/size(varData),1/)), &
@@ -555,7 +567,7 @@ MODULE io_module
       call check(nf90_put_var(FH%ncid, FH%timevid, local_time, start=(/int(FH%nrec, KINT_NF90)/)), &
                  __LINE__,TRIM(FH%filename))
       CALL updateNrec(FH)
-      if (.not.wasOpen) call closeDS(FH)
+      if (.not.wasOpen) call closeDS(self, FH)
     end subroutine putVarLagrange
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -564,7 +576,8 @@ MODULE io_module
     !! Read a 3D (2D space + 1D time) chunk of a variable from disk.
     !! If specified, also a mask of missing values is returned
     !------------------------------------------------------------------
-    SUBROUTINE getVar3Dhandle(FH,var,tstart, missmask)
+    SUBROUTINE getVar3Dhandle(self, FH,var,tstart, missmask)
+      class(ioComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)                          :: FH            !< File handle pointing to the variable to read from
       integer(KINT), INTENT(in)                                :: tstart        !< Time index to start reading
       real(KDOUBLE), DIMENSION(:,:,:), INTENT(out)             :: var           !< Data read from disk
@@ -572,18 +585,18 @@ MODULE io_module
       real(KDOUBLE)                                            :: missing_value
       LOGICAL                                                  :: wasOpen
       wasOpen = FH%isOpen
-      call openDS(FH)
+      call openDS(self, FH)
       call check(nf90_get_var(FH%ncid, FH%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
                  __LINE__,TRIM(FH%filename))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
         missmask = 0
-        CALL getAtt(FH, 'missing_value', missing_value)
+        CALL getAtt(self, FH, 'missing_value', missing_value)
         WHERE (var .eq. missing_value) missmask = 1
-        CALL getAtt(FH, '_FillValue', missing_value)
+        CALL getAtt(self, FH, '_FillValue', missing_value)
         WHERE (var .eq. missing_value) missmask = 1
       END IF
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE getVar3Dhandle
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -593,7 +606,8 @@ MODULE io_module
     !! the location specified by the file handle FH. If specified, also a
     !! mask of missing values is returned.
     !------------------------------------------------------------------
-    SUBROUTINE getVar2Dhandle(FH,var,tstart, missmask)
+    SUBROUTINE getVar2Dhandle(self, FH,var,tstart, missmask)
+      class(ioComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)                        :: FH            !< File handle pointing to the variable to read data from
       integer(KINT), INTENT(in)                              :: tstart        !< Time index of slice to read
       real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var           !< Data to be returned
@@ -601,19 +615,19 @@ MODULE io_module
       real(KDOUBLE)                                          :: missing_value !< Missing value as specified by variable attribute
       LOGICAL                                                :: wasOpen
       wasOpen = FH%isOpen
-      call openDS(FH)
+      call openDS(self, FH)
       call check(nf90_get_var(FH%ncid, FH%varid, var, &
                               start=(/1, 1, int(tstart, KINT_NF90)/), &
                               count=(/SIZE(var,1),SIZE(var,2),1/)))
       ! assume that if getatt gives an error, there's no missing value defined.
       IF ( present(missmask)) THEN
        missmask = 0
-       CALL getAtt(FH, 'missing_value', missing_value)
+       CALL getAtt(self, FH, 'missing_value', missing_value)
        WHERE (var .eq. missing_value) missmask = 1
-       CALL getAtt(FH, '_FillValue', missing_value)
+       CALL getAtt(self, FH, '_FillValue', missing_value)
        WHERE (var .eq. missing_value) missmask = 1
       END IF
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE getVar2Dhandle
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -622,13 +636,14 @@ MODULE io_module
     !! Read data with a single dimension (time assumed). For instance, used to read time axis.
     !!
     !------------------------------------------------------------------
-    SUBROUTINE getVar1Dhandle(FH,var,tstart)
+    SUBROUTINE getVar1Dhandle(self, FH,var,tstart)
+      class(ioComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)            :: FH      !< File handle locating the variable to read
       integer(KINT), INTENT(in), OPTIONAL        :: tstart  !< Index to start at
       real(KDOUBLE), DIMENSION(:), INTENT(out)   :: var     !< Data read from disk
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
-      CALL openDS(FH)
+      CALL openDS(self, FH)
       IF (PRESENT(tstart)) THEN
         IF (SIZE(var).NE.1) THEN
           CALL check(nf90_get_var(FH%ncid, FH%varid, var, start=(/int(tstart, KINT_NF90)/), count=SHAPE(var)))
@@ -638,7 +653,7 @@ MODULE io_module
       ELSE
           CALL check(nf90_get_var(FH%ncid, FH%varid, var))
       END IF
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE getVar1Dhandle
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -648,20 +663,21 @@ MODULE io_module
     !! and used to read data from time dimension variable. The time is converted
     !! to the internal model calendar.
     !------------------------------------------------------------------
-    SUBROUTINE getTimeVar(FH,time,tstart)
+    SUBROUTINE getTimeVar(self, FH,time,tstart)
+      class(ioComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)           :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
       real(KDOUBLE), DIMENSION(:), INTENT(out)  :: time          !< Time coordinates read from disk
       integer(KINT), INTENT(in), OPTIONAL       :: tstart        !< Index to start reading
       TYPE(fileHandle)                          :: FH_time       !< Temporarily used file handle of time coordinate variable
       FH_time = getTimeFH(FH)
       IF (PRESENT(tstart)) THEN
-        CALL getVar1Dhandle(FH_time,time,tstart)
+        CALL self%getVar1Dhandle(FH_time,time,tstart)
       ELSE
-        CALL getVar1Dhandle(FH_time,time)
+        CALL self%getVar1Dhandle(FH_time,time)
       END IF
       ! convert to model time unit
       call log_debug("Convert time for input "//getFileNameFH(FH))
-      CALL convertTime(FH%calendar, modelCalendar, time)
+      CALL convertTime(FH%calendar, self%modelCalendar, time)
     END SUBROUTINE getTimeVar
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -688,14 +704,15 @@ MODULE io_module
     !!
     !! @note Unlike the UNIX touch command, the dataset will not be created if it does not exist
     !------------------------------------------------------------------
-    SUBROUTINE touch(FH)
+    SUBROUTINE touch(self, FH)
+      class(IoComponent) :: self
       TYPE(fileHandle), INTENT(inout)    :: FH          !< File handle pointing to a variable inside a dataset
       LOGICAL                            :: file_exist
       IF ( .NOT. FH%isOpen ) THEN
         INQUIRE(FILE=FH%filename,EXIST=file_exist)
         IF ( file_exist ) THEN
-          call openDS(FH)
-          call closeDS(FH)
+          call openDS(self, FH)
+          call closeDS(self, FH)
         END IF
       END IF
     END SUBROUTINE touch
@@ -708,14 +725,15 @@ MODULE io_module
     !! about the variable if the file exists.
     !! If either the filename or the variable name is empty, nothing will happen.
     !------------------------------------------------------------------
-    SUBROUTINE initFH(fileName,varname,FH)
+    SUBROUTINE initFH(self, fileName, varname, FH)
+      class(IoComponent), intent(in) :: self
       CHARACTER(*), intent(in)        :: fileName       !< Name of file to be associated with file handle
       CHARACTER(*), intent(in)        :: varname        !< Name of variable inside the dataset to be associated with the file handle
       TYPE(fileHandle), intent(out)   :: FH             !< File handle to be returned
       IF (LEN_TRIM(fileName) .NE. 0 .AND. LEN_TRIM(varname) .NE. 0) THEN
         FH%filename = fileName
         FH%varname = varname
-        CALL touch(FH)
+        CALL touch(self, FH)
       END IF
     END SUBROUTINE initFH
 
@@ -725,10 +743,10 @@ MODULE io_module
     !! If FH%nrec is not set yet, io_module::touch will be called.
     !! @return Length of record dimension, i.e. time dimension
     !------------------------------------------------------------------
-    integer(KINT) FUNCTION getNrec(FH)
-      IMPLICIT NONE
+    integer(KINT) FUNCTION getNrec(self, FH)
+      class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to be inquired
-      IF ( FH%nrec .EQ. DEF_NREC ) CALL touch(FH)
+      IF ( FH%nrec .EQ. DEF_NREC ) CALL touch(self, FH)
       getNrec = FH%nrec
       RETURN
     END FUNCTION getNrec
@@ -740,10 +758,10 @@ MODULE io_module
     !! Called by io_module::createDS
     !! @return Character array of complete output file name
     !------------------------------------------------------------------
-    CHARACTER(CHARLEN) FUNCTION getFname(fname)
-      IMPLICIT NONE
+    CHARACTER(CHARLEN) FUNCTION getFname(self, fname)
+      class(IoComponent), intent(in) :: self
       CHARACTER(*), INTENT(in)   :: fname               !< File name stem
-      getFname = trim(trim(oprefix)//trim(fname)//trim(osuffix))
+      getFname = trim(trim(self%oprefix)//trim(fname)//trim(self%osuffix))
       RETURN
     END FUNCTION getFname
 
@@ -789,8 +807,8 @@ MODULE io_module
     !! @return Value of a character attribute. If no attribute with this name
     !! exists or any other error is thrown, an empty string will be returned
     !------------------------------------------------------------------
-    SUBROUTINE getCHARAtt(FH,attname,attval)
-      IMPLICIT NONE
+    SUBROUTINE getCHARAtt(self, FH,attname,attval)
+      class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
       CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
       CHARACTER(CHARLEN), INTENT(out) :: attval
@@ -798,14 +816,14 @@ MODULE io_module
       integer(KINT_NF90)  :: NC_status
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
-      CALL openDS(FH)
+      CALL openDS(self, FH)
       NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpChar)
       IF (NC_status .EQ. NF90_NOERR) THEN
         attval = tmpChar
       ELSE
         attval = ""
       END IF
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE getCHARAtt
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -814,7 +832,8 @@ MODULE io_module
     !! @return Value of a character attribute. If no attribute with this name
     !! exists or any other error is thrown, an empty string will be returned
     !------------------------------------------------------------------
-    SUBROUTINE getDOUBLEAtt(FH,attname,attVal)
+    SUBROUTINE getDOUBLEAtt(self, FH,attname,attVal)
+      class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
       CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
       real(KDOUBLE), INTENT(out)      :: attVal
@@ -822,14 +841,14 @@ MODULE io_module
       integer(KINT_NF90) :: NC_status
       LOGICAL  :: wasOpen
       wasOpen = FH%isOpen
-      CALL openDS(FH)
+      CALL openDS(self, FH)
       NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpAtt)
       IF (NC_status .EQ. NF90_NOERR) THEN
         attVal = tmpAtt
       ELSE
         attVal = 0.
       END IF
-      IF ( .NOT. wasOpen ) call closeDS(FH)
+      IF ( .NOT. wasOpen ) call closeDS(self, FH)
     END SUBROUTINE getDOUBLEAtt
 
 
@@ -899,27 +918,27 @@ MODULE io_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Parse name list arguments related to NetCDF file output
     !------------------------------------------------------------------
-    subroutine parse_nc_file_params( &
+    function parse_nc_file_params( &
       cmode, &
       contiguous, chunksizes, &
       shuffle, deflate_level, fletcher32, &
       endianness &
-    )
-    implicit none
-      CHARACTER(len=*) :: cmode(:)
+    ) result(params)
+      type(nc_file_parameter) :: params
+      character(len=*) :: cmode(:)
       integer :: deflate_level, contiguous
       character(len=*) :: endianness
       logical :: shuffle, fletcher32
       integer, dimension(:) :: chunksizes
-      nc_par%cmode = get_NF90_cmode(cmode)
-      nc_par%endianness = get_NF90_endianness(endianness)
-      nc_par%shuffle = get_NF90_shuffle(shuffle)
-      nc_par%deflate_level = get_NF90_deflate_level(deflate_level)
-      nc_par%fletcher32 = get_NF90_fletcher32(fletcher32)
-      nc_par%n_dims = count(chunksizes .ne. 0.)
-      nc_par%chunksizes = get_NF90_chunksizes(chunksizes)
-      nc_par%contiguous = get_NF90_contiguous(contiguous)
-    end subroutine parse_nc_file_params
+      params%cmode = get_NF90_cmode(cmode)
+      params%endianness = get_NF90_endianness(endianness)
+      params%shuffle = get_NF90_shuffle(shuffle)
+      params%deflate_level = get_NF90_deflate_level(deflate_level)
+      params%fletcher32 = get_NF90_fletcher32(fletcher32)
+      params%n_dims = count(chunksizes .ne. 0.)
+      params%chunksizes = get_NF90_chunksizes(chunksizes)
+      params%contiguous = get_NF90_contiguous(contiguous)
+    end function parse_nc_file_params
 
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
