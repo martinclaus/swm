@@ -13,16 +13,36 @@
 !------------------------------------------------------------------
 MODULE swm_module
 #include "model.h"
+  use app, only: Component
   use logging
   use types
   use swm_vars
   USE swm_damping_module
   USE swm_forcing_module
   USE swm_timestep_module
-  IMPLICIT NONE
-  SAVE
+  implicit none
+  save
+  private
+  public make_swm_component
+
+  type, extends(Component) :: swm
+    private
+    ! integer :: var
+  contains
+    procedure :: initialize
+    procedure :: finalize
+    procedure :: step
+    procedure :: advance
+  end type swm
 
   CONTAINS
+
+    function make_swm_component() result(swm_comp)
+      class(Component), pointer :: swm_comp
+      type(swm) :: concrete_swm
+      allocate(swm_comp, source=concrete_swm)
+    end function make_swm_component
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise module
     !!
@@ -34,8 +54,8 @@ MODULE swm_module
     !! @par Uses:
     !! vars_module , ONLY : Nx, Ny, Ns, N0, addToRegister
     !------------------------------------------------------------------
-    SUBROUTINE SWM_initSWM
-      IMPLICIT NONE
+    SUBROUTINE initialize(self)
+      class(swm), intent(inout) :: self
       call swm_vars_init
       call log_info("swm_vars_init done")
       CALL SWM_timestep_init
@@ -44,8 +64,8 @@ MODULE swm_module
       call log_info("swm_damping_init done")
       CALL SWM_forcing_init
       call log_info("swm_forcing_init done")
-      CALL SWM_initialConditions
-    END SUBROUTINE SWM_initSWM
+      CALL SWM_initialConditions(self)
+    END SUBROUTINE initialize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of shallow water module
@@ -53,13 +73,13 @@ MODULE swm_module
     !! Calls finishing routines of all submodules and deallocate dynamical
     !! variables and increment vectors.
     !------------------------------------------------------------------
-    SUBROUTINE SWM_finishSWM
-      IMPLICIT NONE
+    SUBROUTINE finalize(self)
+      class(swm), intent(inout) :: self
       CALL SWM_timestep_finish
       CALL SWM_forcing_finish
       CALL SWM_damping_finish
       call SWM_vars_finish
-    END SUBROUTINE SWM_finishSWM
+    END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Timestep routine
@@ -68,10 +88,10 @@ MODULE swm_module
     !! It updates the forcing fields and calls the time step routine of the
     !! time step submodule swm_timestep_module
     !------------------------------------------------------------------
-    SUBROUTINE SWM_timestep
-      IMPLICIT NONE
+    SUBROUTINE step(self)
+      class(swm), intent(inout) :: self
       CALL SWM_timestep_step
-    END SUBROUTINE SWM_timestep
+    END SUBROUTINE step
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Advancing routine of the shallow water module
@@ -83,10 +103,10 @@ MODULE swm_module
     !! @par Uses:
     !! vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
     !------------------------------------------------------------------
-    SUBROUTINE SWM_advance
-      USE vars_module, ONLY : u,v,eta,N0,N0p1
+    SUBROUTINE advance(self)
       USE domain_module, ONLY : Nx, Ny
-      IMPLICIT NONE
+      use vars_module, only: N0, N0p1, u, v, eta
+      class(swm), intent(inout) :: self
       integer(KINT) :: i, j
       ! shift timestep in SMW module
       !$omp parallel
@@ -136,7 +156,7 @@ MODULE swm_module
       !$omp end parallel
       CALL SWM_timestep_advance
       CALL SWM_forcing_update
-    END SUBROUTINE SWM_advance
+    END SUBROUTINE advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Read initial condition of shallow water model
@@ -153,12 +173,12 @@ MODULE swm_module
     !! vars_module, ONLY : file_eta_init, varname_eta_init,file_u_init, varname_u_init,
     !! file_v_init, varname_v_init,ocean_eta, ocean_u, ocean_v, N0p1
     !------------------------------------------------------------------
-    SUBROUTINE SWM_initialConditions
+    SUBROUTINE SWM_initialConditions(self)
       USE io_module, ONLY : fileHandle, readInitialCondition, initFH, isSetFH
       USE vars_module, ONLY : FH_eta, FH_u, FH_v,&
                               N0p1
       USE domain_module, ONLY : eta_grid, u_grid, v_grid
-      IMPLICIT NONE
+      class(swm), intent(inout) :: self
       integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1),SIZE(u_grid%ocean,2)) :: ocean_u
       integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1),SIZE(v_grid%ocean,2)) :: ocean_v
       integer(KSHORT), DIMENSION(SIZE(eta_grid%ocean,1),SIZE(eta_grid%ocean,2)) :: ocean_eta
@@ -177,6 +197,6 @@ MODULE swm_module
       SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
       SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
       SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)
-      CALL SWM_advance
+      CALL self%advance
    END SUBROUTINE SWM_initialConditions
 END MODULE swm_module

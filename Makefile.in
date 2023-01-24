@@ -152,7 +152,7 @@ domain_module.$(OBJEXT) : domain_module.f90 model.h grid_module.$(OBJEXT) io_mod
 grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-logging.$(OBJEXT) : logging.f90 io.h str.$(OBJEXT)
+logging.$(OBJEXT) : logging.f90 io.h app.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
 app.$(OBJEXT) : app.f90 list_mod.$(OBJEXT)

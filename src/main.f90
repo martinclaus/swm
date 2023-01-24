@@ -21,22 +21,20 @@ PROGRAM main_program
 #include "model.h"
 #include "io.h"
   use app, only: AbstractApp, new_default_app_builder, AbstractAppBuilder
-  use logging
-  USE io_module, only: make_io_component, IoComponent
-  USE vars_module
-  USE domain_module
-  USE calc_lib
-  USE diag_module
-  use time_integration_module, only: time_integration_init
-#ifdef DYNFROMFILE
-  USE dynFromFile_module
-#endif
-#ifdef SWM
-  USE swm_module, only: make_swm_component
-#endif
-#ifdef TRACER
-  USE tracer_module
-#endif
+!   USE vars_module
+!   USE domain_module
+!   USE calc_lib
+!   USE diag_module
+!   use time_integration_module, only: time_integration_init
+! #ifdef DYNFROMFILE
+!   USE dynFromFile_module
+! #endif
+! #ifdef SWM
+!   USE swm_module, only: make_swm_component
+! #endif
+! #ifdef TRACER
+!   USE tracer_module
+! #endif
   IMPLICIT NONE
 
 
@@ -71,11 +69,17 @@ PROGRAM main_program
     end subroutine main
 
     function make_app() result(application)
+      use logging, only: Logger, make_file_logger
+      use io_module, only: make_io_component, IoComponent
+      use swm_module, only: make_swm_component
       class(AbstractApp), pointer :: application
       class(AbstractAppBuilder), pointer :: app_factory
+      type(Logger), pointer :: log_ptr
       type(IoComponent), pointer :: io_comp
-
+      
       app_factory => new_default_app_builder()
+      log_ptr => make_file_logger()
+      io_comp => make_io_component(log_ptr)
       call app_factory%add_component(io_comp)
 
 #ifdef SWM
@@ -98,7 +102,7 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise logging
         !------------------------------------------------------------------
-        call initLogging
+        ! call initLogging
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise io module (read output suffix and prefix from namelist)
