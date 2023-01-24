@@ -71,16 +71,24 @@ PROGRAM main_program
     function make_app() result(application)
       use logging, only: Logger, make_file_logger
       use io_module, only: make_io_component, IoComponent
+      use domain_module, only: make_domain_component, Domain
       use swm_module, only: make_swm_component
       class(AbstractApp), pointer :: application
       class(AbstractAppBuilder), pointer :: app_factory
       type(Logger), pointer :: log_ptr
       type(IoComponent), pointer :: io_comp
+      type(Domain), pointer :: domain_comp
       
       app_factory => new_default_app_builder()
+
       log_ptr => make_file_logger()
+
       io_comp => make_io_component(log_ptr)
       call app_factory%add_component(io_comp)
+
+      domain_comp => make_domain_component(io_comp, log_ptr)
+      call app_factory%add_component(domain_comp)
+
 
 #ifdef SWM
       call app_factory%add_component(make_swm_component())
@@ -113,8 +121,8 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialize the domain, indices, land masks
         !------------------------------------------------------------------
-        call initDomain
-        call log_info('initDomain done')
+        ! call initDomain
+        ! call log_info('initDomain done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialize the variables (namelist input, allocation etc.)

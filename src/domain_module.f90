@@ -2,60 +2,102 @@ MODULE domain_module
 #include "io.h"
 #include "model.h"
   use types
-  use init_vars
   USE grid_module
-  USE io_module, ONLY : fileHandle, initFH, readInitialCondition
+  use init_vars
+  use app, only: Component
+  use io_module, only: IoComponent, fileHandle
+  use logging, only: Logger
+  ! USE io_module, ONLY : fileHandle, initFH, readInitialCondition
 
-  IMPLICIT NONE
+  implicit none
 
-  real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
-  real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
-  real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
-  real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
-  real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
-  CHARACTER(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
-  CHARACTER(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
-  real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
-  real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
-  real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
-  real(KDOUBLE)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
-  integer(KINT)               :: Nx = 100            !< Number of grid points in zonal direction
-  integer(KINT)               :: Ny = 100            !< Number of grid points in meridional direction
-  real(KDOUBLE)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
-  real(KDOUBLE)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
-  ! nearest neighbour indices, derived from domain specs
-  integer(KINT), dimension(:), allocatable, target :: ip0  !< Size Nx \n Index in zonal direction, i.e i+0.
-  integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-  integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-  integer(KINT), dimension(:), allocatable, target :: jp0  !< Size Nx \n Index in meridional direction, i.e j+0.
-  integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-  integer(KINT), DIMENSION(:), ALLOCATABLE, TARGET :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
-  ! constant fieds H, allocated during initialization
-  real(KDOUBLE), DIMENSION(:,:), POINTER :: H     !< Size Nx,Ny \n Bathimetry on H grid.
-  real(KDOUBLE), DIMENSION(:,:), POINTER :: H_u   !< Size Nx,Ny \n Bathimetry on u grid. Computed by linear interpolation in domain_module::initDomain
-  real(KDOUBLE), DIMENSION(:,:), POINTER :: H_v   !< Size Nx,Ny \n Bathimetry on v grid. Computed by linear interpolation in domain_module::initDomain
-  real(KDOUBLE), DIMENSION(:,:), POINTER :: H_eta !< Size Nx,Ny \n Bathimetry on eta grid. Computed by linear interpolation in domain_module::initDomain
+  type, extends(Component) :: Domain
+    private
+    real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
+    real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
+    real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
+    real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
+    real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+    character(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
+    character(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
+    real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
+    real(KDOUBLE)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
+    integer(KINT)               :: Nx = 100            !< Number of grid points in zonal direction
+    integer(KINT)               :: Ny = 100            !< Number of grid points in meridional direction
+    real(KDOUBLE)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    real(KDOUBLE)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    ! nearest neighbour indices, derived from domain specs
+    integer(KINT), dimension(:), allocatable :: ip0  !< Size Nx \n Index in zonal direction, i.e i+0.
+    integer(KINT), dimension(:), allocatable :: ip1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), dimension(:), allocatable :: im1  !< Size Nx \n Nearest neighbour index in zonal direction, i.e i-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), dimension(:), allocatable :: jp0  !< Size Nx \n Index in meridional direction, i.e j+0.
+    integer(KINT), dimension(:), allocatable :: jp1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j+1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+    integer(KINT), dimension(:), allocatable :: jm1  !< Size Nx \n Nearest neighbour index in meridional direction, i.e j-1. Periodic boundary conditions are implicitly applied. Computed in domain_module:initDomain
+  
+    integer(KSHORT)             :: coriolis_approx = CORIOLIS_SPHERICALGEOMETRY  !< type of approximation used for the coriolis parameter.
+                                                                                 !< 0: no rotation
+                                                                                 !< 1: f-plane
+                                                                                 !< 2: beta-plane (also set theta0)
+                                                                                 !< 3: spherical geometry, i.e. f = 2 * OMEGA * sin(theta)
+    real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter on a beta-plane
+  
+    type(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
 
-  integer(KSHORT)             :: coriolis_approx = CORIOLIS_SPHERICALGEOMETRY  !< Type of approximation used for the coriolis parameter.
-                                                                               !< 0: no rotation
-                                                                               !< 1: f-plane
-                                                                               !< 2: beta-plane (also set theta0)
-                                                                               !< 3: spherical geometry, i.e. f = 2 * OMEGA * sin(theta)
-  real(KDOUBLE)               :: theta0 = 0.           !< Latitude for calculation of coriolis parameter on a beta-plane
+    class(IoComponent), pointer :: io_ptr
+    class(logger), pointer :: log
 
-  TYPE(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
+    contains
+    procedure :: initialize => initDomain
+    procedure :: finalize => finishDomain
+    procedure :: step => do_nothing
+    procedure :: advance => do_nothing
+  end type Domain
+
   CONTAINS
 
-  SUBROUTINE initDomain
-    IMPLICIT NONE
-    TYPE(fileHandle)                             :: FH_H
+  function make_domain_component(io_comp, log) result(dom_comp)
+    class(IoComponent), pointer :: io_comp
+    class(Logger), pointer :: log
+    class(Domain), pointer :: dom_comp
+    allocate(dom_comp)
+    dom_comp%io_ptr => io_comp
+    dom_comp%log => log
+  end function make_domain_component
+
+  subroutine do_nothing(self)
+    class(Domain), intent(inout) :: self
+  end subroutine do_nothing
+
+  SUBROUTINE initDomain(self)
+    class(Domain), intent(inout) :: self
+    type(fileHandle)                             :: FH_H
     integer(KINT)                                :: i,j
-    real(KDOUBLE)                                :: lbc
-    integer(KSHORT), DIMENSION(:,:), ALLOCATABLE :: missmask, missmask_H
-    real(KDOUBLE), DIMENSION(:), POINTER         :: lat_H, lat_u, lat_v, lat_eta
-    real(KDOUBLE), DIMENSION(:), POINTER         :: lon_H, lon_u, lon_v, lon_eta
-    integer(KSHORT), DIMENSION(:,:), POINTER     :: land_H, land_u, land_v, land_eta
-    integer(KSHORT), DIMENSION(:,:), POINTER     :: ocean_H, ocean_u, ocean_v, ocean_eta
+    real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
+    real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
+    real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
+    real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
+    real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+    character(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
+    character(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
+    real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
+    real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
+    real(KDOUBLE)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
+    integer(KINT)               :: Nx = 100            !< Number of grid points in zonal direction
+    integer(KINT)               :: Ny = 100            !< Number of grid points in meridional direction
+    real(KDOUBLE)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    real(KDOUBLE)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    ! constant fieds H, allocated during initialization
+    real(KDOUBLE), dimension(:,:), pointer :: H, H_u, H_v, H_eta !< Size Nx,Ny \n Bathimetry on subgrids. Computed by linear interpolation in domain_module::initDomain
+    integer(KSHORT), dimension(:,:), ALLOCATABLE :: missmask, missmask_H
+    real(KDOUBLE), dimension(:), pointer         :: lat_H, lat_u, lat_v, lat_eta
+    real(KDOUBLE), dimension(:), pointer         :: lon_H, lon_u, lon_v, lon_eta
+    integer(KSHORT), dimension(:,:), pointer     :: land_H, land_u, land_v, land_eta
+    integer(KSHORT), dimension(:,:), pointer     :: ocean_H, ocean_u, ocean_v, ocean_eta
+    real(KDOUBLE)               :: theta0
+    integer(KSHORT)               :: coriolis_approx
     namelist / domain_nl / &
       A, OMEGA, RHO0, &
       Nx, Ny, H_overwrite, &
@@ -67,32 +109,49 @@ MODULE domain_module
     read(UNIT_DOMAIN_NL, nml = domain_nl)
     close(UNIT_DOMAIN_NL)
 
-    ALLOCATE(missmask(1:Nx,1:Ny), missmask_H(1:Nx,1:Ny))
+    self%A = A
+    self%OMEGA = OMEGA
+    self%RHO0 = RHO0
+    self%Nx = Nx
+    self%Ny = Ny
+    self%H_overwrite = H_overwrite
+    self%lon_s = lon_s
+    self%lon_e = lon_e
+    self%lat_s = lat_s
+    self%lat_e = lat_e
+    self%in_file_H = in_file_H
+    self%in_varname_H = in_varname_H
+    self%theta0 = theta0
+    self%lbc = lbc
+    self%coriolis_approx = coriolis_approx
+
+
+    allocate(missmask(1:Nx,1:Ny), missmask_H(1:Nx,1:Ny))
     ! call initVar(missmask, 0._KDOUBLE)
     ! call initVar(missmask_H, 0._KDOUBLE)
 
-    ALLOCATE(lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny))
-    ALLOCATE(lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx))
-    ALLOCATE(land_H(1:Nx,1:Ny), land_u(1:Nx,1:Ny), land_v(1:Nx,1:Ny), land_eta(1:Nx,1:Ny))
+    allocate(lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny))
+    allocate(lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx))
+    allocate(land_H(1:Nx,1:Ny), land_u(1:Nx,1:Ny), land_v(1:Nx,1:Ny), land_eta(1:Nx,1:Ny))
     call initVar(land_u, 0_KSHORT)
     call initVar(land_v, 0_KSHORT)
     call initVar(land_eta, 0_KSHORT)
     call initVar(land_H, 0_KSHORT)
 
-    ALLOCATE(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny))
+    allocate(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny))
     call initVar(ocean_u, 0_KSHORT)
     call initVar(ocean_v, 0_KSHORT)
     call initVar(ocean_eta, 0_KSHORT)
     call initVar(ocean_H, 0_KSHORT)
 
-    ALLOCATE(H(1:Nx,1:Ny), H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
+    allocate(H(1:Nx,1:Ny), H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
     call initVar(H_u, 0._KDOUBLE)
     call initVar(H_v, 0._KDOUBLE)
     call initVar(H_eta, 0._KDOUBLE)
     call initVar(H, 0._KDOUBLE)
 
-    ALLOCATE(ip0(1:Nx), ip1(1:Nx), im1(1:Nx), jp0(1:Ny), jp1(1:Ny), jm1(1:Ny))
-    allocate(H_grid, u_grid, v_grid, eta_grid)
+    allocate(self%ip0(1:Nx), self%ip1(1:Nx), self%im1(1:Nx), self%jp0(1:Ny), self%jp1(1:Ny), self%jm1(1:Ny))
+    allocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
 
     dLambda = D2R * (lon_e-lon_s)/(Nx-1)
     dTheta = D2R * (lat_e-lat_s)/(Ny-1)
@@ -104,15 +163,15 @@ MODULE domain_module
     !! land masks
     !------------------------------------------------------------------
     do i = 1,Nx
-      ip0(i) = i
+      self%ip0(i) = i
     end do
-    im1 = cshift(ip0, -1)
-    ip1 = cshift(ip0,  1)
+    self%im1 = cshift(self%ip0, -1)
+    self%ip1 = cshift(self%ip0,  1)
     do j = 1,Ny
-        jp0(j) = j
+        self%jp0(j) = j
     end do
-    jm1 = cshift(jp0, -1)
-    jp1 = cshift(jp0,  1)
+    self%jm1 = cshift(self%jp0, -1)
+    self%jp1 = cshift(self%jp0,  1)
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! Coordinate vectors for all grids
@@ -175,12 +234,12 @@ MODULE domain_module
     !! interpolate topography on all grids
     !------------------------------------------------------------------
     forall (i=1:Nx, j=1:Ny, ocean_u(i, j) .ne. 0_KSHORT) &
-      H_u(i,j) = (H(i,j) + H(i,jp1(j))) / (ocean_H(i, j) + ocean_H(i, jp1(j)))
+      H_u(i,j) = (H(i,j) + H(i, self%jp1(j))) / (ocean_H(i, j) + ocean_H(i, self%jp1(j)))
     forall (i=1:Nx, j=1:Ny, ocean_v(i, j) .ne. 0_KSHORT) &
-      H_v(i,j)   = (H(i,j) + H(ip1(i),j)) / (ocean_H(i, j) + ocean_H(ip1(i), j))
+      H_v(i,j)   = (H(i,j) + H(self%ip1(i),j)) / (ocean_H(i, j) + ocean_H(self%ip1(i), j))
     forall (i=1:Nx, j=1:Ny, ocean_eta(i, j) .ne. 0_KSHORT) &
-      H_eta(i,j) = (H(i,j) + H(ip1(i),j) + H(i,jp1(j)) + H(ip1(i), jp1(j))) &
-                   / (ocean_H(i, j) + ocean_H(ip1(i), j) + ocean_H(i, jp1(j)) + ocean_H(ip1(i), jp1(j)))
+      H_eta(i,j) = (H(i,j) + H(self%ip1(i),j) + H(i,self%jp1(j)) + H(self%ip1(i), self%jp1(j))) &
+                   / (ocean_H(i, j) + ocean_H(self%ip1(i), j) + ocean_H(i, self%jp1(j)) + ocean_H(self%ip1(i), self%jp1(j)))
 
     if (H_overwrite .ne. H_OVERWRITE_DEF) then
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -195,14 +254,20 @@ MODULE domain_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! set the grid-type for all grids
     !------------------------------------------------------------------
-    CALL setGrid(H_grid,lon_H,lat_H,land_H,ocean_H, H, lbc)
-    CALL setGrid(u_grid,lon_u,lat_u,land_u,ocean_u, H_u, lbc)
-    CALL setGrid(v_grid,lon_v,lat_v,land_v,ocean_v, H_v, lbc)
-    CALL setGrid(eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, lbc)
+    CALL setGrid(self%H_grid,lon_H,lat_H,land_H,ocean_H, H, lbc)
+    CALL setGrid(self%u_grid,lon_u,lat_u,land_u,ocean_u, H_u, lbc)
+    CALL setGrid(self%v_grid,lon_v,lat_v,land_v,ocean_v, H_v, lbc)
+    CALL setGrid(self%eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, lbc)
 
-    CALL setf(H_grid, coriolis_approx, theta0, OMEGA)
-    CALL setf(u_grid, coriolis_approx, theta0, OMEGA)
-    CALL setf(v_grid, coriolis_approx, theta0, OMEGA)
-    CALL setf(eta_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(self%H_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(self%u_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(self%v_grid, coriolis_approx, theta0, OMEGA)
+    CALL setf(self%eta_grid, coriolis_approx, theta0, OMEGA)
   END SUBROUTINE initDomain
+
+  subroutine finishDomain(self)
+    class(Domain), intent(inout) :: self
+    deallocate(self%ip0, self%ip1, self%im1, self%jp0, self%jp1, self%jm1)
+    deallocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
+  end subroutine finishDomain
 END MODULE domain_module
