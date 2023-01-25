@@ -177,6 +177,9 @@ MODULE calc_lib
 #endif
       DEALLOCATE(self%chi, self%u_nd, self%v_nd, STAT=alloc_error)
       IF(alloc_error.NE.0) call self%log%error("Deallocation failed")
+
+      nullify(self%dom)
+      nullify(self%log)
     END SUBROUTINE finishCalcLib
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

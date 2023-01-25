@@ -268,5 +268,7 @@ MODULE domain_module
     class(Domain), intent(inout) :: self
     deallocate(self%ip0, self%ip1, self%im1, self%jp0, self%jp1, self%jm1)
     deallocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
+    nullify(self%io_ptr)
+    nullify(self%log)
   end subroutine finishDomain
 END MODULE domain_module

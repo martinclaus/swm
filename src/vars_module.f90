@@ -208,6 +208,9 @@ MODULE vars_module
     subroutine finishVars(self)
       class(VariableRepository), intent(inout) :: self
       deallocate(self%u, self%v, self%eta)
+      nullify(self%dom)
+      nullify(self%io)
+      nullify(self%log)
     end subroutine finishVars
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

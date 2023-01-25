@@ -175,8 +175,8 @@ MODULE io_module
     !------------------------------------------------------------------
     SUBROUTINE finishIO(self)
       class(IoComponent), intent(inout) :: self
-      self%log => null()
       CALL CloseCal
+      nullify(self%log)
     END SUBROUTINE finishIO
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
