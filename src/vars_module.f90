@@ -42,8 +42,6 @@ MODULE vars_module
     real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
     real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
 
-    CHARACTER(CHARLEN)           :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
-
     real(KDOUBLE)                :: run_length = 100000         !< Length of model run \f$[s]\f$
     integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
     real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
