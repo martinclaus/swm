@@ -12,7 +12,6 @@ MODULE domain_module
   implicit none
 
   type, extends(Component) :: Domain
-    private
     real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
     real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
     real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$

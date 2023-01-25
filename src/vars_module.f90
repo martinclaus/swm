@@ -2,61 +2,89 @@
 !> @brief This module contains commonly used variables
 !!
 !! Module initialises and holds commonly used variables like physical constants, model parameters,
-!! filenames and variable names of input datasets, domain size, dimension vectors, index vectors, etc.
+!! filenames and variable names of input datasets, etc.
 !!
 !! @par Include Files:
 !! io.h
 !!
 !! @par Uses:
-!! logging, types, generic_list, grid_module, io_module, str, init_vars 
-!!
-!! @note Here, only default values are given. They are overwritten when the namelist is parsed in vars_module::initVars()
+!! types, app, domian_module, logging, generic_list, grid_module, io_module, str, init_vars 
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
-  use logging
   use types
+  use app, only: Component
+  use domain_module, only: Domain
+  use logging, only: Logger
+  USE io_module, ONLY : fileHandle, IoComponent
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
-  USE io_module, ONLY : fileHandle, initFH
   use str
   use init_vars, ONLY : initVar
   IMPLICIT NONE
+  private
 
-  ! Constants (default parameters), contained in model_nl
-  real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
-  real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
-
-  CHARACTER(CHARLEN)     :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
+  public :: VariableRepository, make_variable_register
 
   integer(KINT), PARAMETER     :: Ndims = 3                   !< Number of dimensions
-  real(KDOUBLE)                :: run_length = 100000         !< Length of model run \f$[s]\f$
-  integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
-  real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
-  real(KDOUBLE)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
-
   ! numerical parameters
   integer(KSHORT), PARAMETER   :: Ns = 2                     !< Max number of time steps stored in memory.
   integer(KSHORT), PARAMETER   :: N0 = 1, N0p1=N0+1          !< Actual step position in scheme
 
-  ! dynamic fields u, v, eta, allocated during initialization
-  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
-  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
-  real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, TARGET  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
+  type, extends(Component) :: VariableRepository
+    ! dependencies
+    class(Logger), pointer :: log => null()
+    class(IoComponent), pointer :: io => null()
+    class(Domain), pointer :: dom => null()
+    
 
-  TYPE(fileHandle),SAVE       :: FH_eta
-  TYPE(fileHandle),SAVE       :: FH_u
-  TYPE(fileHandle),SAVE       :: FH_v
+    ! Constants (default parameters), contained in model_nl
+    real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
+    real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
 
-  real(KDOUBLE)               :: diag_start
-  integer(KINT)               :: diag_start_ind
+    CHARACTER(CHARLEN)           :: model_start="1900-01-01 00:00:00" !< Start date and time of the model
 
+    real(KDOUBLE)                :: run_length = 100000         !< Length of model run \f$[s]\f$
+    integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
+    real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
+    real(KDOUBLE)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
 
-  ! runtime variables
-  INTEGER(KINT_ITT) :: itt                                     !< time step index
+    ! dynamic fields u, v, eta, allocated during initialization
+    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
+    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
+    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
 
-  !< Register for variables
-  TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
+    TYPE(fileHandle)       :: FH_eta
+    TYPE(fileHandle)       :: FH_u
+    TYPE(fileHandle)       :: FH_v
+
+    real(KDOUBLE)               :: diag_start
+    integer(KINT)               :: diag_start_ind
+
+    ! runtime variables
+    INTEGER(KINT_ITT) :: itt                                     !< time step index
+
+    !< Register for variables
+    TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
+
+    contains
+    procedure :: initialize => initVars
+    procedure :: finalize => finishVars
+    procedure :: step => do_nothing
+    procedure :: advance => do_nothing
+    procedure, private :: add3dToRegister, add2dToRegister, add1dToRegister  !< Subroutines to add variables with different dimensions to the register
+    generic :: add => add1dToRegister, add2dToRegister, add3dToRegister  !< Adds variables to the register
+    procedure, private :: get3DFromRegister, get2DFromRegister, get1DFromRegister  !< Subroutines to get variables with different dimensions from the register
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Returns a pointer to the data of the variable "varname" in the register
+    !!
+    !! Searches the register for the node containing the variable "varname" and
+    !! returns a pointer to the data of this variable.
+    !! If no such node is found, null will be returned.
+    !----------------------------------------------------------------------------
+    generic :: get => get3DFromRegister, get2DFromRegister, get1DFromRegister
+  end type
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to handle data of globally registered variables
@@ -81,44 +109,48 @@ MODULE vars_module
     TYPE(variable_t), POINTER :: var=>null()
   END TYPE variable_ptr
 
-  ! Subroutines to add variables with different dimensions to the register
-  INTERFACE addToRegister
-    MODULE PROCEDURE add3dToRegister
-    MODULE PROCEDURE add2dToRegister
-    MODULE PROCEDURE add1dToRegister
-    module procedure addLagrangeToRegister
-  END INTERFACE addToRegister
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Returns a pointer to the data of the variable "varname" in the register
-  !!
-  !! Searches the register for the node containing the variable "varname" and
-  !! returns a pointer to the data of this variable.
-  !! If no such node is found, null will be returned.
-  !----------------------------------------------------------------------------
-  INTERFACE getFromRegister
-    MODULE PROCEDURE get1DFromRegister
-    MODULE PROCEDURE get2DFromRegister
-    MODULE PROCEDURE get3DFromRegister
-  END INTERFACE getFromRegister
-
-
   CONTAINS
+
+    function make_variable_register(dom, io, log) result(var_reg)
+      class(Domain), pointer, intent(in) :: dom
+      class(IoComponent), pointer, intent(in) :: io
+      class(Logger), pointer, intent(in) :: log
+      class(VariableRepository), pointer :: var_reg
+      allocate(var_reg)
+      var_reg%log => log
+      var_reg%io => io
+      var_reg%dom => dom
+    end function make_variable_register
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief  Does nothing
+    !------------------------------------------------------------------
+    subroutine do_nothing(self)
+      class(VariableRepository), intent(inout) :: self
+    end subroutine do_nothing
+
+
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Initialise vars_module
     !!
     !! Parses namelist model_nl, allocates all allocatable module variables and compute some of them.
     !------------------------------------------------------------------
-    SUBROUTINE initVars
-      use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
-      CHARACTER(CHARLEN)     :: file_eta_init=""            !< File containing initial condition for interface displacement. Last timestep of dataset used.
-      CHARACTER(CHARLEN)     :: varname_eta_init="ETA"      !< Variable name of interface displacement in its initial condition dataset
-      CHARACTER(CHARLEN)     :: file_u_init=""              !< File containing initial condition for zonal velocity. Last timestep of dataset used.
-      CHARACTER(CHARLEN)     :: varname_u_init="U"          !< Variable name of zonal velocity in its initial condition dataset
-      CHARACTER(CHARLEN)     :: file_v_init=""              !< File containing initial condition for meridional velocity. Last timestep of dataset used.
-      CHARACTER(CHARLEN)     :: varname_v_init="V"          !< Variable name of meridional velocity in its initial condition dataset
-      integer                :: i, j, l                     !< local counter
-    ! definition of the namelist
+    SUBROUTINE initVars(self)
+      ! use domain_module, only : Nx, Ny, u_grid, v_grid, eta_grid, H_grid
+      class(VariableRepository), intent(inout) :: self
+      real(KDOUBLE)      :: G = 9.80665             !< gravitational acceleration \f$[ms^{-2}]\f$
+      real(KDOUBLE)      :: Ah=0.                   !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
+      real(KDOUBLE)      :: run_length = 100000     !< Length of model run \f$[s]\f$
+      real(KDOUBLE)      :: dt = 10.                !< stepsize in time \f$[s]\f$.
+      real(KDOUBLE)      :: meant_out = 2.628e6     !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
+      real(KDOUBLE)      :: diag_start
+      CHARACTER(CHARLEN) :: file_eta_init=""        !< File containing initial condition for interface displacement. Last timestep of dataset used.
+      CHARACTER(CHARLEN) :: varname_eta_init="ETA"  !< Variable name of interface displacement in its initial condition dataset
+      CHARACTER(CHARLEN) :: file_u_init=""          !< File containing initial condition for zonal velocity. Last timestep of dataset used.
+      CHARACTER(CHARLEN) :: varname_u_init="U"      !< Variable name of zonal velocity in its initial condition dataset
+      CHARACTER(CHARLEN) :: file_v_init=""          !< File containing initial condition for meridional velocity. Last timestep of dataset used.
+      CHARACTER(CHARLEN) :: varname_v_init="V"      !< Variable name of meridional velocity in its initial condition dataset
+      ! definition of the namelist
       namelist / model_nl / &
         G, Ah, & !friction parameter
         run_length, &
@@ -131,38 +163,54 @@ MODULE vars_module
       open(UNIT_MODEL_NL, file = MODEL_NL)
       read(UNIT_MODEL_NL, nml = model_nl)
       close(UNIT_MODEL_NL)
+
+      ! set object data
+      self%G = G
+      self%Ah =Ah 
+      self%run_length = run_length
+      self%dt = dt
+      self%meant_out = meant_out
+      self%diag_start = diag_start
+
       ! set vars depending on run_length, dt
-      Nt = INT(run_length / dt)
+      self%Nt = INT(run_length / dt)
 
       ! set time index of diagnostics start
-      diag_start_ind = int(diag_start / dt)
+      self%diag_start_ind = int(diag_start / dt)
 
       ! allocate vars depending on Nx, Ny, Ns
-      allocate(u(1:Nx, 1:Ny, 1:Ns))
-      allocate(v(1:Nx, 1:Ny, 1:Ns))
-      allocate(eta(1:Nx, 1:Ny, 1:Ns))
+      allocate(self%u(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
+      allocate(self%v(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
+      allocate(self%eta(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
 
       ! start time loop
-      itt = 0
+      self%itt = 0
 
       ! init dynamical variables
-      call initVar(u, 0._KDOUBLE)
-      call initVar(v, 0._KDOUBLE)
-      call initVar(eta, 0._KDOUBLE)
+      call initVar(self%u, 0._KDOUBLE)
+      call initVar(self%v, 0._KDOUBLE)
+      call initVar(self%eta, 0._KDOUBLE)
 
-        !< add vars_module variables to variable register
-      CALL addToRegister(u(:,:,N0),"U", u_grid)
-      CALL addToRegister(v(:,:,N0),"V", v_grid)
-      CALL addToRegister(eta(:,:,N0),"ETA", eta_grid)
-      CALL addToRegister(H_grid%H, "H", H_grid)
-      CALL addToRegister(u_grid%H, "H_u", u_grid)
-      CALL addToRegister(v_grid%H,"H_v", v_grid)
-      CALL addToRegister(eta_grid%H,"H_eta", eta_grid)
+      ! add vars_module variables to variable register
+      CALL self%add(self%u(:,:,N0),"U", self%dom%u_grid)
+      CALL self%add(self%v(:,:,N0),"V", self%dom%v_grid)
+      CALL self%add(self%eta(:,:,N0),"ETA", self%dom%eta_grid)
 
-      CALL initFH(file_eta_init,varname_eta_init,FH_eta)
-      CALL initFH(file_u_init,varname_u_init,FH_u)
-      CALL initFH(file_v_init,varname_v_init,FH_v)
+      ! add data from domain module to register  
+      CALL self%add(self%dom%H_grid%H, "H", self%dom%H_grid)
+      CALL self%add(self%dom%u_grid%H, "H_u", self%dom%u_grid)
+      CALL self%add(self%dom%v_grid%H,"H_v", self%dom%v_grid)
+      CALL self%add(self%dom%eta_grid%H,"H_eta", self%dom%eta_grid)
+
+      CALL self%io%initFH(file_eta_init,varname_eta_init,self%FH_eta)
+      CALL self%io%initFH(file_u_init,varname_u_init,self%FH_u)
+      CALL self%io%initFH(file_v_init,varname_v_init,self%FH_v)
     END SUBROUTINE initVars
+
+    subroutine finishVars(self)
+      class(VariableRepository), intent(inout) :: self
+      deallocate(self%u, self%v, self%eta)
+    end subroutine finishVars
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 3-dimensional variables to the register
@@ -171,16 +219,16 @@ MODULE vars_module
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
     !----------------------------------------------------------------------------
-    SUBROUTINE add3dToRegister(var, varname, grid)
-      IMPLICIT NONE
+    SUBROUTINE add3dToRegister(self, var, varname, grid)
+      class(VariableRepository), intent(in) :: self
       real(KDOUBLE), DIMENSION(:,:,:), TARGET,  INTENT(in)  :: var
       CHARACTER(*), INTENT(in)                        :: varname
       TYPE(variable_ptr)                              :: dat_ptr
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
-        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+      IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
+        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -195,8 +243,8 @@ MODULE vars_module
       END IF
 
       !< add to register
-      CALL addVarPtrToRegister(dat_ptr)
-
+      CALL addVarPtrToRegister(self, dat_ptr)
+      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add3dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -206,16 +254,16 @@ MODULE vars_module
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
     !----------------------------------------------------------------------------
-    SUBROUTINE add2dToRegister(var, varname, grid)
-      IMPLICIT NONE
+    SUBROUTINE add2dToRegister(self, var, varname, grid)
+      class(VariableRepository), intent(in) :: self
       real(KDOUBLE), DIMENSION(:,:), TARGET, INTENT(in)     :: var
       CHARACTER(*), INTENT(in)                        :: varname
       TYPE(variable_ptr)                              :: dat_ptr
       TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
-        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+      IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
+        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -228,8 +276,8 @@ MODULE vars_module
         dat_ptr%var%grid => null()
       END IF
 
-      CALL addVarPtrToRegister(dat_ptr)
-      call log_debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
+      CALL addVarPtrToRegister(self, dat_ptr)
+      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add2dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -239,16 +287,16 @@ MODULE vars_module
     !! a variable object is created, the data is assigned and the name will be
     !! converted to upper case.
     !----------------------------------------------------------------------------
-    SUBROUTINE add1dToRegister(var, varname, grid)
-      IMPLICIT NONE
-      real(KDOUBLE), DIMENSION(:), TARGET, INTENT(in)        :: var
+    SUBROUTINE add1dToRegister(self, var, varname, grid)
+      class(VariableRepository), intent(in) :: self
+      real(KDOUBLE), DIMENSION(:), TARGET, INTENT(in)  :: var
       CHARACTER(*), INTENT(in)                         :: varname
       TYPE(variable_ptr)                               :: dat_ptr
-      TYPE(grid_t), TARGET, INTENT(in), OPTIONAL      :: grid
+      TYPE(grid_t), TARGET, INTENT(in), OPTIONAL       :: grid
 
       !< Check for duplicate
-      IF (ASSOCIATED(getVarPtrFromRegister(varname))) &
-        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+      IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
+        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -260,8 +308,8 @@ MODULE vars_module
         dat_ptr%var%grid => null()
       END IF
 
-      CALL addVarPtrToRegister(dat_ptr)
-
+      CALL addVarPtrToRegister(self, dat_ptr)
+      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add1dToRegister
 
 
@@ -272,15 +320,16 @@ MODULE vars_module
      !! a variable object is created, the data is assigned and the name will be
      !! converted to upper case.
      !----------------------------------------------------------------------------
-     subroutine addLagrangeToRegister(var, varname, grid)
-      real(KDOUBLE), dimension(:), target, intent(in)          :: var
+     subroutine addLagrangeToRegister(self, var, varname, grid)
+      class(VariableRepository), intent(in) :: self
+      real(KDOUBLE), dimension(:), target, intent(in)    :: var
       character(*), intent(in)                           :: varname
       type(t_grid_lagrange), target, intent(in)          :: grid
       type(variable_ptr)                                 :: dat_ptr
 
       !< check for duplicate
-      if(associated(getVarPtrFromRegister(varname))) &
-        call log_fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+      if(associated(getVarPtrFromRegister(self, varname))) &
+        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
       !< create variable object
       allocate(dat_ptr%var)
       dat_ptr%var%data1d => var
@@ -288,7 +337,8 @@ MODULE vars_module
       dat_ptr%var%grid_l => grid
 
       !< add to register
-      call addVarPtrToRegister(dat_ptr)
+      call addVarPtrToRegister(self, dat_ptr)
+      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     end subroutine addLagrangeToRegister
 
 
@@ -297,13 +347,14 @@ MODULE vars_module
     !!
     !! If the register does not exist, it will be created.
     !----------------------------------------------------------------------------
-    SUBROUTINE addVarPtrToRegister(var_ptr)
-      TYPE(variable_ptr)                     :: var_ptr !< variable container to be added
+    SUBROUTINE addVarPtrToRegister(self, var_ptr)
+      class(VariableRepository), intent(in) :: self
+      TYPE(variable_ptr)  :: var_ptr !< variable container to be added
 
-      IF (.NOT. ASSOCIATED(register)) THEN !< register empty
-          CALL list_init(register, transfer(var_ptr, list_data))
+      IF (.NOT. ASSOCIATED(self%register)) THEN !< register empty
+          CALL list_init(self%register, transfer(var_ptr, list_data))
       ELSE
-          CALL list_insert(register, transfer(var_ptr, list_data))
+          CALL list_insert(self%register, transfer(var_ptr, list_data))
       END IF
 
     END SUBROUTINE addVarPtrToRegister
@@ -315,15 +366,16 @@ MODULE vars_module
     !! returns a pointer to this variable. Varname will be converted to uppercase.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    TYPE(variable_t) FUNCTION getVarPtrFromRegister(varname) RESULT(var)
-      CHARACTER(*), INTENT(in)          :: varname
-      POINTER                           :: var
-      TYPE(variable_ptr)                :: var_ptr
-      TYPE(list_node_t), POINTER        :: currentNode
+    TYPE(variable_t) FUNCTION getVarPtrFromRegister(self, varname) RESULT(var)
+      class(VariableRepository), intent(in) :: self
+      CHARACTER(*), INTENT(in)              :: varname
+      POINTER                               :: var
+      TYPE(variable_ptr)                    :: var_ptr
+      TYPE(list_node_t), POINTER            :: currentNode
 
       NULLIFY(var)
 
-      currentNode => register
+      currentNode => self%register
 
       DO WHILE (ASSOCIATED(currentNode))
         IF (ASSOCIATED(list_get(currentNode))) var_ptr = transfer(list_get(currentNode),var_ptr)
@@ -345,7 +397,8 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get3DFromRegister(varname, vardata, grid, grid_l)
+    SUBROUTINE get3DFromRegister(self, varname, vardata, grid, grid_l)
+      class(VariableRepository), intent(in) :: self
       CHARACTER(*), INTENT(in)                                 :: varname
       real(KDOUBLE), DIMENSION(:,:,:), POINTER, INTENT(out)          :: vardata
       TYPE(variable_t), POINTER                                :: var
@@ -354,7 +407,7 @@ MODULE vars_module
 
       NULLIFY(vardata)
 
-      var => getVarPtrFromRegister(varname)
+      var => getVarPtrFromRegister(self, varname)
 
       IF (ASSOCIATED(var%data3d)) vardata => var%data3d
       IF (ASSOCIATED(var%grid)) grid => var%grid
@@ -369,7 +422,8 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get2DFromRegister(varname, vardata, grid, grid_l)
+    SUBROUTINE get2DFromRegister(self, varname, vardata, grid, grid_l)
+      class(VariableRepository), intent(in) :: self
       CHARACTER(*), INTENT(in)                              :: varname
       real(KDOUBLE), DIMENSION(:,:), POINTER, INTENT(out)         :: vardata
       TYPE(variable_t), POINTER                             :: var
@@ -378,7 +432,7 @@ MODULE vars_module
 
       NULLIFY(vardata)
 
-      var => getVarPtrFromRegister(varname)
+      var => getVarPtrFromRegister(self, varname)
 
       if (associated(var%data2d)) vardata => var%data2d
       if (present(grid) .and. associated(var%grid)) grid => var%grid
@@ -392,7 +446,8 @@ MODULE vars_module
     !! returns a pointer to the data of this variable.
     !! If no such node is found, null will be returned.
     !----------------------------------------------------------------------------
-    SUBROUTINE get1DFromRegister(varname, vardata, grid, grid_l)
+    SUBROUTINE get1DFromRegister(self, varname, vardata, grid, grid_l)
+      class(VariableRepository), intent(in) :: self
       CHARACTER(*), INTENT(in)                              :: varname
       real(KDOUBLE), DIMENSION(:), POINTER, INTENT(out)           :: vardata
       TYPE(variable_t), POINTER                             :: var
@@ -401,7 +456,7 @@ MODULE vars_module
 
       NULLIFY(vardata)
 
-      var => getVarPtrFromRegister(varname)
+      var => getVarPtrFromRegister(self, varname)
 
       IF (ASSOCIATED(var%data1d)) vardata => var%data1d
       IF (ASSOCIATED(var%grid)) grid => var%grid

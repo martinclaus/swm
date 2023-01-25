@@ -63,6 +63,7 @@ MODULE io_module
     generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
     procedure, private :: putVarEuler, putVarLagrange
     generic :: putVar => putVarEuler, putVarLagrange !< Write time slice of a variable to a dataset
+    procedure :: initFH
   end type IoComponent
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -70,7 +71,7 @@ MODULE io_module
   !! a netcdf dataset
   !!
   !! This type stores all variables neccessary to work with data stored
-  !! in netcdf datasets. A fileHandle object is initialised by io_module::initFH.
+  !! in netcdf datasets. A fileHandle object is initialised by IoComponent%initFH.
   !! If the file handle points to a non-existent file, additional
   !! information will be stored when file is created with io_module::createDS
   !!
@@ -312,7 +313,7 @@ MODULE io_module
     !> @brief  Creates a 3D dataset (2D space + time)
     !!
     !! Creates an empty 3D dataset with a variable and proper dimension
-    !! specifications. The file handle used must be initialised using io_module::initFH.
+    !! specifications. The file handle used must be initialised using IoComponent%initFH.
     !! If DIAG_FLUSH is defined, the dataset will be closed after creation. Since all routines
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
@@ -392,7 +393,7 @@ MODULE io_module
     !> @brief  Creates a dataset for a lagrange variable
     !!
     !! Creates an empty 2D dataset with a variable and proper dimension
-    !! specifications. The file handle used must be initialised using io_module::initFH.
+    !! specifications. The file handle used must be initialised using IoComponent%initFH.
     !! If DIAG_FLUSH is defined, the dataset will be closed after creation. Since all routines
     !! of io_module preserve the isOpen state of the file handle, this forces the module to
     !! close the file after every single operation which guarantees a consisten dataset at any time.
@@ -664,7 +665,7 @@ MODULE io_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Returns time coordinates of a variable time axis
     !!
-    !! A file handle is manually created (not initialised by io_module::initFH)
+    !! A file handle is manually created (not initialised by IoComponent%initFH)
     !! and used to read data from time dimension variable. The time is converted
     !! to the internal model calendar.
     !------------------------------------------------------------------
@@ -689,7 +690,7 @@ MODULE io_module
     !> @brief Returns a fileHandle object pointing to the time variable of
     !! the dataset associated with FH
     !!
-    !! A file handle is manually created (not initialised by io_module::initFH)
+    !! A file handle is manually created (not initialised by IoComponent%initFH)
     !! which can be used to read data from time dimension variable
     !------------------------------------------------------------------
     TYPE(fileHandle) FUNCTION getTimeFH(FH) RESULT(timeFH)
@@ -704,7 +705,7 @@ MODULE io_module
     !!
     !! If the file exists, the dataset is opened and closed. This routine
     !! can be used to ensure that the file handle has all possible
-    !! information available. This routine is called by io_module::initFH
+    !! information available. This routine is called by IoComponent%initFH
     !! If the file does not exist, nothing will happen.
     !!
     !! @note Unlike the UNIX touch command, the dataset will not be created if it does not exist
