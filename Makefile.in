@@ -89,7 +89,7 @@ init_vars.$(OBJEXT) : init_vars.f90 types.$(OBJEXT) model.h
 vars_module.$(OBJEXT) : vars_module.f90 app.$(OBJEXT) generic_list.$(OBJEXT) domain_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT) io.h
 	$(COMPILE)
 
-time_integration_module.$(OBJEXT) : time_integration_module.f90 vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT) domain_module.$(OBJEXT)
+time_integration_module.$(OBJEXT) : time_integration_module.f90 app.$(OBJEXT) vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT)
 	$(COMPILE)
 
 f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc

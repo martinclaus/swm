@@ -74,6 +74,7 @@ PROGRAM main_program
       use domain_module, only: make_domain_component, Domain
       use vars_module, only: make_variable_register, VariableRepository
       use calc_lib, only: make_calc_component, Calc
+      use time_integration_module, only: make_time_integration_component
       use swm_module, only: make_swm_component
 
       class(AbstractApp), pointer :: application
@@ -82,8 +83,9 @@ PROGRAM main_program
       type(IoComponent), pointer :: io_comp
       type(Domain), pointer :: domain_comp
       type(VariableRepository), pointer :: repo
-      type(Calc), pointer
+      type(Calc), pointer :: calc
 
+      
       app_factory => new_default_app_builder()
 
       log => make_file_logger()
@@ -99,6 +101,8 @@ PROGRAM main_program
 
       calc => make_calc_component(log, domain_comp)
       call app_factory%add_component(calc)
+
+      call app_factory%add_component(make_time_integration_component())
 
 #ifdef SWM
       call app_factory%add_component(make_swm_component())
@@ -149,8 +153,8 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise Calc library
         !------------------------------------------------------------------
-        call time_integration_init
-        call log_info('time_integration_init done')
+        ! call time_integration_init
+        ! call log_info('time_integration_init done')
 
 #ifdef DYNFROMFILE
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -164,8 +168,8 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initializes the shallow water model
         !------------------------------------------------------------------
-        call initialize
-        call log_info('SWM_init done')
+        ! call initialize
+        ! call log_info('SWM_init done')
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
