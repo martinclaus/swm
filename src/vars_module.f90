@@ -24,7 +24,7 @@ MODULE vars_module
   IMPLICIT NONE
   private
 
-  public :: VariableRepository, make_variable_register
+  public :: VariableRepository, make_variable_register, Ns, N0, N0p1
 
   integer(KINT), PARAMETER     :: Ndims = 3                   !< Number of dimensions
   ! numerical parameters

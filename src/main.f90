@@ -105,7 +105,9 @@ PROGRAM main_program
       call app_factory%add_component(make_time_integration_component())
 
 #ifdef SWM
-      call app_factory%add_component(make_swm_component())
+      call app_factory%add_component( &
+          make_swm_component(log, domain_comp, repo, io_comp)  &
+      )
 #endif
 
       application => app_factory%build()

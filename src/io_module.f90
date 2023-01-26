@@ -57,13 +57,13 @@ MODULE io_module
     procedure :: finalize => finishIO
     procedure :: step => do_nothing
     procedure :: advance => do_nothing
+    procedure :: initFH, readInitialCondition
     procedure, private :: createDSEuler, createDSLagrange
-    generic :: createDS => createDSEuler, createDSLagrange  !< creates a dataset with a given grid
     procedure, private :: getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
-    generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
     procedure, private :: putVarEuler, putVarLagrange
+    generic :: createDS => createDSEuler, createDSLagrange  !< creates a dataset with a given grid
+    generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
     generic :: putVar => putVarEuler, putVarLagrange !< Write time slice of a variable to a dataset
-    procedure :: initFH
   end type IoComponent
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -131,7 +131,7 @@ MODULE io_module
       logical :: nc_shuffle, nc_fletcher32
       character(CHARLEN) :: oprefix = ''       !< prefix of output file names. Prepended to the file name by io_module::getFname
       character(CHARLEN) :: osuffix=''         !< suffix of output filenames. Appended to the file name by io_module::getFname
-        integer, dimension(MAX_NC_DIMS) :: nc_chunksizes
+      integer, dimension(MAX_NC_DIMS) :: nc_chunksizes
       namelist / output_nl / &
         oprefix, &  ! output prefix used to specify directory
         osuffix, &  ! suffix to name model run
@@ -214,7 +214,7 @@ MODULE io_module
     SUBROUTINE readInitialCondition(self, FH, var, missmask)
       class(IoComponent), intent(in) :: self
       TYPE(fileHandle), INTENT(inout)                        :: FH       !< File handle pointing to the requested variable
-      real(KDOUBLE), DIMENSION(:,:), INTENT(out)          :: var      !< Data to return
+      real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var      !< Data to return
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask !< missing value mask
       call getVar(FH, var, getNrec(self, FH), missmask)
     END SUBROUTINE readInitialCondition
