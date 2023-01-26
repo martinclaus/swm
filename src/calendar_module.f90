@@ -15,6 +15,8 @@ MODULE calendar_module
     use f_udunits_2
     implicit none
 #include "io.h"
+    private
+    public :: calendar, OpenCal, CloseCal
 
     integer, PARAMETER :: charset = UT_ASCII
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -28,18 +30,17 @@ MODULE calendar_module
   !! provides a description of the udunits operations and its structure
   !------------------------------------------------------------------
     TYPE, PUBLIC ::     calendar
-        TYPE(UT_UNIT_PTR), pointer, PRIVATE ::  unit=>null()
+        TYPE(UT_UNIT_PTR), pointer, PRIVATE :: unit=>null()
+        character(CHARLEN)                  :: time_unit=" "
+    contains
+        procedure, nopass :: new
+        procedure :: is_set, finish
+        procedure, nopass, private :: convertTimeArrayFloat, convertTimeScalarFloat, convertTimeArrayDouble, convertTimeScalarDouble
+        generic :: convertTime => convertTimeArrayFloat, convertTimeScalarFloat, convertTimeArrayDouble, convertTimeScalarDouble
     END TYPE calendar
 
     CHARACTER(CHARLEN)     :: ref_cal            !< unit string of internal model calendar
     TYPE(UT_SYSTEM_PTR)    :: utSystem           !< C pointer to the udunits2 units system object
-
-    interface convertTime
-        module procedure convertTimeArrayFloat
-        module procedure convertTimeScalarFloat
-        module procedure convertTimeArrayDouble
-        module procedure convertTimeScalarDouble
-    end interface convertTime
 
     CONTAINS
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -79,11 +80,10 @@ MODULE calendar_module
         !! if the calendar unit is defined and a time conversion to/from this
         !! calendar is possible.
         !------------------------------------------------------------------
-        LOGICAL FUNCTION isSetCal(cal) RESULT(isSet)
-          IMPLICIT NONE
-          TYPE(calendar), INTENT(in)    :: cal
-          isSet = associated(cal%unit)
-        END FUNCTION isSetCal
+        LOGICAL FUNCTION is_set(self) RESULT(isSet)
+          class(calendar), INTENT(in)    :: self
+          isSet = associated(self%unit)
+        END FUNCTION is_set
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Sets a calendar with an origin
@@ -91,25 +91,31 @@ MODULE calendar_module
         !! Sets the calendar unit to the given reference date and time unit string,
         !! which has to be in the UTC-referenced time format.
         !------------------------------------------------------------------
-        SUBROUTINE setCal(cal, str)
-          IMPLICIT NONE
-          TYPE(calendar), INTENT(inout)       :: cal
-          CHARACTER(*), intent(in)            :: str
+        type(calendar) function new(cal_str) result(cal)
+          CHARACTER(*), optional, intent(in) :: cal_str
+          character(CHARLEN) :: loc_str = " "
 
-          if (isSetCal(cal)) return
+          if (present(cal_str)) then
+            loc_str = cal_str
+          else
+            loc_str = ref_cal
+          end if
+
           allocate(cal%unit)
-          cal%unit = f_ut_parse(utSystem, str, charset)
-          call ut_check_status("ut_parse " // trim(str))
-        END SUBROUTINE setCal
+          cal%unit = f_ut_parse(utSystem, loc_str, charset)
+          call ut_check_status("ut_parse " // trim(loc_str))
+
+          cal%time_unit = loc_str
+        end function new
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Frees the space for the calendar pointer
         !------------------------------------------------------------------
-        SUBROUTINE freeCal(cal)
-            TYPE(calendar), INTENT(inout) :: cal
-            CALL f_ut_free(cal%unit)
-            call ut_check_status("freeCal")
-            deallocate(cal%unit)
+        SUBROUTINE finish(self)
+            class(calendar), INTENT(inout) :: self
+            CALL f_ut_free(self%unit)
+            call ut_check_status("finish")
+            deallocate(self%unit)
         END SUBROUTINE
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -123,11 +129,11 @@ MODULE calendar_module
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !> @brief Converts an array of time values from one calendar to another
         !------------------------------------------------------------------
-        SUBROUTINE convertTimeArrayDouble(fromCal,toCal,time)
+        SUBROUTINE convertTimeArrayDouble(fromCal, toCal, time)
           IMPLICIT NONE
-          TYPE(calendar), INTENT(in)           :: fromCal
-          TYPE(calendar), INTENT(in)           :: toCal
-          real(8), DIMENSION(:), INTENT(inout) :: time
+          type(calendar), INTENT(in)           :: fromCal
+          type(calendar), INTENT(in)           :: toCal
+          real(8), DIMENSION(:), INTENT(inout)  :: time
           type(CV_CONVERTER_PTR) :: converter
           integer :: junk
           character (len=128) :: buffer1, buffer2

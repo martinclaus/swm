@@ -5,7 +5,7 @@ MODULE domain_module
   USE grid_module
   use init_vars
   use app, only: Component
-  use io_module, only: IoComponent, fileHandle
+  use io_module, only: Io, IoHandle
   use logging, only: Logger
   ! USE io_module, ONLY : fileHandle, initFH, readInitialCondition
 
@@ -44,7 +44,7 @@ MODULE domain_module
   
     type(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
 
-    class(IoComponent), pointer :: io_ptr
+    class(Io), pointer     :: io_ptr
     class(logger), pointer :: log
 
     contains
@@ -57,7 +57,7 @@ MODULE domain_module
   CONTAINS
 
   function make_domain_component(io_comp, log) result(dom_comp)
-    class(IoComponent), pointer :: io_comp
+    class(Io), pointer     :: io_comp
     class(Logger), pointer :: log
     class(Domain), pointer :: dom_comp
     allocate(dom_comp)
@@ -71,7 +71,7 @@ MODULE domain_module
 
   SUBROUTINE initDomain(self)
     class(Domain), intent(inout) :: self
-    type(fileHandle)                             :: FH_H
+    type(IoHandle)                             :: FH_H
     integer(KINT)                                :: i,j
     real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
     real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$

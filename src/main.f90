@@ -20,7 +20,8 @@
 PROGRAM main_program
 #include "model.h"
 #include "io.h"
-  use app, only: AbstractApp, new_default_app_builder, AbstractAppBuilder
+  use app, only: AbstractApp
+  use io_module, only: Io
 !   USE vars_module
 !   USE domain_module
 !   USE calc_lib
@@ -69,8 +70,9 @@ PROGRAM main_program
     end subroutine main
 
     function make_app() result(application)
+      use app, only: new_default_app_builder, AbstractAppBuilder
       use logging, only: Logger, make_file_logger
-      use io_module, only: make_io_component, IoComponent
+      use io_module, only: make_netcdf_io
       use domain_module, only: make_domain_component, Domain
       use vars_module, only: make_variable_register, VariableRepository
       use calc_lib, only: make_calc_component, Calc
@@ -80,7 +82,7 @@ PROGRAM main_program
       class(AbstractApp), pointer :: application
       class(AbstractAppBuilder), pointer :: app_factory
       type(Logger), pointer :: log
-      type(IoComponent), pointer :: io_comp
+      type(Io), pointer :: io_comp
       type(Domain), pointer :: domain_comp
       type(VariableRepository), pointer :: repo
       type(Calc), pointer :: calc
@@ -90,7 +92,7 @@ PROGRAM main_program
 
       log => make_file_logger()
 
-      io_comp => make_io_component(log)
+      io_comp => make_netcdf_io(log)
       call app_factory%add_component(io_comp)
 
       domain_comp => make_domain_component(io_comp, log)
