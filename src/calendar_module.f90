@@ -34,9 +34,10 @@ MODULE calendar_module
         character(CHARLEN)                  :: time_unit=" "
     contains
         procedure, nopass :: new
-        procedure :: is_set, finish
+        procedure :: is_set
         procedure, nopass, private :: convertTimeArrayFloat, convertTimeScalarFloat, convertTimeArrayDouble, convertTimeScalarDouble
         generic :: convertTime => convertTimeArrayFloat, convertTimeScalarFloat, convertTimeArrayDouble, convertTimeScalarDouble
+        final :: finish
     END TYPE calendar
 
     CHARACTER(CHARLEN)     :: ref_cal            !< unit string of internal model calendar
@@ -112,7 +113,7 @@ MODULE calendar_module
         !> @brief Frees the space for the calendar pointer
         !------------------------------------------------------------------
         SUBROUTINE finish(self)
-            class(calendar), INTENT(inout) :: self
+            type(calendar) :: self
             CALL f_ut_free(self%unit)
             call ut_check_status("finish")
             deallocate(self%unit)

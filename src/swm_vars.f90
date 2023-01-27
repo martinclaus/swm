@@ -18,7 +18,7 @@ module swm_vars
   integer(KINT), PARAMETER                             :: NG=3        !< maximal level of timestepping. Increments stored in memory
   integer(KINT), PARAMETER                             :: NG0=NG      !< Index of newest increment
   integer(KINT), PARAMETER                             :: NG0m1=NG0-1 !< Index of n-1 level
-  
+
   type :: SwmState
     real(KDOUBLE), dimension(:,:,:), pointer :: SWM_u => null()    !< Zonal velocity of shallow water module. Size Nx,Ny,vars_module::Ns
     real(KDOUBLE), dimension(:,:,:), pointer :: SWM_v => null()    !< Meridional velocity of shallow water module. Size Nx,Ny,vars_module::Ns
@@ -41,6 +41,8 @@ module swm_vars
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: v_bs => null()     !< meridional velocity of background state
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: zeta_bs => null()  !< relative vorticity of background state
     TYPE(memoryChunk)                        :: SWM_MC_bs_psi      !< Memorychunk associated with a streamfunction dataset defining the basic state
+  contains
+    final :: SWM_vars_finish
   end type SwmState
 
   contains
@@ -107,25 +109,27 @@ module swm_vars
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Frees memory allocated for the free variables of the shallow water model
     !------------------------------------------------------------------
-    subroutine SWM_vars_finish(self, log)
-      class(SwmState), intent(inout) :: self
-      class(Logger), pointer :: log
-      integer(KINT)  :: alloc_error
-      deallocate(self%SWM_u, self%SWM_v, self%SWM_eta, self%G_u, self%G_v, self%G_eta, self%EDens, self%Pot, self%zeta, self%MV, self%MU, stat=alloc_error)
-      if (alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
-      nullify(self%SWM_u, self%SWM_v, self%SWM_eta, self%G_u, self%G_v, self%G_eta, self%EDens, self%Pot, self%zeta, self%MV, self%MU)
-
-#ifdef FULLY_NONLINEAR
-      deallocate(self%D, self%Du, self%Dv, self%Dh, stat=alloc_error)
-      if (alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
-      nullify(self%D, self%Du, self%Dv, self%Dh)
-#endif
-
-#ifdef LINEARISED_MEAN_STATE
-      deallocate(self%psi_bs, self%u_bs, self%v_bs, self%zeta_bs, stat=alloc_error)
-      if (alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
-      nullify(self%psi_bs, self%u_bs, self%v_bs, self%zeta_bs)
-#endif
+    subroutine SWM_vars_finish(self)
+      type(SwmState) :: self
+      if (associated(self%SWM_u)) deallocate(self%SWM_u)
+      if (associated(self%SWM_v)) deallocate(self%SWM_v)
+      if (associated(self%SWM_eta)) deallocate(self%SWM_eta)
+      if (associated(self%G_u)) deallocate(self%G_u)
+      if (associated(self%G_v)) deallocate(self%G_v)
+      if (associated(self%G_eta)) deallocate(self%G_eta)
+      if (associated(self%EDens)) deallocate(self%EDens)
+      if (associated(self%Pot)) deallocate(self%Pot)
+      if (associated(self%zeta)) deallocate(self%zeta)
+      if (associated(self%MV)) deallocate(self%MV)
+      if (associated(self%MU)) deallocate(self%MU)
+      if (associated(self%D)) deallocate(self%D)
+      if (associated(self%Du)) deallocate(self%Du)
+      if (associated(self%Dv)) deallocate(self%Dv)
+      if (associated(self%Dh)) deallocate(self%Dh)
+      if (associated(self%psi_bs)) deallocate(self%psi_bs)
+      if (associated(self%u_bs)) deallocate(self%u_bs)
+      if (associated(self%v_bs)) deallocate(self%v_bs)
+      if (associated(self%zeta_bs)) deallocate(self%zeta_bs)
     end subroutine SWM_vars_finish
 
 end module swm_vars

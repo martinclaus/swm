@@ -13,15 +13,19 @@ MODULE grid_module
     real(KDOUBLE), DIMENSION(:), POINTER        :: sin_lat => null()
     real(KDOUBLE), DIMENSION(:), POINTER        :: cos_lat => null()
     real(KDOUBLE), DIMENSION(:), POINTER        :: tan_lat => null()
-    integer(KSHORT), DIMENSION(:,:), POINTER   :: land => null()
-    integer(KSHORT), DIMENSION(:,:), POINTER   :: ocean => null()
+    integer(KSHORT), DIMENSION(:,:), POINTER    :: land => null()
+    integer(KSHORT), DIMENSION(:,:), POINTER    :: ocean => null()
     real(KDOUBLE), DIMENSION(:, :), POINTER     :: bc  => null()      !< Boundary condition factor (no-slip=2, free-slip=0 at the boundary, 1 in the ocean)
     real(KDOUBLE), DIMENSION(:), POINTER        :: f => null()
+  contains
+    final :: finalize_grid_t
   END TYPE grid_t
 
   type :: t_grid_lagrange
     integer(KINT), dimension(:), pointer        :: id=>null()
     integer(KSHORT), dimension(:), pointer     :: valid=>null()
+  contains
+    final :: finalize_t_grid_lagrange
   end type t_grid_lagrange
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -37,6 +41,25 @@ MODULE grid_module
   end interface setGrid
 
   CONTAINS
+    subroutine finalize_grid_t(self)
+      type(grid_t) :: self
+      if (associated(self%H)) deallocate(self%H)
+      if (associated(self%lon)) deallocate(self%lon)
+      if (associated(self%lat)) deallocate(self%lat)
+      if (associated(self%sin_lat)) deallocate(self%sin_lat)
+      if (associated(self%cos_lat)) deallocate(self%cos_lat)
+      if (associated(self%tan_lat)) deallocate(self%tan_lat)
+      if (associated(self%land)) deallocate(self%land)
+      if (associated(self%ocean)) deallocate(self%ocean)
+      if (associated(self%bc)) deallocate(self%bc)
+      if (associated(self%f)) deallocate(self%f)
+    end subroutine finalize_grid_t
+
+    subroutine finalize_t_grid_lagrange(self)
+      type(t_grid_lagrange) :: self
+      if (associated(self%id)) deallocate(self%id)
+      if (associated(self%valid)) deallocate(self%valid)
+    end subroutine finalize_t_grid_lagrange
 
     subroutine setTopo(gr, H)
       type(grid_t), intent(inout)                 :: gr

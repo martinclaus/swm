@@ -17,7 +17,7 @@ MODULE swm_module
   use logging, only: Logger
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0, N0p1, Ns
-  use io_module, only: IoComponent
+  use io_module, only: Io
   use swm_vars, only: SwmState, SWM_vars_init, SWM_vars_finish
   USE swm_damping_module
   USE swm_forcing_module
@@ -31,7 +31,7 @@ MODULE swm_module
     private
     class(Logger), pointer :: log => null()
     class(Domain), pointer :: dom => null()
-    class(IoComponent), pointer :: io => null()
+    class(Io), pointer :: io => null()
     class(VariableRepository), pointer :: repo => null()
 
     type(SwmState)         :: state
@@ -49,7 +49,7 @@ MODULE swm_module
       class(Logger), pointer, intent(in) :: log
       class(Domain), pointer, intent(in) :: dom
       class(VariableRepository), pointer, intent(in) :: repo
-      class(IoComponent), pointer, intent(in) :: io
+      class(Io), pointer, intent(in) :: io
       class(Swm), pointer :: swm_comp
       type(swm) :: concrete_swm
       allocate(swm_comp, source=concrete_swm)
@@ -127,7 +127,6 @@ MODULE swm_module
       CALL SWM_timestep_finish
       CALL SWM_forcing_finish
       CALL SWM_damping_finish
-      call SWM_vars_finish(self%state, self%log)
       nullify(self%io, self%repo, self%dom, self%log)
     END SUBROUTINE finalize
 

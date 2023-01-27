@@ -8,12 +8,15 @@ Accepted
 
 ## Context
 
-The issue motivating this decision, and any context that influences or constrains the decision.
+Derived owning allocatable data (also as pointer) must release the memory when the type gets out of scope.
+Since Fortran 2003, derived types can have a final binding that can be used to clean up memory upon destruction. 
 
 ## Decision
 
-The change that we're proposing or have agreed to implement.
+Types containing allocatable components or pointer components which gets allocated and represent data owned by the type get a final binding to clean up memory
 
 ## Consequences
 
-What becomes easier or more difficult to do and any risks introduced by the change that will need to be mitigated.
+Keeping track of allocated memory and freeing it up becomes easier at high level.
+However, when derived types are defined, special care must be taken to properly handle resources owned by the type.
+In particular, pointer components must be analysed if the data pointed to is "owned" by the type, that is if it should be deallocated when the instance is destroyed.

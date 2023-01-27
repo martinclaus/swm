@@ -47,6 +47,8 @@ MODULE calc_lib
     integer(KSHORT), dimension(:,:), pointer  :: mask => null()
     real(KDOUBLE), dimension(:, :, :), pointer :: weight_vec => null()
     integer(KSHORT), dimension(:,:), pointer  :: to_mask => null()
+  contains
+    final :: finalize_2_point_interpolator
   end type
 
   type :: t_interpolater4point
@@ -55,6 +57,8 @@ MODULE calc_lib
     integer(KSHORT), dimension(:,:), pointer :: mask => null()
     real(KDOUBLE), dimension(:, :, :), pointer :: weight_vec => null()
     integer(KSHORT), dimension(:,:), pointer :: to_mask => null()
+  contains
+    final :: finalize_4_point_interpolator
   end type
 
 
@@ -199,8 +203,7 @@ MODULE calc_lib
       type(grid_t), pointer, intent(in) :: from_grid
       character(*), intent(in)          :: direction
       logical, intent(in)               :: exclude_land
-
-      type(grid_t), pointer :: out_grid
+      type(grid_t), pointer                :: out_grid
       integer(KINT), dimension(:), pointer :: im => null()
       integer(KINT), dimension(:), pointer :: ip => null()
       integer(KINT), dimension(:), pointer :: jm => null()
@@ -270,6 +273,13 @@ MODULE calc_lib
 !$omp end parallel
     end function set2PointInterpolater
 
+    subroutine finalize_2_point_interpolator(self)
+      type(t_interpolator2point) :: self
+      if (associated(self%weight_vec)) deallocate(self%weight_vec)
+      if (associated(self%iind)) deallocate(self%iind)
+      if (associated(self%jind)) deallocate(self%jind)
+    end subroutine finalize_2_point_interpolator
+
     type(t_interpolater4point) function set4PointInterpolater(self, from_grid, exclude_land) result(int_obj)
       class(Calc), intent(in)              :: self
       type(grid_t), pointer, intent(in)    :: from_grid
@@ -333,6 +343,13 @@ MODULE calc_lib
       end if
 !$omp end parallel
     end function set4PointInterpolater
+
+    subroutine finalize_4_point_interpolator(self)
+      type(t_interpolator4point) :: self
+      if (associated(self%weight_vec)) deallocate(self%weight_vec)
+      if (associated(self%iind)) deallocate(self%iind)
+      if (associated(self%jind)) deallocate(self%jind)
+    end subroutine finalize_4_point_interpolator
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief 1D linear interpolation, usually in time.
