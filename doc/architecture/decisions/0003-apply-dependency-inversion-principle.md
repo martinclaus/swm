@@ -8,6 +8,8 @@ Accepted
 
 Amends [2. Separate system into independently deployable components](0002-separate-system-into-independently-deployable-components.md)
 
+Amended by [4. Abstract all IO in a common interface](0004-abstract-all-io-in-a-common-interface.md)
+
 ## Context
 
 Clean architecture implies that volatile components should depend on less volatile components, or low-level components on high-level components
