@@ -18,10 +18,11 @@ module list_mod
         private
         class(*), pointer :: value => null()
         type(Link), pointer :: next_link => null()
-        contains
+    contains
         procedure :: get_value => link_get_value
         procedure :: next => link_next
         procedure :: set_next => link_set_next
+        final :: link_finalize
     end type Link
 
     interface Link
@@ -40,19 +41,20 @@ module list_mod
     !! Example
     !! =======
     !! ```fortran
-    !! class(list), pointer :: my_list
+    !! class(List), pointer :: my_list
     !! procedure(apply_to_list_value) :: some_routine
     !! call my_list%map(some_routine)
     !! ```
     !------------------------------------------------------------------
-    type, abstract :: List
+    type :: List
         class(Link), pointer, private :: first_link => null()
         class(Link), pointer, private :: last_link => null()
-        contains
+    contains
         procedure :: add_value => list_add_value
         procedure :: iter => list_iter
         procedure, private :: list_map_to_values
         generic :: map => list_map_to_values
+        final :: list_finalize
     end type List
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -102,6 +104,24 @@ module list_mod
         link_constructor%next_link => next_link
         allocate(link_constructor%value, source=value)
     end function link_constructor
+
+    subroutine link_finalize(self)
+        type(Link) :: self
+        deallocate(self%value)        
+    end subroutine link_finalize
+
+    subroutine list_finalize(self)
+        type(List) :: self
+        class(Link), pointer :: current
+        if (.not. associated(self%first_link)) return
+        do while (associated(self%first_link%next()))
+            current => self%first_link
+            self%first_link => self%first_link%next()
+            deallocate(current)
+        end do
+        deallocate(self%first_link)
+        nullify(self%first_link, self%last_link)
+    end subroutine list_finalize
 
     subroutine list_add_value(self, value)
         class(List), intent(inout) :: self
