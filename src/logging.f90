@@ -41,9 +41,11 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
   contains
 
 
-    function make_file_logger() result(log_ptr)
+    function make_file_logger(level) result(log_ptr)
+      integer, optional :: level
       class(logger), pointer :: log_ptr
       allocate(log_ptr)
+      if (present(level)) log_ptr%log_level = level
     end function make_file_logger
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
