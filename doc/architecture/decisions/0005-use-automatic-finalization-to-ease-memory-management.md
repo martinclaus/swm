@@ -13,7 +13,8 @@ Since Fortran 2003, derived types can have a final binding that can be used to c
 
 ## Decision
 
-Types containing allocatable components or pointer components which gets allocated and represent data owned by the type get a final binding to clean up memory
+Types containing allocatable components or pointer components which gets allocated and represent data owned by the type get a final binding to clean up memory.
+For now, finalization remains explicit on the highest level (component level) since automatic finalization at the end of the main loop may not always be desired.
 
 ## Consequences
 
