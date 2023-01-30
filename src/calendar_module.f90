@@ -10,7 +10,7 @@
 !!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
-    use logging
+    use logging, only: Logger
     use types
     use f_udunits_2
     implicit none
@@ -30,6 +30,7 @@ MODULE calendar_module
   !! provides a description of the udunits operations and its structure
   !------------------------------------------------------------------
     TYPE, PUBLIC ::     calendar
+        class(Logger), pointer, private          :: log
         TYPE(UT_UNIT_PTR), pointer, PRIVATE :: unit=>null()
         character(CHARLEN)                  :: time_unit=" "
     contains
@@ -92,8 +93,9 @@ MODULE calendar_module
         !! Sets the calendar unit to the given reference date and time unit string,
         !! which has to be in the UTC-referenced time format.
         !------------------------------------------------------------------
-        type(calendar) function new(cal_str) result(cal)
-          CHARACTER(*), optional, intent(in) :: cal_str
+        type(calendar) function new(log, cal_str) result(cal)
+        class(Logger), pointer             :: log
+        character(*), optional, intent(in) :: cal_str
           character(CHARLEN) :: loc_str = " "
 
           if (present(cal_str)) then
@@ -101,6 +103,8 @@ MODULE calendar_module
           else
             loc_str = ref_cal
           end if
+
+          cal%log => log
 
           allocate(cal%unit)
           cal%unit = f_ut_parse(utSystem, loc_str, charset)
@@ -117,6 +121,7 @@ MODULE calendar_module
             CALL f_ut_free(self%unit)
             call ut_check_status("finish")
             deallocate(self%unit)
+            nullify(self%log)
         END SUBROUTINE
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -152,7 +157,7 @@ MODULE calendar_module
             junk = f_ut_format(toCal%unit, buffer1, UT_NAMES)
             junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
             write (err_msg, err_msg_fmt) trim(buffer1), trim(buffer2)
-            call log_error(err_msg)
+            call fromCal%log%error(err_msg)
           end if
         END SUBROUTINE convertTimeArrayDouble
 
@@ -197,7 +202,7 @@ MODULE calendar_module
             junk = f_ut_format(toCal%unit, buffer1, UT_NAMES)
             junk = f_ut_format(fromCal%unit, buffer2, UT_NAMES)
             write (err_msg, err_msg_fmt) trim(buffer1), trim(buffer2)
-            call log_error(err_msg)
+            call fromCal%log%error(err_msg)
           end if
         END SUBROUTINE convertTimeArrayFloat
 
