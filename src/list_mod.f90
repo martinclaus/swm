@@ -107,7 +107,7 @@ module list_mod
 
     subroutine link_finalize(self)
         type(Link) :: self
-        deallocate(self%value)        
+        if (associated(self%value)) deallocate(self%value)        
     end subroutine link_finalize
 
     subroutine list_finalize(self)

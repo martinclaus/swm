@@ -18,7 +18,7 @@ MODULE io_module
   USE calendar_module, ONLY : calendar, openCal, closeCal
   USE grid_module, only: grid_t, t_grid_lagrange
   use logging, only: Logger
-  USE netcdf
+  use list_mod, only: List, ListIterator
   IMPLICIT NONE
   private
   public :: Io, IoHandle, HandleArgs
@@ -32,25 +32,25 @@ MODULE io_module
   !! procedures must be provided.
   !------------------------------------------------------------------
   type, abstract, extends(Component) :: Io
-  class(Logger), pointer :: log => null()  !< Pointer to logger object
-  type(calendar) :: modelCalendar          !< Internal Calendar of the model
+    class(Logger), pointer :: log => null()  !< Pointer to logger object
+    type(calendar) :: modelCalendar          !< Internal Calendar of the model
   contains
-  procedure :: initialize => initIO
-  procedure :: finalize => finishIO
-  procedure :: step => do_nothing_io
-  procedure :: advance => do_nothing_io
-  procedure(iGetHandle), deferred :: get_handle
-  procedure(iNoArg), deferred :: init, finish
-  procedure(iCreateDSEuler), deferred, private :: createDSEuler
-  procedure(iCreateDSLagrange), deferred, private :: createDSLagrange
-  procedure(iGetVar3Dhandle), deferred, private :: getVar3Dhandle
-  procedure(iGetVar2Dhandle), deferred, private :: getVar2Dhandle
-  procedure(iGetVar1Dhandle), deferred, private :: getVar1Dhandle
-  procedure(iPutVarEuler), deferred, private :: putVarEuler
-  procedure(iPutVarLagrange), deferred, private :: putVarLagrange
-  generic :: createDS => createDSEuler, createDSLagrange  !< creates a dataset with a given grid
-  generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
-  generic :: putVar => putVarEuler, putVarLagrange !< Write time slice of a variable to a dataset
+    procedure :: initialize => initIO
+    procedure :: finalize => finishIO
+    procedure :: step => do_nothing_io
+    procedure :: advance => do_nothing_io
+    procedure(iGetHandle), deferred :: get_handle
+    procedure(iNoArg), deferred :: init, finish
+    procedure(iCreateDSEuler), deferred, private :: createDSEuler
+    procedure(iCreateDSLagrange), deferred, private :: createDSLagrange
+    procedure(iGetVar3Dhandle), deferred, private :: getVar3Dhandle
+    procedure(iGetVar2Dhandle), deferred, private :: getVar2Dhandle
+    procedure(iGetVar1Dhandle), deferred, private :: getVar1Dhandle
+    procedure(iPutVarEuler), deferred, private :: putVarEuler
+    procedure(iPutVarLagrange), deferred, private :: putVarLagrange
+    generic :: createDS => createDSEuler, createDSLagrange  !< creates a dataset with a given grid
+    generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
+    generic :: putVar => putVarEuler, putVarLagrange !< Write time slice of a variable to a dataset
   end type Io
   
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -66,13 +66,30 @@ MODULE io_module
   end type IoHandle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief  Type to wrap arguments when creating a handle
+  !> @brief  Type to collect arguments for creating a handle
   !!
-  !! Each type extending Io must provide its own extension to handle args
-  !! to properly manage polymorphism
+  !! Arguments are stored in a polymorphic linked list.
+  !! Each type extending IoHandle must check at runtime if the provided arguments
+  !! match the expected arguments necessary to create a concrete IoHandle extension
   !------------------------------------------------------------------
-  type, abstract :: HandleArgs
+  type :: HandleArgs
+    class(List), pointer, private :: args => null()
+    type(ListIterator), private :: args_iter
+  contains
+    procedure :: has_more, get => get_arg, add => add_handle_arg
+    final :: finalize_handle_args
   end type HandleArgs
+
+  type, private :: KeyValue
+    character(CHARLEN) :: key = " "
+    class(*), pointer  :: value
+  contains
+    final :: finalize_key_value
+  end type KeyValue
+
+  interface KeyValue
+    procedure :: construct_key_value_pair
+  end interface KeyValue
 
   abstract interface
     function iGetHandle(self, args) result(handle)
@@ -155,7 +172,7 @@ MODULE io_module
     SUBROUTINE initIO(self)
       class(Io), intent(inout) :: self
       CALL OpenCal
-      self%modelCalendar = self%modelCalendar%new()
+      self%modelCalendar = self%modelCalendar%new(self%log)
 
       !< Call initializer of extending types
       call self%init()
@@ -175,4 +192,62 @@ MODULE io_module
       nullify(self%log)
     END SUBROUTINE finishIO
 
+    subroutine add_handle_arg(self, key, val)
+      class(HandleArgs), intent(inout) :: self
+      character(*), intent(in)         :: key
+      class(*), intent(in)             :: val
+      class(*), pointer                :: arg_ptr
+
+      if (.not.associated(self%args)) allocate(self%args)
+      allocate(arg_ptr, source=KeyValue(key, val))
+      call self%args%add_value(arg_ptr)
+      self%args_iter = self%args%iter()
+    end subroutine add_handle_arg
+
+    logical function has_more(self)
+      class(HandleArgs), intent(in) :: self
+      if (.not. associated(self%args_iter%current)) then
+        has_more = .false.
+      else
+        has_more = self%args_iter%has_more()
+      end if
+    end function has_more
+
+    function get_arg(self, key) result(val)
+      class(HandleArgs), intent(inout) :: self
+      character(*), intent(in) :: key
+      class(*), pointer :: kv
+      class(*), pointer :: val
+
+      do while (self%has_more())
+        kv => self%args_iter%next()
+        select type(kv)
+        class is (KeyValue)
+          if (kv%key .eq. key) then
+            val => kv%value
+            exit
+          end if
+        end select
+      end do
+      if (associated(self%args)) self%args_iter = self%args%iter()
+    end function
+
+    subroutine finalize_handle_args(self)
+      type(HandleArgs) :: self
+      if (associated(self%args)) deallocate(self%args)
+    end subroutine finalize_handle_args
+
+    type(KeyValue) function construct_key_value_pair(key, val) result(self)
+      character(*), intent(in) :: key
+      class(*)                 :: val
+      class(*), pointer        :: val_ptr
+      allocate(val_ptr, source=val)
+      self%key = key
+      self%value => val_ptr
+    end function
+
+    subroutine finalize_key_value(self)
+      type(KeyValue) :: self
+      if (associated(self%value)) deallocate(self%value)
+    end subroutine
 END MODULE io_module
