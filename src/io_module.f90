@@ -94,9 +94,9 @@ MODULE io_module
   abstract interface
     function iGetHandle(self, args) result(handle)
       import Io, HandleArgs, IoHandle
-      class(Io), intent(in)         :: self
-      class(HandleArgs), intent(in) :: args
-      class(IoHandle), allocatable  :: handle
+      class(Io), intent(in)            :: self
+      class(HandleArgs), intent(inout) :: args
+      class(IoHandle), allocatable     :: handle
     end function
     subroutine iNoArg(self)
       import Io

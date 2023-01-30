@@ -10,6 +10,8 @@ module io_netcdf
   implicit none
   private
 
+  public :: make_netcdf_io
+
   real(KDOUBLE), parameter :: infinity=huge(1._KDOUBLE), neg_infinity=-huge(1._KDOUBLE)
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -56,12 +58,7 @@ module io_netcdf
     integer(KINT), private          :: nrec=DEF_NREC         !< Length of record variable
   end type NetCDFFileHandle
 
-  type, extends(HandleArgs) :: NetCDFFileHandleArgs
-    character(CHARLEN)  :: filename = " "
-    character(CHARLEN)  :: varname = " "
-  end type NetCDFFileHandleArgs
-
-  type, extends(Io) :: NetCDFIo
+  type, extends(Io), private :: NetCDFIo
     ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
     type(nc_file_parameter) :: nc_par  !< Parameters for creating NetCDF files
     character(CHARLEN) :: oprefix = '' !< prefix of output file names. Prepended to the file name by io_module::getFname
@@ -360,7 +357,7 @@ module io_netcdf
     call check(self, nf90_put_var(handle%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
     call check(self, nf90_put_var(handle%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
     handle%nrec = 0
-    handle%calendar = handle%calendar%new(self%modelCalendar%time_unit)
+    handle%calendar = handle%calendar%new(self%log, self%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
     call closeDS(self, handle)
 #endif
@@ -421,7 +418,7 @@ module io_netcdf
      call check(self, nf90_put_var(FH%ncid, id_varid, grid%id))   ! Fill id dimension variable
 
      FH%nrec = 0
-     FH%calendar = FH%calendar%new(self%modelCalendar%time_unit)
+     FH%calendar = FH%calendar%new(self%log, self%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
      call closeDS(self, FH)
 #endif
@@ -461,9 +458,9 @@ module io_netcdf
           t_string = self%modelCalendar%time_unit
           call self%log%warn("Input dataset "//TRIM(FH%filename)//" has no time axis. Assumed time axis: "//TRIM(t_string))
         END IF
-        FH%calendar = FH%calendar%new(t_string)
+        FH%calendar = FH%calendar%new(self%log, t_string)
       ELSE ! datset has no non-singleton time axis
-        FH%calendar = FH%calendar%new(self%modelCalendar%time_unit)
+        FH%calendar = FH%calendar%new(self%log, self%modelCalendar%time_unit)
       END IF
     END IF
   END SUBROUTINE openDS
@@ -746,22 +743,49 @@ module io_netcdf
   !! thrown.
   !------------------------------------------------------------------
   function get_handle_netcdf(self, args) result(handle)
-    class(NetCDFIo), intent(in) :: self
-    class(HandleArgs), intent(in) :: args
-    TYPE(NetCDFFileHandle)       :: concrete_handle             !< File handle to be returned
-    class(IoHandle), allocatable :: handle
-    select type(args)
-    class is (NetCDFFileHandleArgs)
-      IF (LEN_TRIM(args%fileName) .NE. 0 .AND. LEN_TRIM(args%varname) .NE. 0) THEN
-        concrete_handle%filename = args%fileName
-        concrete_handle%varname = args%varname
-        CALL touch(self, concrete_handle)
-      END IF
-      allocate(handle, source=concrete_handle)
-    class default
-      call self%log%fatal("Try to create an IO handle with inappropriate argument type.")
-    end select
+    class(NetCDFIo), intent(in)      :: self
+    class(HandleArgs), intent(inout) :: args
+    type(NetCDFFileHandle)           :: concrete_handle             !< File handle to be returned
+    class(IoHandle), allocatable     :: handle
+
+    concrete_handle = make_concrete_io_handle(self, args)
+    call touch(self, concrete_handle)
+    allocate(handle, source=concrete_handle)
   end function get_handle_netcdf
+
+  function make_concrete_io_handle(self, args) result(handle)
+    class(NetCDFIo), intent(in)     :: self
+    type(HandleArgs), intent(inout) :: args
+    type(NetCDFFileHandle)          :: handle             !< File handle to be returned
+    class(*), pointer               :: arg_val
+
+    arg_val => args%get("filename")
+    if (.not. associated(arg_val)) call self%log%fatal( &
+      "Missing argument `filename` when trying to create an IO handle." &
+    )
+    select type(arg_val)
+    type is (character(*))
+      handle%filename = arg_val
+    class default
+      call self%log%fatal( &
+        "Wrong type of argument `filename` when trying to create an IO handle." &
+      )
+    end select
+
+    arg_val => args%get("varname")
+    if (.not. associated(arg_val)) call self%log%fatal( &
+      "Missing argument `varname` when trying to create an IO handle." &
+    )
+    select type(arg_val)
+    type is (character(*))
+      handle%varname = arg_val
+    class default
+      call self%log%fatal( &
+        "Wrong type of argument `varname` when trying to create an IO handle." &
+      )
+    end select
+
+  end function make_concrete_io_handle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Return the length of the record/time dimension

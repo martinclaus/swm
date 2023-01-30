@@ -274,7 +274,7 @@ MODULE calc_lib
     end function set2PointInterpolater
 
     subroutine finalize_2_point_interpolator(self)
-      type(t_interpolator2point) :: self
+      type(t_interpolater2point) :: self
       if (associated(self%weight_vec)) deallocate(self%weight_vec)
       if (associated(self%iind)) deallocate(self%iind)
       if (associated(self%jind)) deallocate(self%jind)
@@ -345,7 +345,7 @@ MODULE calc_lib
     end function set4PointInterpolater
 
     subroutine finalize_4_point_interpolator(self)
-      type(t_interpolator4point) :: self
+      type(t_interpolater4point) :: self
       if (associated(self%weight_vec)) deallocate(self%weight_vec)
       if (associated(self%iind)) deallocate(self%iind)
       if (associated(self%jind)) deallocate(self%jind)
