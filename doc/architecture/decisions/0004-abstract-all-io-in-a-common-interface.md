@@ -8,6 +8,8 @@ Accepted
 
 Amends [3. Apply Dependency Inversion Principle (DIP)](0003-apply-dependency-inversion-principle.md)
 
+Amended by [6. IO shall provide a reader/writer API](0006-io-shall-provide-a-reader-writer-api.md)
+
 ## Context
 
 Until now, IO is limited to reading and writing netCDF files to disk. In the future, alternative ways of doing IO may be required.
