@@ -110,10 +110,10 @@ diagTask.$(OBJEXT) : diagTask.f90 io.h model.h diag_module.h io_module.$(OBJEXT)
 diagVar.$(OBJEXT) : diagVar.f90 vars_module.$(OBJEXT) io.h domain_module.$(OBJEXT) calc_lib.$(OBJEXT) generic_list.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-io_module.$(OBJEXT) : io_module.f90 io.h app.$(OBJEXT) calendar_module.$(OBJEXT) grid_module.$(OBJEXT) types.$(OBJEXT) logging.$(OBJEXT)
+io_module.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) app.$(OBJEXT) calendar_module.$(OBJEXT) grid_module.$(OBJEXT) logging.$(OBJEXT) list_mod.$(OBJEXT)
 	$(COMPILE)
 
-io_netcdf.$(OBJEXT) : io_module.f90 io.h app.$(OBJEXT) grid_module.$(OBJEXT) types.$(OBJEXT) logging.$(OBJEXT) io_module.$(OBJEXT) str.$(OBJEXT)
+io_netcdf.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) io_module.$(OBJEXT) grid_module.$(OBJEXT) calendar_module.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
 ElSolv_SOR.$(OBJEXT) : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h types.$(OBJEXT) logging.$(OBJEXT)

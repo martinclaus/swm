@@ -3,8 +3,9 @@ module io_netcdf
   use types
   use logging, only: Logger
   use app, only: Component
-  use io_module, only: IoHandle, HandleArgs, Io
+  use io_module, only: Reader, Writer, HandleArgs, Io
   USE grid_module, only: grid_t, t_grid_lagrange
+  use calendar_module, only: Calendar
   use str, only : to_upper, to_lower
   USE netcdf
   implicit none
@@ -34,6 +35,31 @@ module io_netcdf
                                                                 !< (the default) for the native endianness of the platform.
   end type nc_file_parameter
 
+  type, private :: NetCDFFile
+    private
+    class(Io), pointer     :: io_comp => null()
+    character(len=CHARLEN) :: filename=''           !< Path of file. Absolute and relative path will work.
+    character(len=CHARLEN) :: varname=''            !< Name of variable.
+    type(Calendar)         :: calendar              !< Calendar of time data
+    integer(KINT_NF90)     :: ncid=DEF_NCID         !< NetCDF file ID.
+    integer(KINT_NF90)     :: varid=DEF_VARID       !< NetCDF variable ID
+    integer(KINT_NF90)     :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
+    integer(KINT_NF90)     :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
+    integer(KINT)          :: nrec=DEF_NREC         !< Length of record variable
+    real(KDOUBLE)          :: missval=MISS_VAL_DEF  !< Value to flag missing data
+    logical                :: isopen                !< wether the dataset is currently opened by the netCDF library
+  contains
+    procedure, private :: touch, open, close
+    procedure, private :: get_Nrec, is_set, get_filename, get_varname, get_time_dim_id, get_time_var_id
+    procedure, private :: get_char_attr, get_double_attr
+    generic :: getAtt => get_char_attr, get_double_attr
+    final :: finalize_netcdf_file
+  end type NetCDFFile
+
+  interface NetCDFFile
+    procedure construct_netcdffile
+  end interface
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  type to store variables associated with a variable of
   !! a netcdf dataset
@@ -48,15 +74,19 @@ module io_netcdf
   !! @see Netcdf User Guide (http://www.unidata.ucar.edu/software/netcdf/docs/netcdf.html)
   !! provides a description of the netcdf data structure
   !------------------------------------------------------------------
-  type, extends(IoHandle), public :: NetCDFFileHandle
-    character(len=CHARLEN), private :: filename=''           !< Path of file. Absolute and relative path will work.
-    character(len=CHARLEN), private :: varname=''            !< Name of variable.
-    integer(KINT_NF90), private     :: ncid=DEF_NCID         !< NetCDF file ID.
-    integer(KINT_NF90), private     :: varid=DEF_VARID       !< NetCDF variable ID
-    integer(KINT_NF90), private     :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
-    integer(KINT_NF90), private     :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
-    integer(KINT), private          :: nrec=DEF_NREC         !< Length of record variable
-  end type NetCDFFileHandle
+  type, extends(Reader) :: NetCDFFileReader
+    type(NetCDFFile) :: file_handle
+  contains
+    procedure :: read_initial_conditions => read_initial_conditions_netcdf
+    procedure, private :: getVar3Dhandle, getVar2Dhandle, getVar1Dhandle => getVar1D
+  end type NetCDFFileReader
+
+  type, extends(Writer) :: NetCDFFileWriter
+    type(NetCDFFile) :: file_handle
+  contains
+    procedure, private :: createDSEuler, createDSLagrange
+    procedure, private :: putVarEuler, putVarLagrange
+  end type NetCDFFileWriter
 
   type, extends(Io), private :: NetCDFIo
     ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
@@ -66,22 +96,9 @@ module io_netcdf
   contains
     procedure :: init => init_netcdf_io
     procedure :: finish => do_nothing_netcdf_io
-    procedure :: get_handle => get_handle_netcdf
-    procedure, private :: createDSEuler, createDSLagrange
-    procedure, private :: getVar3Dhandle, getVar2Dhandle, getVar1Dhandle
-    procedure, private :: putVarEuler, putVarLagrange
+    procedure :: get_reader => get_reader_netcdf
+    procedure :: get_writer => get_writer_netcdf
   end type NetCDFIo
-
-
-
-  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief Read attribute from a variable in a dataset
-  !!
-  !------------------------------------------------------------------
-  interface getAtt
-    module procedure getCHARAtt
-    module procedure getDOUBLEAtt
-  end interface getAtt
 
   contains
   function make_netcdf_io(logger_ptr) result(io_comp)
@@ -101,7 +118,7 @@ module io_netcdf
 
   subroutine init_netcdf_io(self)
     class(NetCDFIo), intent(inout) :: self
-    CHARACTER(CHARLEN) :: nc_cmode(MAX_NC_CMODE_FLAGS)
+    character(CHARLEN) :: nc_cmode(MAX_NC_CMODE_FLAGS)
     integer :: nc_deflate_level, nc_contiguous
     character(CHARLEN) :: nc_endianness
     logical :: nc_shuffle, nc_fletcher32
@@ -148,84 +165,85 @@ module io_netcdf
   !! Always wrap check around a netcdf function call and provide the
   !! line of file of the call via the __LINE__ preprocessor macro and
   !! the filename you try to access. If status is indicating and error,
-  !! the program terminates with exit code 2
+  !! a fatal error will be logged and program execution will be terminated
   !------------------------------------------------------------------
-  SUBROUTINE check(self, status,line,fileName)
+  subroutine check(self, status, line, fileName)
     class(Io), intent(in) :: self
-    integer(KINT_NF90), INTENT(in)         :: status          !< Status returned by a call of a netcdf library function
-    integer, INTENT(in), OPTIONAL          :: line            !< Line of file where the subroutine was called
-    CHARACTER(len=*), INTENT(in), OPTIONAL :: fileName        !< Name of file the function trys to access
+    integer(KINT_NF90), intent(in)         :: status          !< Status returned by a call of a netcdf library function
+    integer, intent(in), optional          :: line            !< Line of file where the subroutine was called
+    character(len=*), intent(in), optional :: fileName        !< Name of file the function trys to access
     character(3 * CHARLEN)  :: log_msg
     if(status /= nf90_noerr) then
-      IF (PRESENT(line) .AND. PRESENT(fileName)) THEN
+      if (present(line) .AND. present(fileName)) then
         WRITE(log_msg, '("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
-          line, TRIM(nf90_strerror(status)), TRIM(fileName)
+          line, trim(nf90_strerror(status)), trim(fileName)
         call self%log%fatal(log_msg)
       ELSE
         call self%log%fatal(trim(nf90_strerror(status)))
-      END IF
+      end if
     end if
-  END SUBROUTINE check
+  end subroutine check
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Reads the last time slice from a datasets variable
   !!
   !! Calls getVar to retrieve the last timeslice of a variable.
   !------------------------------------------------------------------
-  ! SUBROUTINE readInitialCondition(self, FH, var, missmask)
-  !   class(NetCDFIo), intent(in)                            :: self
-  !   class(NetCDFFileHandle), INTENT(inout)                 :: FH       !< File handle pointing to the requested variable
-  !   real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var      !< Data to return
-  !   integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask !< missing value mask
-  !   call self%getVar(FH, var, getNrec(self, FH), missmask)
-  ! END SUBROUTINE readInitialCondition
+  subroutine read_initial_conditions_netcdf(self, var, missmask)
+    class(NetCDFFileReader), intent(inout)                 :: self     !< File handle pointing to the requested variable
+    real(KDOUBLE), dimension(:,:), intent(out)             :: var      !< Data to return
+    integer(KSHORT), dimension(:,:), optional, intent(out) :: missmask !< missing value mask
+    select type(self)
+    class is (NetCDFFileReader)
+      call self%getVar(var, self%file_handle%get_Nrec(), missmask)
+    class default
+      call self%io_comp%log%fatal("Tried to read from a non-netCDF IO handle with the netCDF IO component.")
+    end select
+  end subroutine read_initial_conditions_netcdf
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Create an empty netCDF file
   !------------------------------------------------------------------
-  integer function create_nc_file(fh, par) result(status)
-    implicit none
-    type(NetCDFFileHandle), intent(inout)     :: fh
+  integer function create_nc_file(nc_file, par) result(status)
+    type(NetCDFFile), intent(inout)     :: nc_file
     type(nc_file_parameter), intent(in) :: par
-    status = nf90_create(path=FH%filename, cmode=par%cmode, ncid=FH%ncid)
+    status = nf90_create(path=nc_file%filename, cmode=par%cmode, ncid=nc_file%ncid)
   end function create_nc_file
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Create a coordinate variable in a netCDF file
   !------------------------------------------------------------------
-  integer function create_nc_coord_var(fh, name, dtype, dimids, varid) result(status)
-    implicit none
-    type(NetCDFFileHandle), intent(in)  :: fh
+  integer function create_nc_coord_var(nc_file, name, dtype, dimids, varid) result(status)
+    type(NetCDFFile), intent(in)  :: nc_file
     character(len=*), intent(in)  :: name
     integer, intent(in)           :: dtype, dimids(:)
     integer, intent(out)          :: varid
-    status = nf90_def_var(fh%ncid, name, dtype, dimids, varid)
+    status = nf90_def_var(nc_file%ncid, name, dtype, dimids, varid)
   end function create_nc_coord_var
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Create a variable in a netCDF file
   !------------------------------------------------------------------
-  integer function create_nc_data_var(fh, xtype, dimids, par) result(status)
-    implicit none
-    type(NetCDFFileHandle), intent(inout)        :: fh
-    integer, intent(in)                 :: xtype, dimids(:)
+  integer function create_nc_data_var(nc_file, xtype, dimids, par) result(status)
+    type(NetCDFFile), intent(inout)               :: nc_file
+    integer, intent(in)                           :: xtype, dimids(:)
     type(nc_file_parameter), intent(in), optional :: par
     logical :: is_netcdf4
     is_netcdf4 = (iand(par%cmode, nf90_netcdf4) .ne. 0)
     
     if (.not. present(par) .or. .not. is_netcdf4) then
-      status = nf90_def_var(fh%ncid, fh%varname, xtype, dimids, fh%varid)
+      status = nf90_def_var(nc_file%ncid, nc_file%varname, xtype, dimids, nc_file%varid)
       return
     end if
 
     if (par%contiguous .ne. DEF_NC_CONTIGUOUS) then
       if (par%n_dims .gt. 0) then
         status = nf90_def_var( &
-          fh%ncid, fh%varname, &
-          xtype, dimids, fh%varid, &
+          nc_file%ncid, nc_file%varname, &
+          xtype, dimids, nc_file%varid, &
           contiguous=(par%contiguous .gt. 0), chunksizes=par%chunksizes(1:par%n_dims), &
           deflate_level=par%deflate_level, shuffle=par%shuffle, &
           fletcher32=par%fletcher32, endianness=par%endianness &
@@ -233,8 +251,8 @@ module io_netcdf
         if (status .eq. nf90_noerr) return
       else
         status = nf90_def_var( &
-          fh%ncid, fh%varname, &
-          xtype, dimids, fh%varid, &
+          nc_file%ncid, nc_file%varname, &
+          xtype, dimids, nc_file%varid, &
           contiguous=(par%contiguous .gt. 0), &
           deflate_level=par%deflate_level, shuffle=par%shuffle, &
           fletcher32=par%fletcher32, endianness=par%endianness &
@@ -244,8 +262,8 @@ module io_netcdf
     else
       if (par%n_dims .gt. 0) then
         status = nf90_def_var( &
-          fh%ncid, fh%varname, &
-          xtype, dimids, fh%varid, &
+          nc_file%ncid, nc_file%varname, &
+          xtype, dimids, nc_file%varid, &
           chunksizes=par%chunksizes(1:par%n_dims), &
           deflate_level=par%deflate_level, shuffle=par%shuffle, &
           fletcher32=par%fletcher32, endianness=par%endianness &
@@ -253,8 +271,8 @@ module io_netcdf
         if (status .eq. nf90_noerr) return
       else
         status = nf90_def_var( &
-          fh%ncid, fh%varname, &
-          xtype, dimids, fh%varid, &
+          nc_file%ncid, nc_file%varname, &
+          xtype, dimids, nc_file%varid, &
           deflate_level=par%deflate_level, shuffle=par%shuffle, &
           fletcher32=par%fletcher32, endianness=par%endianness &
         )
@@ -264,8 +282,8 @@ module io_netcdf
     if (status .ne. nf90_noerr) then
       ! fall back to netCDF3 only operations
       status = nf90_def_var( &
-            fh%ncid, fh%varname, &
-            xtype, dimids, fh%varid &
+            nc_file%ncid, nc_file%varname, &
+            xtype, dimids, nc_file%varid &
       )
     end if
   end function create_nc_data_var
@@ -279,89 +297,87 @@ module io_netcdf
   !! of io_module preserve the isOpen state of the file handle, this forces the module to
   !! close the file after every single operation which guarantees a consisten dataset at any time.
   !------------------------------------------------------------------
-  SUBROUTINE createDSEuler(self, handle, grid)
-    class(NetCDFIo)                   :: self
-    class(IoHandle), INTENT(inout)    :: handle !< Initialised file handle pointing to a non-existend file.
-                                                !< FH%filename will be overwritten by io_module::getFname(FH%filename)
-    TYPE(grid_t), POINTER, INTENT(in) :: grid   !< Spatial grid used to create dataset
-    select type(handle)
-    class is (NetCDFFileHandle)
-      call createDSEuler_netCDF(self, handle, grid)
+  subroutine createDSEuler(self, grid)
+    class(NetCDFFileWriter), intent(inout) :: self  !< Initialised writer pointing to a non-existend file.
+    type(grid_t), POINTER, intent(in)      :: grid  !< Spatial grid used to create dataset
+    select type(io=>self%io_comp)
+    class is (NetCDFIO)
+      call createDSEuler_netcdf(self%file_handle, grid, io)
     class default
-      call self%log%fatal("IoHandle has wrong type. Expected NetCDFileHandle")
-    end select 
-  END SUBROUTINE createDSEuler
-  
-  subroutine createDSEuler_netCDF(self, handle, grid)
-    class(NetCDFIo)                 :: self
-    class(NetCDFFileHandle), INTENT(inout) :: handle  !< Initialised file handle pointing to a non-existend file.
-    !< FH%filename will be overwritten by io_module::getFname(FH%filename)
-    TYPE(grid_t), POINTER, INTENT(in)      :: grid  !< Spatial grid used to create dataset
-    integer(KINT_NF90)                     :: lat_dimid, lon_dimid, &
-                                              lat_varid, lon_varid, &
-                                              Nx, Ny, Ntime
-    Nx=SIZE(grid%lon)
-    Ny=SIZE(grid%lat)
-    if (handle%nrec .gt. 0) then
-      Ntime = handle%nrec
+      call io%log%fatal("Wrong IO component used to create a netCDF file")
+    end select
+  end subroutine createDSEuler
+
+
+  subroutine createDSEuler_netcdf(self, grid, io_comp)
+    class(NetcdfFile), intent(inout)      :: self
+    type(grid_t), pointer, intent(in)     :: grid
+    class(NetCDFIO), pointer, intent(in)  :: io_comp
+    integer(KINT_NF90)                    :: lat_dimid, lon_dimid, &
+                                             lat_varid, lon_varid, &
+                                             Nx, Ny, Ntime
+    Nx=size(grid%lon)
+    Ny=size(grid%lat)
+    if (self%nrec .gt. 0) then
+      Ntime = self%nrec
     else
       Ntime = NF90_UNLIMITED
     end if
-    handle%filename = getFname(self, handle%filename)
-    
+    self%filename = getFname(io_comp, self%filename)
+
     ! create file
-    call check(self, create_nc_file(handle, self%nc_par), __LINE__, handle%filename)
-    handle%isOpen = .TRUE.
+    call check(io_comp, create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
+    self%isOpen = .TRUE.
 
     ! create dimensions
-    call check(self, nf90_def_dim(handle%ncid, XAXISNAME, Nx, lon_dimid))
-    call check(self, nf90_def_dim(handle%ncid, YAXISNAME, Ny, lat_dimid))
-    call check(self, nf90_def_dim(handle%ncid, TAXISNAME, Ntime, handle%timedid))
+    call check(io_comp, nf90_def_dim(self%ncid, XAXISNAME, Nx, lon_dimid))
+    call check(io_comp, nf90_def_dim(self%ncid, YAXISNAME, Ny, lat_dimid))
+    call check(io_comp, nf90_def_dim(self%ncid, TAXISNAME, Ntime, self%timedid))
 
     ! define variables
     ! longitude vector
-    call check(self, create_nc_coord_var( &
-      handle, XAXISNAME, NF90_DOUBLE, (/lon_dimid/), lon_varid), &
-      __LINE__, handle%filename &
+    call check(io_comp, create_nc_coord_var( &
+      self, XAXISNAME, NF90_DOUBLE, (/lon_dimid/), lon_varid), &
+      __LINE__, self%filename &
     )
-    call check(self, nf90_put_att(handle%ncid,lon_varid, NUG_ATT_UNITS, XUNIT))
-    call check(self, nf90_put_att(handle%ncid,lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+    call check(io_comp, nf90_put_att(self%ncid, lon_varid, NUG_ATT_UNITS, XUNIT))
+    call check(io_comp, nf90_put_att(self%ncid, lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
 
     ! latitude vector
-    call check(self, create_nc_coord_var( &
-      handle, YAXISNAME, NF90_DOUBLE, (/lat_dimid/), lat_varid), &
-      __LINE__, handle%filename &
+    call check(io_comp, create_nc_coord_var( &
+      self, YAXISNAME, NF90_DOUBLE, (/lat_dimid/), lat_varid), &
+      __LINE__, self%filename &
     )
-    call check(self, nf90_put_att(handle%ncid,lat_varid, NUG_ATT_UNITS, YUNIT))
-    call check(self, nf90_put_att(handle%ncid,lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
+    call check(io_comp, nf90_put_att(self%ncid, lat_varid, NUG_ATT_UNITS, YUNIT))
+    call check(io_comp, nf90_put_att(self%ncid, lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
 
     ! time vector
-    call check(self, create_nc_coord_var( &
-      handle, TAXISNAME, NF90_DOUBLE, (/handle%timedid/), handle%timevid), &
-      __LINE__, handle%filename &
+    call check(io_comp, create_nc_coord_var( &
+      self, TAXISNAME, NF90_DOUBLE, (/self%timedid/), self%timevid), &
+      __LINE__, self%filename &
     )
-    call check(self, nf90_put_att(handle%ncid,handle%timevid, NUG_ATT_UNITS, self%modelCalendar%time_unit))
-    call check(self, nf90_put_att(handle%ncid,handle%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
+    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
+    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
 
     ! variable field
-    call check(self,  &
+    call check(io_comp,  &
       create_nc_data_var( &
-        handle, NF90_DOUBLE, (/lon_dimid,lat_dimid,handle%timedid/), self%nc_par &
+        self, NF90_DOUBLE, (/lon_dimid,lat_dimid,self%timedid/), io_comp%nc_par &
       ), &
-      __LINE__, handle%filename &
+      __LINE__, self%filename &
     )
-    call check(self, nf90_put_att(handle%ncid,handle%varid,NUG_ATT_MISS,handle%missval))
+    call check(io_comp, nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
     ! end define mode
-    call check(self, nf90_enddef(handle%ncid))
+    call check(io_comp, nf90_enddef(self%ncid))
     ! write domain variables
-    call check(self, nf90_put_var(handle%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
-    call check(self, nf90_put_var(handle%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
-    handle%nrec = 0
-    handle%calendar = handle%calendar%new(self%log, self%modelCalendar%time_unit)
+    call check(io_comp, nf90_put_var(self%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
+    call check(io_comp, nf90_put_var(self%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
+    self%nrec = 0
+    self%calendar = self%calendar%new(io_comp%log, io_comp%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
-    call closeDS(self, handle)
-#endif
-  end subroutine createDSEuler_netCDF
+    call close(self)
+#endif    
+  end subroutine createDSEuler_netcdf
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Creates a dataset for a lagrange variable
@@ -371,58 +387,61 @@ module io_netcdf
   !! If DIAG_FLUSH is defined, the dataset will be closed after creation. This forces the module to
   !! close the file after every single operation which guarantees a consisten dataset at any time.
   !------------------------------------------------------------------
-  subroutine createDSLagrange(self, handle, grid)
-    class(NetCDFIo)                            :: self
-    class(IoHandle), intent(inout)             :: handle
+  subroutine createDSLagrange(self, grid)
+    class(NetCDFFileWriter), intent(inout)     :: self
     type(t_grid_lagrange), pointer, intent(in) :: grid
-    select type(handle)
-    class is (NetCDFFileHandle)
-      call createDSLagrange_netcdf(self, handle, grid)
+
+    select type(io=>self%io_comp)
+    class is (NetCDFIO)
+      call createDSLagrange_netcdf(self%file_handle, grid, io)
     class default
-      call self%log%fatal("IoHandle has wrong type. Expected NetCDFileHandle")
-  end select
+      call io%log%fatal("Wrong IO component used to create a netCDF file")
+    end select
   end subroutine createDSLagrange
 
-  subroutine createDSLagrange_netcdf(self, FH, grid)
-     class(NetCDFIo)                            :: self
-     type(NetCDFFileHandle), intent(inout)      :: FH
-     type(t_grid_lagrange), pointer, intent(in) :: grid
-     integer(KINT_NF90)                         :: id_dimid, id_varid
-     integer(KINT_NF90)                         :: Nr
 
-     Nr=SIZE(grid%id)
-     FH%filename = getFname(self, FH%filename)
+  subroutine createDSLagrange_netcdf(self, grid, io_comp)
+    class(NetCDFFile), intent(inout)           :: self
+    type(t_grid_lagrange), pointer, intent(in) :: grid
+    class(NetCDFIo), pointer, intent(in)       :: io_comp
+    integer(KINT_NF90)                         :: id_dimid, id_varid
+    integer(KINT_NF90)                         :: Nr
 
-     ! create file
-     call check(self, create_nc_file(FH, self%nc_par), __LINE__, FH%filename)
-     FH%isOpen = .TRUE.
+    Nr=size(grid%id)
+    self%filename = getFname(io_comp, self%filename)
 
-     ! create dimensions
-     call check(self, nf90_def_dim(FH%ncid,IDAXISNAME,Nr,id_dimid))
-     call check(self, nf90_def_dim(FH%ncid,TAXISNAME,NF90_UNLIMITED,FH%timedid))
+    ! create file
+    call check(io_comp, create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
+    self%isOpen = .TRUE.
 
-     ! define variables
-     ! id vector
-     call check(self, nf90_def_var(FH%ncid,IDAXISNAME,NF90_DOUBLE,(/id_dimid/),id_varid))
-     call check(self, nf90_put_att(FH%ncid,id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
-     ! time vector
-     call check(self, nf90_def_var(FH%ncid,TAXISNAME,NF90_DOUBLE,(/FH%timedid/),FH%timevid))
-     call check(self, nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_UNITS, self%modelCalendar%time_unit))
-     call check(self, nf90_put_att(FH%ncid,FH%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
-     ! variable field
-     call check(self, nf90_def_var(FH%ncid,FH%varname,NF90_DOUBLE,(/id_dimid,FH%timedid/), FH%varid))
-     call check(self, nf90_put_att(FH%ncid,FH%varid,NUG_ATT_MISS,FH%missval))
-     ! end define mode
-     call check(self, nf90_enddef(FH%ncid))
-     ! write domain variables
-     call check(self, nf90_put_var(FH%ncid, id_varid, grid%id))   ! Fill id dimension variable
+    ! create dimensions
+    call check(io_comp, nf90_def_dim(self%ncid, IDAXISNAME, Nr, id_dimid))
+    call check(io_comp, nf90_def_dim(self%ncid, TAXISNAME, NF90_UNLIMITED, self%timedid))
 
-     FH%nrec = 0
-     FH%calendar = FH%calendar%new(self%log, self%modelCalendar%time_unit)
+    ! define variables
+    ! id vector
+    call check(io_comp, nf90_def_var(self%ncid, IDAXISNAME, NF90_DOUBLE, (/id_dimid/), id_varid))
+    call check(io_comp, nf90_put_att(self%ncid, id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
+    ! time vector
+    call check(io_comp, nf90_def_var(self%ncid, TAXISNAME, NF90_DOUBLE, (/self%timedid/), self%timevid))
+    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
+    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
+    ! variable field
+    call check(io_comp, nf90_def_var(self%ncid, self%varname, NF90_DOUBLE, (/id_dimid, self%timedid/), self%varid))
+    call check(io_comp, nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
+    ! end define mode
+    call check(io_comp, nf90_enddef(self%ncid))
+    ! write domain variables
+    call check(io_comp, nf90_put_var(self%ncid, id_varid, grid%id))   ! Fill id dimension variable
+
+    self%nrec = 0
+    self%calendar = self%calendar%new(io_comp%log, io_comp%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
-     call closeDS(self, FH)
+    call close(self)
 #endif
-   end subroutine createDSLagrange_netcdf
+
+    
+  end subroutine createDSLagrange_netcdf
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Opens a dataset
@@ -431,54 +450,51 @@ module io_netcdf
   !! and querry information if it is not already provided by the fileHandle.
   !! If the dataset is already open nothing will happen.
   !------------------------------------------------------------------
-  SUBROUTINE openDS(self, FH)
-    class(NetCDFIo) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout)  :: FH        !< Initialised file handle pointing to a existing variable in a dataset
-    TYPE(NetCDFFileHandle)                 :: FH_time   !< FileHandle of time axis for temporary use.
+  subroutine open(self)
+    class(NetCDFFile), intent(inout) :: self        !< Initialised file handle pointing to a existing variable in a dataset
+    type(NetCDFFile)                 :: time_handle   !< FileHandle of time axis for temporary use.
     character(CHARLEN)               :: t_string  !< String of time unit
-    IF ( FH%isOpen ) RETURN
-    CALL check(self, nf90_open(trim(FH%filename), NF90_WRITE, FH%ncid),&
-               __LINE__,FH%filename)
-    FH%isOpen = .TRUE.
+    if ( self%isopen ) return
+    call check(self%io_comp, nf90_open(trim(self%filename), NF90_WRITE, self%ncid), __LINE__, self%filename)
+    self%isopen = .TRUE.
 
-    IF (FH%varid.EQ.DEF_VARID) CALL check(self, nf90_inq_varid(FH%ncid,trim(FH%varname),FH%varid),&
-                                          __LINE__,FH%filename)
+    if (self%varid.EQ.DEF_VARID) call check(self%io_comp, nf90_inq_varid(self%ncid,trim(self%varname),self%varid),&
+                                          __LINE__,self%filename)
     ! get time dimension id
-    call getTDimId(self, FH)
+    call self%get_time_dim_id()
 
     ! get time variable id
-    if (FH%timedid .ne. NF90_NOTIMEDIM) call getTVarId(self, FH)
+    if (self%timedid .ne. NF90_NOTIMEDIM) call self%get_time_var_id()
 
     ! Set calendar
-    IF (.NOT.FH%calendar%is_set()) THEN
-      IF (FH%nrec.NE.1 .AND. FH%timevid.NE.DEF_TIMEVID) THEN ! dataset is not constant in time and has a time axis
-        FH_time = getTimeFH(FH)
-        CALL getAtt(self, FH_time, NUG_ATT_UNITS, t_string)
-        IF (LEN_TRIM(t_string).EQ.0) THEN
-          t_string = self%modelCalendar%time_unit
-          call self%log%warn("Input dataset "//TRIM(FH%filename)//" has no time axis. Assumed time axis: "//TRIM(t_string))
-        END IF
-        FH%calendar = FH%calendar%new(self%log, t_string)
+    if (.not.self%calendar%is_set()) then
+      if (self%nrec.ne.1 .AND. self%timevid.ne.DEF_TIMEVID) then ! dataset is not constant in time and has a time axis
+        time_handle = getTimeFH(self)
+        ! time_reader%io_comp => self%io_comp
+        call time_handle%getAtt(NUG_ATT_UNITS, t_string)
+        if (LEN_trim(t_string).EQ.0) then
+          t_string = self%io_comp%modelCalendar%time_unit
+          call self%io_comp%log%warn("Input dataset "//trim(self%filename)//" has no time axis. Assumed time axis: "//trim(t_string))
+        end if
+        self%calendar = self%calendar%new(self%io_comp%log, t_string)
       ELSE ! datset has no non-singleton time axis
-        FH%calendar = FH%calendar%new(self%log, self%modelCalendar%time_unit)
-      END IF
-    END IF
-  END SUBROUTINE openDS
+        self%calendar = self%calendar%new(self%io_comp%log, self%io_comp%modelCalendar%time_unit)
+      end if
+    end if
+  end subroutine open
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Closes a dataset
   !!
   !! If the dataset is not open, nothing will happen.
   !------------------------------------------------------------------
-  SUBROUTINE closeDS(self, FH)
-    class(NetCDFIo) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout) :: FH     !< File handle pointing to an existing dataset.
-    IF ( .NOT. FH%isOpen ) RETURN
-    CALL check(self, nf90_close(FH%ncid),&
-               __LINE__,TRIM(FH%filename))
-    !call freeCal(FH%calendar)
-    FH%isOpen = .FALSE.
-  END SUBROUTINE closeDS
+  subroutine close(self)
+    class(NetCDFFile), intent(inout) :: self     !< File handle pointing to an existing dataset.
+    if ( .not. self%isOpen ) return
+    call check(self%io_comp, nf90_close(self%ncid), &
+               __LINE__, trim(self%filename))
+    self%isOpen = .false.
+  end subroutine close
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Updates the number of records in a file
@@ -486,16 +502,15 @@ module io_netcdf
   !! If no value is specified, nrec will be incremented by one.
   !! Otherwise it will be set to the specified update-value.
   !------------------------------------------------------------------
-  SUBROUTINE updateNrec(FH, update)
-    IMPLICIT NONE
-    TYPE(NetCDFFileHandle), INTENT(inout)   :: FH
-    integer(KINT), OPTIONAL           :: update
-    IF (PRESENT(update)) THEN
-        FH%nrec = update
+  subroutine updateNrec(self, update)
+    type(NetCDFFile), intent(inout) :: self
+    integer(KINT), optional         :: update
+    if (present(update)) then
+        self%nrec = update
     ELSE
-        FH%nrec = FH%nrec + 1
-    END IF
-  END SUBROUTINE updateNrec
+        self%nrec = self%nrec + 1
+    end if
+  end subroutine updateNrec
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -503,46 +518,39 @@ module io_netcdf
   !!
   !! Write a variables time slice to a existing dataset.
   !------------------------------------------------------------------
-  SUBROUTINE putVarEuler(self, handle, varData, time, grid)
-    class(NetCDFIo), intent(in)                               :: self
-    class(IoHandle), INTENT(inout)                            :: handle        !< Initialised file handle pointing to the variable to write data to
-    real(KDOUBLE), DIMENSION(:,:), INTENT(in)                 :: varData   !< Data to write
-    real(KDOUBLE), DIMENSION(SIZE(varData,1),SIZE(varData,2)) :: var_dummy !< Copy of varData to apply missing values to
+  subroutine putVarEuler(self, varData, time, grid)
+    class(NetCDFFileWriter), intent(inout)                    :: self    !< Initialised file handle pointing to the variable to write data to
+    real(KDOUBLE), dimension(:,:), intent(in)                 :: varData   !< Data to write
+    real(KDOUBLE), dimension(size(varData,1),size(varData,2)) :: var_dummy !< Copy of varData to apply missing values to
     type(grid_t), intent(in), optional                        :: grid
-    real(KDOUBLE), INTENT(in), OPTIONAL                       :: time      !< Time coordinate of time slice
-    LOGICAL                                                   :: wasOpen   !< Flag, if the dataset was open when the routine was called
+    real(KDOUBLE), intent(in), optional                       :: time      !< time coordinate of time slice
+    logical                                                   :: wasOpen   !< Flag, if the dataset was open when the routine was called
     real(KDOUBLE)                                             :: local_time=0. !< default value for time
-    select type(handle)
-    class is (NetCDFFileHandle)
-      var_dummy=varData
-      IF (PRESENT(grid)) THEN
-        WHERE (grid%ocean .ne. 1_KSHORT) var_dummy = handle%missval
-      END IF
-      where (var_dummy > infinity .or. var_dummy < neg_infinity .or. var_dummy .ne. var_dummy) var_dummy = handle%missval
-      IF (PRESENT(time)) local_time = time
-      wasOpen = handle%isOpen
-      call openDS(self, handle)
-      CALL check(self, nf90_put_var(handle%ncid, handle%varid, var_dummy, &
-                              start = (/1, 1 , int(handle%nrec, KINT_NF90)/), &
-                              count=(/SIZE(varData,1),SIZE(varData,2),1/)),&
-                __LINE__,TRIM(handle%filename))
-      CALL check(self, nf90_put_var(handle%ncid, handle%timevid,local_time,start=(/int(handle%nrec, KINT_NF90)/)),&
-                __LINE__,TRIM(handle%filename))
-      CALL updateNrec(handle)
-      IF ( .NOT. wasOpen ) call closeDS(self, handle)
-    class default
-      call self%log%fatal("Wrong IoHandle type used when reading data. Expected NetCDFFileHandle")
-    end select
-  END SUBROUTINE putVarEuler
+    var_dummy=varData
+    if (present(grid)) then
+      WHERE (grid%ocean .ne. 1_KSHORT) var_dummy = self%file_handle%missval
+    end if
+    where (var_dummy > infinity .or. var_dummy < neg_infinity .or. var_dummy .ne. var_dummy) var_dummy = self%file_handle%missval
+    if (present(time)) local_time = time
+    wasOpen = self%file_handle%isOpen
+    call self%file_handle%open()
+    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
+                            start = (/1, 1 , int(self%file_handle%nrec, KINT_NF90)/), &
+                            count=(/size(varData,1),size(varData,2),1/)),&
+              __LINE__,trim(self%file_handle%filename))
+    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%timevid,local_time,start=(/int(self%file_handle%nrec, KINT_NF90)/)),&
+              __LINE__,trim(self%file_handle%filename))
+    call updateNrec(self%file_handle)
+    if ( .not. wasOpen ) call close(self%file_handle)
+  end subroutine putVarEuler
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
    !> @brief  Write a time slice to disk
    !!
    !! Write a lagrangian variable time slice to a existing dataset.
    !------------------------------------------------------------------
-   subroutine putVarLagrange(self, handle, varData, time, grid)
-    class(NetCDFIo), intent(in)                  :: self
-    class(IoHandle), intent(inout)               :: handle        !< Initialised file handle pointing to the variable to write data to
+   subroutine putVarLagrange(self, varData, time, grid)
+    class(NetCDFFileWriter), intent(inout)       :: self        !< Initialised file handle pointing to the variable to write data to
     real(KDOUBLE), dimension(:), intent(in)      :: varData       !< Data to write
     real(KDOUBLE), dimension(size(varData,1))    :: var_dummy     !< Copy of varData to apply missing values to
     type(t_grid_lagrange), intent(in), optional  :: grid          !< grid object of variable. Used to get ocean mask
@@ -550,24 +558,19 @@ module io_netcdf
     logical                                      :: wasOpen       !< Flag, if the dataset was open when the routine was called
     real(KDOUBLE)                                :: local_time=0. !< default value for time
 
-    select type(handle)
-    class is (NetCDFFileHandle) 
-      var_dummy = varData
-      if (present(grid))  where(grid%valid .ne. 1_KSHORT) var_dummy = handle%missval
-      if (present(time))  local_time = time
-      wasOpen = handle%isOpen
-      call openDS(self, handle)
-      call check(self, nf90_put_var(handle%ncid, handle%varid, var_dummy, &
-                              start = (/1, int(handle%nrec, KINT_NF90)/), &
-                              count=(/size(varData),1/)), &
-                __LINE__,TRIM(handle%filename))
-      call check(self, nf90_put_var(handle%ncid, handle%timevid, local_time, start=(/int(handle%nrec, KINT_NF90)/)), &
-                __LINE__,TRIM(handle%filename))
-      CALL updateNrec(handle)
-      if (.not.wasOpen) call closeDS(self, handle)
-    class default
-      call self%log%fatal("Wrong IoHandle type used when reading data. Expected NetCDFFileHandle")
-    end select
+    var_dummy = varData
+    if (present(grid))  where(grid%valid .ne. 1_KSHORT) var_dummy = self%file_handle%missval
+    if (present(time))  local_time = time
+    wasOpen = self%file_handle%isOpen
+    call self%file_handle%open()
+    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
+                            start = (/1, int(self%file_handle%nrec, KINT_NF90)/), &
+                            count=(/size(varData),1/)), &
+              __LINE__,trim(self%file_handle%filename))
+    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%timevid, local_time, start=(/int(self%file_handle%nrec, KINT_NF90)/)), &
+              __LINE__,trim(self%file_handle%filename))
+    call updateNrec(self%file_handle)
+    if (.not.wasOpen) call close(self%file_handle)
   end subroutine putVarLagrange
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -576,33 +579,27 @@ module io_netcdf
   !! Read a 3D (2D space + 1D time) chunk of a variable from disk.
   !! If specified, also a mask of missing values is returned
   !------------------------------------------------------------------
-  SUBROUTINE getVar3Dhandle(self, handle, var, tstart, missmask)
-    class(NetCDFIo), intent(in)                              :: self
-    class(IoHandle), INTENT(inout)                           :: handle        !< File handle pointing to the variable to read from
-    integer(KINT), INTENT(in)                                :: tstart        !< Time index to start reading
-    real(KDOUBLE), DIMENSION(:,:,:), INTENT(out)             :: var           !< Data read from disk
-    integer(KSHORT), DIMENSION(:,:,:), OPTIONAL, INTENT(out) :: missmask      !< Missing value mask
+  subroutine getVar3Dhandle(self, var, tstart, missmask)
+    class(NetCDFFileReader), intent(inout)                   :: self        !< File handle pointing to the variable to read from
+    integer(KINT), intent(in)                                :: tstart        !< Time index to start reading
+    real(KDOUBLE), dimension(:,:,:), intent(out)             :: var           !< Data read from disk
+    integer(KSHORT), dimension(:,:,:), optional, intent(out) :: missmask      !< Missing value mask
     real(KDOUBLE)                                            :: missing_value
-    LOGICAL                                                  :: wasOpen
-    select type(handle)
-    class is (NetCDFFileHandle)
-    wasOpen = handle%isOpen
-      call openDS(self, handle)
-      call check(self, nf90_get_var(handle%ncid, handle%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
-                __LINE__,TRIM(handle%filename))
-      ! assume that if getatt gives an error, there's no missing value defined.
-      IF ( present(missmask)) THEN
-        missmask = 0
-        CALL getAtt(self, handle, 'missing_value', missing_value)
-        WHERE (var .eq. missing_value) missmask = 1
-        CALL getAtt(self, handle, '_FillValue', missing_value)
-        WHERE (var .eq. missing_value) missmask = 1
-      END IF
-      IF ( .NOT. wasOpen ) call closeDS(self, handle)
-    class default
-      call self%log%fatal("Wrong IoHandle type used when reading data. Expected NetCDFFileHandle")
-    end select
-  END SUBROUTINE getVar3Dhandle
+    logical                                                  :: wasOpen
+    wasOpen = self%file_handle%isOpen
+    call self%file_handle%open()
+    call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
+              __LINE__,trim(self%file_handle%filename))
+    ! assume that if getatt gives an error, there's no missing value defined.
+    if ( present(missmask)) then
+      missmask = 0
+      call self%file_handle%getAtt('missing_value', missing_value)
+      WHERE (var .eq. missing_value) missmask = 1
+      call self%file_handle%getAtt('_FillValue', missing_value)
+      WHERE (var .eq. missing_value) missmask = 1
+    end if
+    if ( .not. wasOpen ) call close(self%file_handle)
+  end subroutine getVar3Dhandle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Read a single timeslice from disk
@@ -611,65 +608,55 @@ module io_netcdf
   !! the location specified by the file handle FH. If specified, also a
   !! mask of missing values is returned.
   !------------------------------------------------------------------
-  SUBROUTINE getVar2Dhandle(self, handle, var, tstart, missmask)
-    class(NetCDFIo), intent(in) :: self
-    class(IoHandle), INTENT(inout)                        :: handle            !< File handle pointing to the variable to read data from
-    integer(KINT), INTENT(in)                              :: tstart        !< Time index of slice to read
-    real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var           !< Data to be returned
-    integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask      !< Mask of missing values
+  subroutine getVar2Dhandle(self, var, tstart, missmask)
+    class(NetCDFFileReader), intent(inout)                 :: self            !< File handle pointing to the variable to read data from
+    integer(KINT), intent(in)                              :: tstart        !< Time index of slice to read
+    real(KDOUBLE), dimension(:,:), intent(out)             :: var           !< Data to be returned
+    integer(KSHORT), dimension(:,:), optional, intent(out) :: missmask      !< Mask of missing values
     real(KDOUBLE)                                          :: missing_value !< Missing value as specified by variable attribute
-    LOGICAL                                                :: wasOpen
-    select type(handle)
-    class is (NetCDFFileHandle)
-      wasOpen = handle%isOpen
-      call openDS(self, handle)
-      call check(self, nf90_get_var(handle%ncid, handle%varid, var, &
-                              start=(/1, 1, int(tstart, KINT_NF90)/), &
-                              count=(/SIZE(var,1),SIZE(var,2),1/)))
-      ! assume that if getatt gives an error, there's no missing value defined.
-      IF ( present(missmask)) THEN
-      missmask = 0
-      CALL getAtt(self, handle, 'missing_value', missing_value)
-      WHERE (var .eq. missing_value) missmask = 1
-      CALL getAtt(self, handle, '_FillValue', missing_value)
-      WHERE (var .eq. missing_value) missmask = 1
-      END IF
-      IF ( .NOT. wasOpen ) call closeDS(self, handle)
-    class default
-      call self%log%fatal("Wrong IoHandle type used when reading data. Expected NetCDFFileHandle")
-    end select
-  END SUBROUTINE getVar2Dhandle
+    logical                                                :: wasOpen
+    wasOpen = self%file_handle%isOpen
+    call self%file_handle%open()
+    call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, &
+                            start=(/1, 1, int(tstart, KINT_NF90)/), &
+                            count=(/size(var,1),size(var,2),1/)))
+    ! assume that if getatt gives an error, there's no missing value defined.
+    if ( present(missmask)) then
+    missmask = 0
+    call self%file_handle%getAtt('missing_value', missing_value)
+    WHERE (var .eq. missing_value) missmask = 1
+    call self%file_handle%getAtt('_FillValue', missing_value)
+    WHERE (var .eq. missing_value) missmask = 1
+    end if
+    if ( .not. wasOpen ) call close(self%file_handle)
+  end subroutine getVar2Dhandle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Read a chunk of a timeseries from disk
   !!
   !! Read data with a single dimension (time assumed). For instance, used to read time axis.
-  !!
   !------------------------------------------------------------------
-  SUBROUTINE getVar1Dhandle(self, handle, var, tstart)
-    class(NetCDFIo), intent(in)                :: self
-    class(IoHandle), INTENT(inout)             :: handle  !< File handle locating the variable to read
-    real(KDOUBLE), DIMENSION(:), INTENT(out)   :: var     !< Data read from disk
-    integer(KINT), INTENT(in), OPTIONAL        :: tstart  !< Index to start at
-    LOGICAL  :: wasOpen
-    select type(handle)
-    class is (NetCDFFileHandle)
-      wasOpen = handle%isOpen
-      CALL openDS(self, handle)
-      IF (PRESENT(tstart)) THEN
-        IF (SIZE(var).NE.1) THEN
-          CALL check(self, nf90_get_var(handle%ncid, handle%varid, var, start=(/int(tstart, KINT_NF90)/), count=SHAPE(var)))
-        ELSE
-          CALL check(self, nf90_get_var(handle%ncid, handle%varid, var, start=(/int(tstart, KINT_NF90)/)))
-        END IF
+  subroutine getVar1D(self, var, tstart)
+    class(NetCDFFileReader), intent(inout)     :: self  !< File handle locating the variable to read
+    real(KDOUBLE), dimension(:), intent(out)   :: var     !< Data read from disk
+    integer(KINT), intent(in), optional        :: tstart  !< Index to start at
+    logical           :: wasOpen
+    wasOpen = self%file_handle%isopen
+    call self%file_handle%open()
+    if (present(tstart)) then
+      if (size(var).ne.1) then
+        call check(  &
+          self%io_comp, &
+          nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/int(tstart, KINT_NF90)/), count=SHAPE(var))  &
+        )
       ELSE
-          CALL check(self, nf90_get_var(handle%ncid, handle%varid, var))
-      END IF
-      IF ( .NOT. wasOpen ) call closeDS(self, handle)
-    class default
-      call self%log%fatal("Wrong IoHandle type used when reading data. Expected NetCDFFileHandle")
-    end select
-  END SUBROUTINE getVar1Dhandle
+        call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/int(tstart, KINT_NF90)/)))
+      end if
+    ELSE
+        call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var))
+    end if
+    if ( .not. wasOpen ) call close(self%file_handle)
+  end subroutine getVar1D
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Returns time coordinates of a variable time axis
@@ -678,22 +665,22 @@ module io_netcdf
   !! and used to read data from time dimension variable. The time is converted
   !! to the internal model calendar.
   !------------------------------------------------------------------
-  SUBROUTINE getTimeVar(self, FH,time,tstart)
-    class(Io), intent(in) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout)           :: FH            !< File handle pointing to a variable whos time coordinates should be retrieved
-    real(KDOUBLE), DIMENSION(:), INTENT(out)        :: time          !< Time coordinates read from disk
-    integer(KINT), INTENT(in), OPTIONAL             :: tstart        !< Index to start reading
-    TYPE(NetCDFFileHandle)                          :: FH_time       !< Temporarily used file handle of time coordinate variable
-    FH_time = getTimeFH(FH)
-    IF (PRESENT(tstart)) THEN
-      CALL self%getVar(FH_time, time, tstart)
+  subroutine getTimeVar(self, time, tstart)
+    type(NetCDFFile), intent(inout)           :: self         !< File handle pointing to a variable whos time coordinates should be retrieved
+    real(KDOUBLE), dimension(:), intent(out)  :: time         !< Time coordinates read from disk
+    integer(KINT), intent(in), optional       :: tstart       !< Index to start reading
+    type(NetCDFFileReader)                    :: time_reader  !< Temporarily used file handle of time coordinate variable
+    time_reader%file_handle = getTimeFH(self)
+    time_reader%io_comp => self%io_comp
+    if (present(tstart)) then
+      call time_reader%getVar(time, tstart)
     ELSE
-      CALL self%getVar(FH_time, time)
-    END IF
+      call time_reader%getVar(time)
+    end if
     ! convert to model time unit
-    call self%log%debug("Convert time for input "//getFileNameFH(FH))
-    CALL convertTime(FH%calendar, self%modelCalendar, time)
-  END SUBROUTINE getTimeVar
+    call self%io_comp%log%debug("Convert time for input "//self%get_filename())
+    call convertTime(self%calendar, self%io_comp%modelCalendar, time)
+  end subroutine getTimeVar
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Returns a fileHandle object pointing to the time variable of
@@ -702,12 +689,13 @@ module io_netcdf
   !! A file handle is manually created (not initialised by IoComponent%initFH)
   !! which can be used to read data from time dimension variable
   !------------------------------------------------------------------
-  TYPE(NetCDFFileHandle) FUNCTION getTimeFH(FH) RESULT(timeFH)
-    TYPE(NetCDFFileHandle), INTENT(in)      :: FH
+  type(NetCDFFile) FUNCTION getTimeFH(FH) RESULT(timeFH)
+    type(NetCDFFile), intent(in)      :: FH
     timeFH = FH
     timeFH%varid = timeFH%timevid
     timeFH%timevid = DEF_TIMEVID
-  END FUNCTION
+    timeFH%io_comp => FH%io_comp
+  end FUNCTION
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Open and closes a dataset
@@ -719,73 +707,119 @@ module io_netcdf
   !!
   !! @note Unlike the UNIX touch command, the dataset will not be created if it does not exist
   !------------------------------------------------------------------
-  SUBROUTINE touch(self, FH)
-    class(NetCDFIo)                :: self
-    class(NetCDFFileHandle), INTENT(inout) :: FH          !< File handle pointing to a variable inside a dataset
-    LOGICAL                                :: file_exist
-    IF ( .NOT. FH%isOpen ) THEN
-      INQUIRE(FILE=FH%filename,EXIST=file_exist)
-      IF ( file_exist ) THEN
-        call openDS(self, FH)
-        call closeDS(self, FH)
-      END IF
-    END IF
-  END SUBROUTINE touch
+  subroutine touch(self)
+    class(NetCDFFile), intent(inout) :: self          !< File handle pointing to a variable inside a dataset
+    logical :: file_exist
+    if ( .not. self%isOpen ) then
+      INQUIRE(FILE=self%filename,EXIST=file_exist)
+      if ( file_exist ) then
+        call self%open()
+        call self%close()
+      end if
+    end if
+  end subroutine touch
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  !> @brief  Initialise a NetCDFFileHandle variable
+  !> @brief  Initialise a Reader object
   !!
-  !! A NetCDFFileHandle is initialised with the filename and variable
-  !! name supplied inside a NetCDFFileHandleArgs.
+  !! A pointer to a Reader is allocated and initialized with the filename and variable
+  !! name supplied inside HandleArgs object.
   !! Meta-data about the variable are inquired.
-  !!
-  !! If `args` is not of class NetCDFFileHandleArgs, a fatal error will be
-  !! thrown.
   !------------------------------------------------------------------
-  function get_handle_netcdf(self, args) result(handle)
-    class(NetCDFIo), intent(in)      :: self
-    class(HandleArgs), intent(inout) :: args
-    type(NetCDFFileHandle)           :: concrete_handle             !< File handle to be returned
-    class(IoHandle), allocatable     :: handle
+  function get_reader_netcdf(self, args) result(handle)
+    class(NetCDFIo), target, intent(in)   :: self
+    class(HandleArgs), intent(inout)      :: args
+    type(NetCDFFileReader)                :: netcdf_reader             !< File handle to be returned
+    class(Reader), allocatable            :: handle
 
-    concrete_handle = make_concrete_io_handle(self, args)
-    call touch(self, concrete_handle)
-    allocate(handle, source=concrete_handle)
-  end function get_handle_netcdf
+    netcdf_reader%io_comp => self
+    netcdf_reader%file_handle = make_netcdf_file_handle(self, args)
+    allocate(handle, source=netcdf_reader)
+  end function get_reader_netcdf
 
-  function make_concrete_io_handle(self, args) result(handle)
-    class(NetCDFIo), intent(in)     :: self
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Initialise a NetCDFFile object
+  !!
+  !! A NetCDFFile is initialised with the filename and variable
+  !! name supplied inside HandleArgs object.
+  !! If `args` is does not contain a `filename` and `varname` key with values of type
+  !! character(*), a fatal error is thrown. 
+  !------------------------------------------------------------------
+  function make_netcdf_file_handle(self, args) result(handle)
+    class(NetCDFIo), target, intent(in)   :: self
+    type(HandleArgs), intent(inout)       :: args
+    type(NetCDFFile)                      :: handle             !< File handle to be returned
+    handle = NetCDFFile(  &
+      self,  &
+      get_validated_arg(self, args, "filename"),  &
+      get_validated_arg(self, args, "varname")  &
+    )
+  end function make_netcdf_file_handle
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Initialise a NetCDFFile object
+  !!
+  !! A NetCDFFile is initialised with the filename and variable
+  !! name supplied as arguments.
+  !------------------------------------------------------------------
+  function construct_netcdffile(self, filename, varname) result(handle)
+    class(NetCDFIo), target, intent(in)   :: self
+    character(*), intent(in)              :: filename
+    character(*), intent(in)              :: varname
+    type(NetCDFFile)                      :: handle             !< File handle to be returned
+
+    handle%filename = filename
+    handle%varname = varname
+    handle%io_comp => self
+    call handle%touch()
+  end function construct_netcdffile
+
+  subroutine finalize_netcdf_file(self)
+    type(NetCDFFile) :: self
+    call close(self)
+    nullify(self%io_comp)
+  end subroutine finalize_netcdf_file
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief  Initialise a Writer object
+  !!
+  !! A pointer to a Writer is allocated and initialized with the filename and variable
+  !! name supplied inside HandleArgs object.
+  !! Meta-data about the variable are inquired.
+  !------------------------------------------------------------------
+  function get_writer_netcdf(self, args) result(handle)
+    class(NetCDFIo), target, intent(in) :: self
+    class(HandleArgs), intent(inout)    :: args
+    type(NetCDFFileWriter)              :: netcdf_writer
+    class(Writer), allocatable          :: handle
+
+    netcdf_writer%io_comp => self
+    netcdf_writer%file_handle = make_netcdf_file_handle(self, args)
+    allocate(handle, source=netcdf_writer)
+  end function get_writer_netcdf
+
+  function get_validated_arg(self, args, key) result(value)
+    class(Io), intent(in) :: self
     type(HandleArgs), intent(inout) :: args
-    type(NetCDFFileHandle)          :: handle             !< File handle to be returned
-    class(*), pointer               :: arg_val
-
-    arg_val => args%get("filename")
-    if (.not. associated(arg_val)) call self%log%fatal( &
-      "Missing argument `filename` when trying to create an IO handle." &
-    )
+    character(*) :: key
+    character(CHARLEN) :: value
+    class(*), pointer :: arg_val
+    character(CHARLEN) :: msg
+    value = " " 
+    arg_val => args%get(key)
+    if (.not. associated(arg_val)) then
+      write(msg, "(/'Missing arguemnt ', A, ' when trying to create an IO handle.'/)") trim(key)
+      call self%log%fatal(msg)
+    end if
     select type(arg_val)
     type is (character(*))
-      handle%filename = arg_val
+      value = trim(arg_val)
     class default
-      call self%log%fatal( &
-        "Wrong type of argument `filename` when trying to create an IO handle." &
-      )
+      write(msg, "(/'Wrong type of argument ', A, ' when trying to create an IO handle.'/)") trim(key)
+      call self%log%fatal(msg)
     end select
+  end function get_validated_arg
 
-    arg_val => args%get("varname")
-    if (.not. associated(arg_val)) call self%log%fatal( &
-      "Missing argument `varname` when trying to create an IO handle." &
-    )
-    select type(arg_val)
-    type is (character(*))
-      handle%varname = arg_val
-    class default
-      call self%log%fatal( &
-        "Wrong type of argument `varname` when trying to create an IO handle." &
-      )
-    end select
-
-  end function make_concrete_io_handle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Return the length of the record/time dimension
@@ -793,13 +827,11 @@ module io_netcdf
   !! If FH%nrec is not set yet, io_module::touch will be called.
   !! @return Length of record dimension, i.e. time dimension
   !------------------------------------------------------------------
-  integer(KINT) FUNCTION getNrec(self, FH)
-    class(NetCDFIo), intent(in) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout) :: FH             !< File handle of variable to be inquired
-    IF ( FH%nrec .EQ. DEF_NREC ) CALL touch(self, FH)
-    getNrec = FH%nrec
-    RETURN
-  END FUNCTION getNrec
+  integer(KINT) FUNCTION get_Nrec(self)
+    class(NetCDFFile), intent(inout) :: self             !< File handle of variable to be inquired
+    if ( self%nrec .EQ. DEF_NREC ) call self%touch()
+    get_Nrec = self%nrec
+  end FUNCTION get_Nrec
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Constructs a file name from a file name stem
@@ -808,24 +840,21 @@ module io_netcdf
   !! Called by io_module::createDS
   !! @return Character array of complete output file name
   !------------------------------------------------------------------
-  CHARACTER(CHARLEN) FUNCTION getFname(self, fname)
+  character(CHARLEN) FUNCTION getFname(self, fname)
     class(NetCDFIo), intent(in) :: self
-    CHARACTER(*), INTENT(in)   :: fname               !< File name stem
+    character(*), intent(in)    :: fname               !< File name stem
     getFname = trim(trim(self%oprefix)//trim(fname)//trim(self%osuffix))
-    RETURN
-  END FUNCTION getFname
+  end FUNCTION getFname
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Checks if file handle is initialised
   !!
   !! @return True, if filename in file handle has non-zero length
   !------------------------------------------------------------------
-  LOGICAL FUNCTION isSetFH(FH)
-    IMPLICIT NONE
-    TYPE(NetCDFFileHandle), intent(in)  :: FH               !< File handle to check
-    isSetFH = (LEN_TRIM(FH%filename) .NE. 0)
-    RETURN
-  END FUNCTION isSetFH
+  logical FUNCTION is_set(self)
+    class(NetCDFFile), intent(in)  :: self               !< File handle to check
+    is_set = (LEN_trim(self%filename) .ne. 0)
+  end FUNCTION is_set
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Returns filename member of a fileHandle object
@@ -833,11 +862,10 @@ module io_netcdf
   !! Returns the file name. If the Object is not initialised, the return
   !! value will be an empty string.
   !------------------------------------------------------------------
-  CHARACTER(CHARLEN) FUNCTION getFileNameFH(FH) RESULT(fname)
-    IMPLICIT NONE
-    TYPE(NetCDFFileHandle), INTENT(inout)   :: FH
-    fname = FH%filename
-  END FUNCTION getFileNameFH
+  character(CHARLEN) function get_filename(self) result(fname)
+    class(NetCDFFile), intent(inout)   :: self
+    fname = self%filename
+  end function get_filename
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Returns varname member of a fileHandle object
@@ -845,11 +873,10 @@ module io_netcdf
   !! Returns the variable name. If the Object is not initialised, the return
   !! value will be an empty string.
   !------------------------------------------------------------------
-  CHARACTER(CHARLEN) FUNCTION getVarNameFH(FH) RESULT(varname)
-    IMPLICIT NONE
-    TYPE(NetCDFFileHandle), INTENT(inout)   :: FH
-    varname = FH%varname
-  END FUNCTION getVarNameFH
+  character(CHARLEN) function get_varname(self) result(varname)
+    class(NetCDFFile), intent(inout) :: self
+    varname = self%varname
+  end function get_varname
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Inquires a character attribute of a given variable
@@ -857,49 +884,47 @@ module io_netcdf
   !! @return Value of a character attribute. If no attribute with this name
   !! exists or any other error is thrown, an empty string will be returned
   !------------------------------------------------------------------
-  SUBROUTINE getCHARAtt(self, FH, attname, attval)
-    class(NetCDFIo), intent(in) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
-    CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
-    CHARACTER(CHARLEN), INTENT(out) :: attval
-    CHARACTER(CHARLEN)  :: tmpChar
+  subroutine get_char_attr(self, attname, attval)
+    class(NetCDFFile), intent(inout) :: self             !< file handle of variable to querry
+    character(*), intent(in)         :: attname        !< name of attribute
+    character(CHARLEN), intent(out)  :: attval
+    character(CHARLEN)  :: tmpChar
     integer(KINT_NF90)  :: NC_status
-    LOGICAL  :: wasOpen
-    wasOpen = FH%isOpen
-    CALL openDS(self, FH)
-    NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpChar)
-    IF (NC_status .EQ. NF90_NOERR) THEN
+    logical  :: wasOpen
+    wasOpen = self%isOpen
+    call self%open()
+    NC_status = nf90_get_att(self%ncid, self%varid, attname, tmpChar)
+    if (NC_status .EQ. NF90_NOERR) then
       attval = tmpChar
-    ELSE
+    else
       attval = ""
-    END IF
-    IF ( .NOT. wasOpen ) call closeDS(self, FH)
-  END SUBROUTINE getCHARAtt
+    end if
+    if ( .not. wasOpen ) call close(self)
+  end subroutine get_char_attr
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Inquires a character attribute of a given variable
   !!
   !! @return Value of a character attribute. If no attribute with this name
-  !! exists or any other error is thrown, an empty string will be returned
+  !! exists or any other error is thrown, zero will be returned
   !------------------------------------------------------------------
-  SUBROUTINE getDOUBLEAtt(self, FH,attname,attVal)
-    class(NetCDFIo), intent(in) :: self
-    TYPE(NetCDFFileHandle), INTENT(inout) :: FH             !< File handle of variable to querry
-    CHARACTER(*), INTENT(in)        :: attname        !< Name of attribute
-    real(KDOUBLE), INTENT(out)      :: attVal
+  subroutine get_double_attr(self, attname, attVal)
+    class(NetCDFFile), intent(inout) :: self           !< File handle of variable to querry
+    character(*), intent(in)         :: attname        !< Name of attribute
+    real(KDOUBLE), intent(out)       :: attVal
     real(KDOUBLE)      :: tmpAtt
     integer(KINT_NF90) :: NC_status
-    LOGICAL  :: wasOpen
-    wasOpen = FH%isOpen
-    CALL openDS(self, FH)
-    NC_status = nf90_get_att(FH%ncid,FH%varid,attname, tmpAtt)
-    IF (NC_status .EQ. NF90_NOERR) THEN
+    logical  :: wasOpen
+    wasOpen = self%isOpen
+    call self%open()
+    NC_status = nf90_get_att(self%ncid, self%varid,attname, tmpAtt)
+    if (NC_status .EQ. NF90_NOERR) then
       attVal = tmpAtt
     ELSE
       attVal = 0.
-    END IF
-    IF ( .NOT. wasOpen ) call closeDS(self, FH)
-  END SUBROUTINE getDOUBLEAtt
+    end if
+    if ( .not. wasOpen ) call close(self)
+  end subroutine get_double_attr
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -913,31 +938,30 @@ module io_netcdf
   !! If such an axis does not exist, an error will be thrown and the program will
   !! be terminated.
   !------------------------------------------------------------------
-  subroutine getTDimId(self, FH)
-    class(Io), intent(in)                  :: self
-    class(NetCDFFileHandle), intent(inout) :: FH
-    integer(KINT_NF90)                     :: nDims, len
-    if (FH%timedid .ne. DEF_TIMEDID) then
+  subroutine get_time_dim_id(self)
+    class(NetCDFFile), intent(inout) :: self
+    integer(KINT_NF90)               :: nDims, len
+    if (self%timedid .ne. DEF_TIMEDID) then
       return
     end if
-    call check(self, nf90_inquire(FH%ncid, unlimitedDimId=FH%timedid), __LINE__, FH%filename) !< get dimid by record dimension
-    if (FH%timedid .ne. NF90_NOTIMEDIM) then
-      call check(self, nf90_inquire_dimension(FH%ncid, FH%timedid, len=len), __LINE__, FH%filename)
-      FH%nrec = len
+    call check(self%io_comp, nf90_inquire(self%ncid, unlimitedDimId=self%timedid), __LINE__, self%filename) !< get dimid by record dimension
+    if (self%timedid .ne. NF90_NOTIMEDIM) then
+      call check(self%io_comp, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+      self%nrec = len
       return
     end if
-    call check(self, nf90_inquire_variable(FH%ncid,FH%varid,ndims=nDims))
+    call check(self%io_comp, nf90_inquire_variable(self%ncid, self%varid, ndims=nDims))
     if (nDims .lt. 3) then                                                              !< no time dimension
-      FH%nrec = 1
+      self%nrec = 1
       return
     end if
-    if (nf90_inq_dimid(FH%ncid, TAXISNAME, dimid=FH%timedid) .ne. nf90_noerr) then         !< get dimid by name
-      if (nf90_inq_dimid(FH%ncid, to_upper(TAXISNAME), dimid=FH%timedid) .ne. nf90_noerr) &
-        call check(self, nf90_inq_dimid(FH%ncid, to_lower(TAXISNAME), dimid=FH%timedid), __LINE__, FH%filename)
+    if (nf90_inq_dimid(self%ncid, TAXISNAME, dimid=self%timedid) .ne. nf90_noerr) then         !< get dimid by name
+      if (nf90_inq_dimid(self%ncid, to_upper(TAXISNAME), dimid=self%timedid) .ne. nf90_noerr) &
+        call check(self%io_comp, nf90_inq_dimid(self%ncid, to_lower(TAXISNAME), dimid=self%timedid), __LINE__, self%filename)
     end if
-    call check(self, nf90_inquire_dimension(FH%ncid, FH%timedid, len=len), __LINE__, FH%filename)
-    FH%nrec = len
-  end subroutine getTDimId
+    call check(self%io_comp, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+    self%nrec = len
+  end subroutine get_time_dim_id
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -948,15 +972,14 @@ module io_netcdf
   !! If such an variable does not exist, an error will be thrown and the program will
   !! be terminated.
   !------------------------------------------------------------------
-  subroutine getTVarId(self, FH)
-    class(Io), intent(in) :: self
-    class(NetCDFFileHandle), intent(inout) :: FH
-    if (FH%timevid .ne. DEF_TIMEVID) return
-    if (nf90_inq_varid(FH%ncid, TAXISNAME, FH%timevid) .ne. nf90_noerr) then
-      if (nf90_inq_varid(FH%ncid, to_upper(TAXISNAME), FH%timevid) .ne. nf90_noerr) &
-        call check(self, nf90_inq_varid(FH%ncid, to_lower(TAXISNAME), FH%timevid), __LINE__, FH%filename)
+  subroutine get_time_var_id(self)
+    class(NetCDFFile), intent(inout) :: self
+    if (self%timevid .ne. DEF_TIMEVID) return
+    if (nf90_inq_varid(self%ncid, TAXISNAME, self%timevid) .ne. nf90_noerr) then
+      if (nf90_inq_varid(self%ncid, to_upper(TAXISNAME), self%timevid) .ne. nf90_noerr) &
+        call check(self%io_comp, nf90_inq_varid(self%ncid, to_lower(TAXISNAME), self%timevid), __LINE__, self%filename)
     end if
-  end subroutine getTVarId
+  end subroutine get_time_var_id
 
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -994,16 +1017,16 @@ module io_netcdf
     class(Io), intent(in) :: self
     character(len=*), intent(in) :: endianness
     select case (to_upper(trim(endianness)))
-    case ("NF90_ENDIAN_NATIVE", "")
+    case ("NF90_endIAN_NATIVE", "")
       res = nf90_endian_native
-    case ("NF90_ENDIAN_LITTLE")
+    case ("NF90_endIAN_LITTLE")
       res = nf90_endian_little
-    case ("NF90_ENDIAN_BIG")
+    case ("NF90_endIAN_BIG")
       res = nf90_endian_big
     case default
       call self%log%fatal( &
-        "NetCDF endianness not recognized. Must be one of 'NF90_ENDIAN_NATIVE', " &
-        // "'NF90_ENDIAN_LITTLE' or 'NF90_ENDIAN_BIG'" &
+        "NetCDF endianness not recognized. Must be one of 'NF90_endIAN_NATIVE', " &
+        // "'NF90_endIAN_LITTLE' or 'NF90_endIAN_BIG'" &
       )
     end select
 

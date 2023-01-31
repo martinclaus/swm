@@ -21,7 +21,6 @@ PROGRAM main_program
 #include "model.h"
 #include "io.h"
   use app, only: AbstractApp
-  use io_module, only: Io
 !   USE vars_module
 !   USE domain_module
 !   USE calc_lib
@@ -72,7 +71,8 @@ PROGRAM main_program
     function make_app() result(application)
       use app, only: new_default_app_builder, AbstractAppBuilder
       use logging, only: Logger, make_file_logger
-      use io_module, only: make_netcdf_io
+      use io_module, only: Io
+      use io_netcdf, only: make_netcdf_io
       use domain_module, only: make_domain_component, Domain
       use vars_module, only: make_variable_register, VariableRepository
       use calc_lib, only: make_calc_component, Calc
@@ -86,7 +86,6 @@ PROGRAM main_program
       type(Domain), pointer :: domain_comp
       type(VariableRepository), pointer :: repo
       type(Calc), pointer :: calc
-
       
       app_factory => new_default_app_builder()
 

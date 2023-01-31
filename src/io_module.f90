@@ -52,9 +52,6 @@ MODULE io_module
   !------------------------------------------------------------------
   type, abstract :: IoHandle
     class(Io), pointer      :: io_comp => null()
-    type(calendar)          :: calendar              !< Calendar of time data received from or send to the handle.
-    real(KDOUBLE)           :: missval=MISS_VAL_DEF  !< Value to flag missing data
-    LOGICAL                 :: isOpen = .FALSE.      !< Flag, if handle is ready to read or write data
   end type IoHandle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -111,13 +108,13 @@ MODULE io_module
   abstract interface
     function iGetReader(self, args) result(handle)
       import Io, HandleArgs, Reader
-      class(Io), intent(in)            :: self
+      class(Io), target, intent(in)    :: self
       class(HandleArgs), intent(inout) :: args
       class(Reader), allocatable       :: handle
     end function
     function iGetWriter(self, args) result(handle)
       import Io, HandleArgs, Writer
-      class(Io), intent(in)            :: self
+      class(Io), target, intent(in)    :: self
       class(HandleArgs), intent(inout) :: args
       class(Writer), allocatable       :: handle
     end function
@@ -128,7 +125,7 @@ MODULE io_module
 
     subroutine iReadInitialCondition(self, var, missmask)
       import Reader, KDOUBLE, KSHORT
-      class(Reader), intent(in)             :: self
+      class(Reader), intent(inout)                           :: self
       real(KDOUBLE), DIMENSION(:,:), INTENT(out)             :: var      !< Data to return
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out) :: missmask !< missing value mask
     end subroutine iReadInitialCondition
@@ -141,37 +138,37 @@ MODULE io_module
     end subroutine
     SUBROUTINE iGetVar2Dhandle(self, var, tstart, missmask)
       import Reader, KINT, KDOUBLE, KSHORT
-      class(Reader), intent(in)                                :: self
+      class(Reader), intent(inout)                             :: self
       integer(KINT), INTENT(in)                                :: tstart    !< Time index to start reading
       real(KDOUBLE), DIMENSION(:,:), INTENT(out)               :: var       !< Data read from disk
       integer(KSHORT), DIMENSION(:,:), OPTIONAL, INTENT(out)   :: missmask  !< Missing value mask
     end subroutine
     SUBROUTINE iGetVar1Dhandle(self, var, tstart)
       import Reader, KINT, KDOUBLE, KSHORT
-      class(Reader), intent(in)                :: self
+      class(Reader), intent(inout)             :: self
       real(KDOUBLE), DIMENSION(:), INTENT(out) :: var     !< Data read from disk
       integer(KINT), INTENT(in), OPTIONAL      :: tstart  !< Index to start at
     end subroutine
     subroutine iCreateDSEuler(self, grid)
       import Writer, grid_t
-      class(Writer)                     :: self
+      class(Writer), intent(inout)      :: self
       TYPE(grid_t), POINTER, INTENT(in) :: grid     !< Spatial grid used to create dataset
     end subroutine iCreateDSEuler
     subroutine iCreateDSLagrange(self, grid)
       import Writer, t_grid_lagrange
-      class(Writer)                     :: self
+      class(Writer), intent(inout)               :: self
       TYPE(t_grid_lagrange), POINTER, INTENT(in) :: grid     !< Spatial grid used to create dataset
     end subroutine iCreateDSLagrange
     subroutine iPutVarEuler(self, varData, time, grid)
       import Writer, grid_t, KDOUBLE
-      class(Writer), intent(in)                 :: self
+      class(Writer), intent(inout)              :: self
       real(KDOUBLE), DIMENSION(:,:), INTENT(in) :: varData   !< Data to write
       type(grid_t), intent(in), optional        :: grid      !< Grid information
       real(KDOUBLE), INTENT(in), OPTIONAL       :: time      !< Time coordinate of time slice
     end subroutine
     subroutine iPutVarLagrange(self, varData, time, grid)
       import Writer, t_grid_lagrange, KDOUBLE
-      class(Writer), intent(in)                   :: self
+      class(Writer), intent(inout)                :: self
       real(KDOUBLE), DIMENSION(:), INTENT(in)     :: varData   !< Data to write
       type(t_grid_lagrange), intent(in), optional :: grid      !< Grid information
       real(KDOUBLE), INTENT(in), OPTIONAL         :: time      !< Time coordinate of time slice
