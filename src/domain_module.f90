@@ -5,10 +5,9 @@ MODULE domain_module
   USE grid_module
   use init_vars
   use app, only: Component
-  use io_module, only: Io, IoHandle
+  use io_module, only: Io, HandleArgs, Reader
   use logging, only: Logger
-  ! USE io_module, ONLY : fileHandle, initFH, readInitialCondition
-
+  
   implicit none
 
   type, extends(Component) :: Domain
@@ -17,8 +16,6 @@ MODULE domain_module
     real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
     real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
     real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
-    character(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
-    character(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
     real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
     real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
     real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
@@ -44,7 +41,7 @@ MODULE domain_module
   
     type(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
 
-    class(Io), pointer     :: io_ptr
+    class(Io), pointer     :: io
     class(logger), pointer :: log
 
     contains
@@ -55,13 +52,17 @@ MODULE domain_module
   end type Domain
 
   CONTAINS
-
+  
   function make_domain_component(io_comp, log) result(dom_comp)
+    !! Create domain component
+    !!
+    !! Note that io_comp need to support a reading from file, i.e. a reader that
+    !! can be initialized with `filename` and `varname` arguments.
     class(Io), pointer     :: io_comp
     class(Logger), pointer :: log
     class(Domain), pointer :: dom_comp
     allocate(dom_comp)
-    dom_comp%io_ptr => io_comp
+    dom_comp%io => io_comp
     dom_comp%log => log
   end function make_domain_component
 
@@ -71,32 +72,31 @@ MODULE domain_module
 
   SUBROUTINE initDomain(self)
     class(Domain), intent(inout) :: self
-    type(IoHandle)                             :: FH_H
-    integer(KINT)                                :: i,j
-    real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
-    real(KDOUBLE)               :: A = 6371000         !< Earth radius \f$[m]\f$
-    real(KDOUBLE)               :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
-    real(KDOUBLE)               :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
-    real(KDOUBLE)               :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
-    character(CHARLEN)    :: in_file_H=""        !< Input filename for bathimetry
-    character(CHARLEN)    :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
-    real(KDOUBLE)               :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
-    real(KDOUBLE)               :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
-    real(KDOUBLE)               :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
-    real(KDOUBLE)               :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
-    integer(KINT)               :: Nx = 100            !< Number of grid points in zonal direction
-    integer(KINT)               :: Ny = 100            !< Number of grid points in meridional direction
-    real(KDOUBLE)               :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
-    real(KDOUBLE)               :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    integer(KINT)                :: i,j
+    real(KDOUBLE)                :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
+    real(KDOUBLE)                :: A = 6371000         !< Earth radius \f$[m]\f$
+    real(KDOUBLE)                :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
+    real(KDOUBLE)                :: RHO0 = 1024         !< reference density of sea water \f$[kg m^{-3}]\f$
+    real(KDOUBLE)                :: H_overwrite = H_OVERWRITE_DEF    !< Depth used in all fields if H_OVERWRITE defined \f$[m]\f$
+    character(CHARLEN)           :: in_file_H=""        !< Input filename for bathimetry
+    character(CHARLEN)           :: in_varname_H="H"    !< Variable name of bathimetry in input dataset
+    real(KDOUBLE)                :: lon_s = -20.0       !< Position of western boundary in degrees east of the H grid
+    real(KDOUBLE)                :: lon_e = 20.0        !< Position of eastern boundary in degrees east of the H grid
+    real(KDOUBLE)                :: lat_s = -20.0       !< Position of southern boundary in degrees north of the H grid
+    real(KDOUBLE)                :: lat_e = 20.0        !< Position of northern boundary in degrees north of the H grid
+    integer(KINT)                :: Nx                  !< Number of grid points in zonal direction
+    integer(KINT)                :: Ny                  !< Number of grid points in meridional direction
+    real(KDOUBLE)                :: dLambda             !< Zonal grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
+    real(KDOUBLE)                :: dTheta              !< Meridional grid resolution. Computed in domain_module::initDomain. \f$[rad]\f$
     ! constant fieds H, allocated during initialization
-    real(KDOUBLE), dimension(:,:), pointer :: H, H_u, H_v, H_eta !< Size Nx,Ny \n Bathimetry on subgrids. Computed by linear interpolation in domain_module::initDomain
-    integer(KSHORT), dimension(:,:), ALLOCATABLE :: missmask, missmask_H
-    real(KDOUBLE), dimension(:), pointer         :: lat_H, lat_u, lat_v, lat_eta
-    real(KDOUBLE), dimension(:), pointer         :: lon_H, lon_u, lon_v, lon_eta
-    integer(KSHORT), dimension(:,:), pointer     :: land_H, land_u, land_v, land_eta
-    integer(KSHORT), dimension(:,:), pointer     :: ocean_H, ocean_u, ocean_v, ocean_eta
-    real(KDOUBLE)               :: theta0
-    integer(KSHORT)               :: coriolis_approx
+    real(KDOUBLE), dimension(:,:), pointer   :: H, H_u, H_v, H_eta !< Size Nx,Ny. Bathimetry on subgrids. Computed by linear interpolation.
+    real(KDOUBLE), dimension(:), pointer     :: lat_H, lat_u, lat_v, lat_eta
+    real(KDOUBLE), dimension(:), pointer     :: lon_H, lon_u, lon_v, lon_eta
+    integer(KSHORT), dimension(:,:), pointer :: land_H, land_u, land_v, land_eta
+    integer(KSHORT), dimension(:,:), pointer :: ocean_H, ocean_u, ocean_v, ocean_eta
+    real(KDOUBLE)                            :: theta0
+    integer(KSHORT)                          :: coriolis_approx
+
     namelist / domain_nl / &
       A, OMEGA, RHO0, &
       Nx, Ny, H_overwrite, &
@@ -118,16 +118,9 @@ MODULE domain_module
     self%lon_e = lon_e
     self%lat_s = lat_s
     self%lat_e = lat_e
-    self%in_file_H = in_file_H
-    self%in_varname_H = in_varname_H
     self%theta0 = theta0
     self%lbc = lbc
     self%coriolis_approx = coriolis_approx
-
-
-    allocate(missmask(1:Nx,1:Ny), missmask_H(1:Nx,1:Ny))
-    ! call initVar(missmask, 0._KDOUBLE)
-    ! call initVar(missmask_H, 0._KDOUBLE)
 
     allocate(lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny))
     allocate(lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx))
@@ -184,29 +177,7 @@ MODULE domain_module
     lon_v   = lon_H + (lon_e - lon_s) / (2. * (Nx - 1))
     lon_eta = lon_v
 
-
-    if (len_trim(in_file_H).ne.0) then
-      !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      !! read bathimetry
-      !! Do not allow negative topography and set H=0 where H has missing values
-      !! close N/S boundary (should be done anyway in input H field)
-      !------------------------------------------------------------------
-      CALL initFH(in_file_H, in_varname_H, FH_H)
-      CALL readInitialCondition(FH_H, H, missmask)
-      missmask_H = missmask
-      WHERE(missmask_H .EQ. 1_KSHORT) H = 0._KDOUBLE
-      WHERE(H .LE. 0.) H = 0._KDOUBLE
-    else
-      !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      !! create rectangular basin with closed boundaries and depth of
-      !! 1 m. Use h_overwrite to set a different depth.
-      !------------------------------------------------------------------
-      H = 1._KDOUBLE
-      H(1,:) = 0._KDOUBLE
-      H(Nx,:) = 0._KDOUBLE
-    end if
-    H(:,1)  = 0._KDOUBLE
-    H(:,Ny) = 0._KDOUBLE
+    call set_bathimetry(self, H, in_file_H, in_varname_H)
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! create landmasks
@@ -253,10 +224,10 @@ MODULE domain_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !! set the grid-type for all grids
     !------------------------------------------------------------------
-    CALL setGrid(self%H_grid,lon_H,lat_H,land_H,ocean_H, H, lbc)
-    CALL setGrid(self%u_grid,lon_u,lat_u,land_u,ocean_u, H_u, lbc)
-    CALL setGrid(self%v_grid,lon_v,lat_v,land_v,ocean_v, H_v, lbc)
-    CALL setGrid(self%eta_grid,lon_eta,lat_eta,land_eta,ocean_eta, H_eta, lbc)
+    CALL setGrid(self%H_grid, lon_H, lat_H, land_H, ocean_H, H, lbc)
+    CALL setGrid(self%u_grid, lon_u, lat_u, land_u, ocean_u, H_u, lbc)
+    CALL setGrid(self%v_grid, lon_v, lat_v, land_v, ocean_v, H_v, lbc)
+    CALL setGrid(self%eta_grid, lon_eta, lat_eta, land_eta, ocean_eta, H_eta, lbc)
 
     CALL setf(self%H_grid, coriolis_approx, theta0, OMEGA)
     CALL setf(self%u_grid, coriolis_approx, theta0, OMEGA)
@@ -264,11 +235,62 @@ MODULE domain_module
     CALL setf(self%eta_grid, coriolis_approx, theta0, OMEGA)
   END SUBROUTINE initDomain
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Define bathimetry on H grid
+  !! Reads bathimetry from file or, if filename is empty, creates the
+  !! default bathimetry. Northern and southern boundary will be closed.
+  !------------------------------------------------------------------
+  subroutine set_bathimetry(self, H, filename, varname)
+    class(Domain), intent(inout)               :: self
+    real(KDOUBLE), dimension(:,:), intent(out) :: H
+    character(*), intent(in)                   :: filename, varname
+    if (len_trim(filename).ne.0) then
+      call read_bathimetry_from_file(self, H, filename, varname)
+    else
+      call set_default_bathimetry(H)
+    end if
+    H(:,1)  = 0._KDOUBLE
+    H(:,size(H, 2)) = 0._KDOUBLE
+  end subroutine set_bathimetry
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Read bathimetry from file
+  !! Do not allow negative topography and set H=0 where H has missing values.
+  !------------------------------------------------------------------
+  subroutine read_bathimetry_from_file(self, H, filename, varname)
+    class(Domain), intent(inout)                 :: self
+    real(KDOUBLE), dimension(:,:), intent(out)   :: H
+    character(*), intent(in)                     :: filename, varname
+    class(Reader), allocatable                   :: file_reader
+    type(HandleArgs)                             :: handle_args
+    integer(KSHORT), dimension(size(H, 1), size(H, 2)) :: missmask
+
+    call handle_args%add("filename", filename)
+    call handle_args%add("varname", varname)
+    file_reader = self%io%get_reader(handle_args)
+    CALL file_reader%read_initial_conditions(H, missmask)
+
+    WHERE(missmask .EQ. 1_KSHORT) H = 0._KDOUBLE
+    WHERE(H .LE. 0.) H = 0._KDOUBLE
+  end subroutine read_bathimetry_from_file
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Create rectangular basin with closed boundaries
+  !! The depth will be set to 1 m. Use h_overwrite to set a different depth.
+  !------------------------------------------------------------------
+  subroutine set_default_bathimetry(H)
+    real(KDOUBLE), dimension(:,:), intent(out) :: H
+    H = 1._KDOUBLE
+    H(1,:) = 0._KDOUBLE
+    H(size(H, 1), :) = 0._KDOUBLE
+  end subroutine set_default_bathimetry
+
   subroutine finishDomain(self)
     class(Domain), intent(inout) :: self
     deallocate(self%ip0, self%ip1, self%im1, self%jp0, self%jp1, self%jm1)
     deallocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
-    nullify(self%io_ptr)
+    nullify(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
+    nullify(self%io)
     nullify(self%log)
   end subroutine finishDomain
 END MODULE domain_module
