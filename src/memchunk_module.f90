@@ -15,13 +15,11 @@ MODULE memchunk_module
   use logging
   use types
   use init_vars
-  USE io_module
+  USE io_module, only: Io, Reader
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: memoryChunk, initMemChunk, getChunkData, isConstant, isSetChunk,&
-            getChunkSize, isPersistent, isInitialised, finishMemChunk, getFileNameMC,&
-            getVarNameMC
+  PUBLIC :: MemoryChunk
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to handle data requests from disk
@@ -34,26 +32,35 @@ MODULE memchunk_module
   !! If the time axis is irregular, it will be assumed that \f$dt=(t_{last}-t_{first})/(n_t-1)\f$.
   !------------------------------------------------------------------
   TYPE :: memoryChunk
-    TYPE(fileHandle), PRIVATE              :: FH                      !< File handle pointing to a existing file.
-    LOGICAL, PRIVATE                       :: isInitialised=.FALSE.   !< .TRUE. if the object is properly initialised, i.e. if this::FH it points to an existing variable in an existing file.
-    LOGICAL, PRIVATE                       :: isPersistent=.FALSE.    !< .TRUE. if complete variable fits into chunksize. No dynamic reloading of data needed.
-    LOGICAL, PRIVATE                       :: isConstant=.FALSE.      !< .TRUE. if variable is a single time slice
-    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE, PRIVATE :: var            !< Data loaded from disk
-    real(KDOUBLE), DIMENSION(:), ALLOCATABLE, PRIVATE     :: time           !< time coordinates of data. This will be computed as an integer(KINT) multiple of this::dt in memoryChunk_module::getChunkFromDisk
-    real(KDOUBLE), PRIVATE                       :: tOffset=0               !< time coordinate of the next chunk to read
-    real(KDOUBLE), PRIVATE                       :: dt=0                    !< Time step size of input data
-    integer(KINT), PRIVATE                       :: fileRec=1               !< Record index of dataset corresponding to first slice of this::var
-    integer(KINT), PRIVATE                       :: chunkCounter=1          !< Currently used time index
-    integer(KINT), PRIVATE                       :: chunkSize=1             !< Length of time chunk.
-    integer(KINT)                                :: nFpC     !< how often does the file completely fit into the chunk
+    private
+    class(Reader), allocatable    :: handle                  !< File handle pointing to a existing file.
+    LOGICAL                       :: isPersistent=.FALSE.    !< .TRUE. if complete variable fits into chunksize. No dynamic reloading of data needed.
+    LOGICAL                       :: isConstant=.FALSE.      !< .TRUE. if variable is a single time slice
+    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE :: var            !< Data loaded from disk
+    real(KDOUBLE), DIMENSION(:), ALLOCATABLE     :: time           !< time coordinates of data. This will be computed as an integer(KINT) multiple of this::dt in memoryChunk_module::getChunkFromDisk
+    real(KDOUBLE)                 :: tOffset=0               !< time coordinate of the next chunk to read
+    real(KDOUBLE)                 :: dt=-1                   !< Time step size of input data
+    integer(KINT)                 :: fileRec=1               !< Record index of dataset corresponding to first slice of this::var
+    integer(KINT)                 :: chunkCounter=1          !< Currently used time index
+    integer(KINT)                 :: chunkSize=1             !< Length of time chunk.
+    integer(KINT)                 :: nFpC                    !< how often does the file completely fit into the chunk
+  contains
+    procedure, private :: get_dt, is_constant, is_persistent
+    final :: finishMemChunk
   END TYPE
+
+  !> Constructor interface for memorychunks
+  interface MemoryChunk
+    procedure :: initMemChunk
+  end interface
+  
 
   CONTAINS
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Initialises a memchunk_module::memoryChunk
+    !> @brief  Constructs a memoryChunk
     !!
-    !! Initialise a io_module::fileHandle object. On success, one of the following
+    !! Takes a io_module::Reader object. On success, one of the following
     !! things are done depending on the length of the dataset:
     !! - single time slice:
     !!  - Flag memChunk to be persistent
@@ -67,109 +74,107 @@ MODULE memchunk_module
     !! Then the time step is determined, the memory for the data buffer is allocated
     !! and the first chunk of data is loaded from disk. Afterwards, memChunk is flagged "initialised".
     !!
-    !! @par Uses:
-    !! domain_module, ONLY : Nx, Ny
-    !!
     !! @todo remove dimensional restriction.
     !------------------------------------------------------------------
-    SUBROUTINE initMemChunk(fileName,varName,chunkSize,memChunk)
-      USE domain_module, ONLY : Nx, Ny
-      CHARACTER(*), intent(in)         :: fileName      !< Filename (including path) of the requested dataset
-      CHARACTER(*), intent(in)         :: varName       !< Name of variable to provide
-      integer(KINT), intent(in)              :: chunkSize     !< Maximal number of timesteps to buffer. Optimally nrec+1 or greater if the dataset is not constant in time
-      TYPE(memoryChunk), intent(inout) :: memChunk      !< object to initialise
-      integer(KINT)                          :: nrec          !< length of dataset
-      integer(KINT)                          :: alloc_error   !< return value of allocation command
-      IF (isInitialised(memChunk)) RETURN
-      CALL initFH(fileName,varName,memChunk%FH)
-      IF (.NOT.isSetChunk(memChunk)) RETURN
-      nrec = getNrec(memChunk%FH)
-      IF (nrec.LE.1) THEN ! constant in time
+    function initMemChunk(handle, shape) result(memChunk)
+      class(Reader), intent(in)               :: handle       !< Reader handle to wrap
+      integer(KINT), dimension(3), intent(in) :: shape        !< Shape of the buffer (/Nx, Ny, chunk_size/)
+      TYPE(memoryChunk)                       :: memChunk     !< object to construct
+      integer(KINT)  :: nrec         !< length of dataset
+      integer(KINT)  :: alloc_error  !< return value of allocation command
+      integer(KINT)  :: Nx, Ny       !< Horizontal domain size
+      integer(KINT)  :: chunkSize    !< Maximal number of timesteps to buffer. Optimally nrec+1 or greater if the dataset is not constant in time
+      Nx = shape(1)
+      Ny = shape(2)
+      chunksize = shape(3)
+      memChunk%handle = handle
+      nrec = memchunk%handle%get_number_of_records()
+      IF (nrec.LT.0) then  ! streaming input
+        memChunk%isPersistent = .false.
+        memChunk%isConstant = .false.
+        memChunk%chunkSize  = chunkSize
+      else if (nrec.eq.1) then ! constant in time
         memChunk%isPersistent = .TRUE.
         memChunk%isConstant = .TRUE.
         memChunk%chunkSize  = 1
-      ELSE IF (chunkSize.GE.nrec+1) THEN ! chunk size too large, persistent chunk is cheaper and faster
+      else if (chunkSize.GE.nrec+1) then ! chunk size too large, persistent chunk is cheaper and faster
         memChunk%isPersistent = .TRUE.
         memChunk%chunkSize    = nrec+1
-        IF(chunksize.GT.nrec+1) call log_debug( &
-            "INFO: Chunksize of "//TRIM(getFileNameMC(memChunk))//":"//TRIM(getVarNameMC(memChunk)) &
-            //" changed to increase efficiency" &
-          )
+        IF (chunksize.GT.nrec+1) call memchunk%handle%io_comp%log%debug( &
+          "INFO: Chunksize of "//TRIM(memChunk%handle%display()) &
+          //" changed to increase efficiency" &
+        )
       ELSE
-        memChunk%chunkSize    = chunkSize
+        memchunk%chunkSize = chunkSize
+        memchunk%isPersistent = .false.
+        memchunk%isConstant = .false.
       END IF
-      memChunk%dt = getDt(memChunk)
+      memChunk%dt = get_dt(memChunk)
       memChunk%tOffset = 0.
-      ALLOCATE(memChunk%var(1:Nx,1:Ny,1:memChunk%chunkSize), &
+      ALLOCATE(memChunk%var(1:Nx, 1:Ny, 1:memChunk%chunkSize), &
                memChunk%time(1:memChunk%chunkSize), &
                stat=alloc_error)
       IF (alloc_error.NE.0) call log_alloc_fatal(__FILE__,__LINE__)
       call initVar(memChunk%var, 0._KDOUBLE)
       memChunk%time = 0.
-      CALL getChunkFromDisk(memChunk)
-      memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec),1)
-      memChunk%isInitialised = .TRUE.
-    END SUBROUTINE initMemChunk
+      CALL readChunk(memChunk, .true.)
+      memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec), 1)
+    END function initMemChunk
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of a memoryChunk
-    !!
-    !! Closes dataset file and deallocates allocated variables. Flags object to be
-    !! not initialised.
     !------------------------------------------------------------------
-    SUBROUTINE finishMemChunk(memChunk)
-      IMPLICIT NONE
-      TYPE(memoryChunk), intent(inout)  :: memChunk     !< memoryChunk to destroy
-      integer(KINT)   :: alloc_error
-      IF (isInitialised(memChunk)) THEN
-        CALL closeDS(memChunk%FH)
-        DEALLOCATE(memChunk%var, memChunk%time, stat=alloc_error)
-        IF ( alloc_error .NE. 0 ) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
-      END IF
-      memChunk%isInitialised = .FALSE.
+    SUBROUTINE finishMemChunk(self)
+      TYPE(memoryChunk), intent(inout)  :: self     !< memoryChunk to destroy
+      if (allocated(self%var)) deallocate(self%var)
+      if (allocated(self%time)) deallocate(self%time)
+      if (allocated(self%handle)) deallocate(self%handle)
     END SUBROUTINE finishMemChunk
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Load a complete new chunk from disk
+    !> @brief Read a complete new chunk
     !!
-    !! Loads a new chunk from disk. The new first time slice will be the
+    !! Reads a new chunk using a io_module::Reader. The new first timeslice will be the
     !! last old timeslice. First the file record pointer will
     !! be advanced by the chunk length - 1 and the time offset will be
     !! reduced by one time step. Then, if memChunk is not perisistent or
     !! not yet fully initialised (as it is when this routine is called by
     !! memorychunk_module::initMemChunk), the actual routine to load the
-    !! data is called. If the input data is not constant, i.e. as more
-    !! than one time step,
-    !!
+    !! data is called. If the input data is not constant, i.e. has more
+    !! than one time step, the time axis of the input is reconstructed.
     !------------------------------------------------------------------
-    SUBROUTINE getChunkFromDisk(memChunk)
-      IMPLICIT NONE
+    SUBROUTINE readChunk(memChunk, first_read)
       TYPE(memoryChunk), intent(inout) :: memChunk
-      integer(KINT)       :: i
-      IF (isInitialised(memChunk)) THEN
+      logical, optional, intent(in)    :: first_read
+      integer(KINT)  :: i
+      logical        :: is_first_read=.false.
+      if (present(first_read)) is_first_read = first_read
+      IF (.not.first_read) THEN
         memChunk%fileRec = memChunk%fileRec + memChunk%chunkSize - 1
         memChunk%tOffset = memChunk%tOffset - memChunk%dt
       END IF
-      IF (.NOT.isPersistent(memChunk).OR..NOT.isInitialised(memChunk)) THEN
-        CALL getVarChunkFromDisk(memChunk,memChunk%var,memChunk%fileRec,memChunk%chunkSize)
+      IF (.NOT.is_persistent(memChunk).OR.is_first_read) THEN
+        CALL readVarChunk(memChunk, memChunk%var, memChunk%fileRec, memChunk%chunkSize)
       END IF
-      IF (.NOT.isConstant(memChunk)) THEN
+      IF (.NOT.is_constant(memChunk)) THEN
         DO i=1,memChunk%chunkSize
           memChunk%time(i) = memChunk%tOffset
           memChunk%tOffset = memChunk%tOffset + memChunk%dt
         END DO
       END IF
       memChunk%chunkCounter = 1
-    END SUBROUTINE getChunkFromDisk
+    END SUBROUTINE readChunk
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Load a subset of data from disk
+    !> @brief  Load a subset of data
     !!
-    !! Called by memchunk_module::getChunkFromDisk. Loads as much of the
-    !! file as possible to the chunk. If the dataset is to short, the routines
-    !! does a recursive call and start reading at the beginning  of the dataset.
+    !! Called by memchunk_module::readChunk. Reads as much from the
+    !! source as possible to the chunk. If the dataset is to short, the routines
+    !! does a recursive call and start reading at the beginning of the dataset.
+    !!
+    !! TODO: Fix for streaming input
     !------------------------------------------------------------------
-    RECURSIVE SUBROUTINE getVarChunkFromDisk(memChunk,var,nstart,len)
+    RECURSIVE SUBROUTINE readVarChunk(memChunk,var,nstart,len)
       IMPLICIT NONE
       TYPE(memoryChunk), INTENT(inout)       :: memChunk !< memory chunk to work with
       real(KDOUBLE), DIMENSION(:,:,:), INTENT(out) :: var      !< data read
@@ -179,7 +184,7 @@ MODULE memchunk_module
       integer(KINT)                                :: len2     !< length of stride to read in this recoursion level
       integer(KINT)                                :: nrec     !< length of dataset
       integer(KINT)                                :: nstart2  !< New start index for recursive function call
-      nrec = getNrec(memChunk%FH)
+      nrec = memChunk%handle%get_number_of_records()
       ! if start index is out of bound, rewind file
       IF (nstart.GT.nrec) THEN
         nstart = nstart - memChunk%nFpC*nrec
@@ -190,13 +195,13 @@ MODULE memchunk_module
       ! set length to at ! least one
       len2 = MAX(nend-nstart, 0_KINT) + 1
       ! read chunk from file
-      call getVar(memChunk%FH,var(:, :, :len2), nstart)
+      call memChunk%handle%getVar(var(:, :, :len2), nstart)
       ! check if there is something left to read
       IF (len2.LT.len) THEN
         nstart2 = 1
-        CALL getVarChunkFromDisk(memChunk,var(:,:,len2+1:), nstart2, len-len2)
+        CALL readVarChunk(memChunk,var(:,:,len2+1:), nstart2, len-len2)
       END IF
-    END SUBROUTINE getVarChunkFromDisk
+    END SUBROUTINE readVarChunk
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Returns a single time slice
@@ -217,20 +222,20 @@ MODULE memchunk_module
       TYPE(memoryChunk), INTENT(inout)  :: memChunk !< Chunk to get data from
       real(KDOUBLE), INTENT(in)               :: time     !< time of the data in units of the internal model calendar, i.e. seconds since model start.
       real(KDOUBLE), DIMENSION(1:size(memChunk%var,1),1:size(memChunk%var,2)) :: getChunkData !< 2D data slice.
-      IF (isConstant(memChunk)) THEN
+      IF (is_constant(memChunk)) THEN
         getChunkData = memChunk%var(:,:,1)
         RETURN
       END IF
       ! load new data if necessary
       IF (memChunk%chunkCounter.GE.memChunk%chunkSize) THEN
-        CALL getChunkFromDisk(memChunk)
+        CALL readChunk(memChunk)
       END IF
       ! advance through chunk to find the right position
       DO WHILE (memChunk%time(memChunk%chunkCounter+1).LT.time)
         memChunk%chunkCounter = memChunk%chunkCounter + 1
         ! load new data if necessary
         IF (memChunk%chunkCounter.GE.memChunk%chunkSize) THEN
-          CALL getChunkFromDisk(memChunk)
+          CALL readChunk(memChunk)
         END IF
       END DO
       IF (time.EQ.memChunk%time(memChunk%chunkCounter)) THEN
@@ -255,26 +260,28 @@ MODULE memchunk_module
     !! \f[
     !! dt = \frac{t_{end}-t_{start}}{n-1}
     !!\f]
+    ! 
+    ! Note: this will fail for streaming input!!!
+    ! TODO: Fix for streaming input, i.e. where nrec < 0
     !------------------------------------------------------------------
-    real(KDOUBLE) FUNCTION getDt(memChunk) RESULT(dt)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout)   :: memChunk   !< Memory chunk to work with
+    real(KDOUBLE) FUNCTION get_dt(self) RESULT(dt)
+      class(memoryChunk), INTENT(inout)   :: self   !< Memory chunk to work with
       real(KDOUBLE)                      :: tmin(1), tmax(1)
       integer(KINT)                      :: nrec
-      IF (.NOT.isInitialised(memChunk)) THEN
-        IF (isConstant(memChunk)) THEN
+      IF (self%dt .lt. 0) THEN
+        IF (is_constant(self)) THEN
           dt = 0.
         ELSE
-          nrec = getNrec(memChunk%FH)
-          CALL getTimeVar(memChunk%FH, tmin, 1_KINT)
-          CALL getTimeVar(memChunk%FH, tmax, nrec)
+          nrec = self%handle%get_number_of_records()
+          CALL self%handle%get_time(tmin, 1_KINT)
+          CALL self%handle%get_time(tmax, nrec)
           dt = (tmax(1)-tmin(1))/(nrec-1.)
         END IF
       ELSE
-          dt = memChunk%dt
+          dt = self%dt
       END IF
       RETURN
-    END FUNCTION getDt
+    END FUNCTION get_dt
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Returns the constant flag
@@ -282,11 +289,10 @@ MODULE memchunk_module
     !! Returns .TRUE. if the memoryChunk is associated with a constant
     !! dataset, i.e. dataset has no time axis or it has a length of one.
     !------------------------------------------------------------------
-    LOGICAL FUNCTION isConstant(memChunk) RESULT(constant)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(in) :: memChunk     !< Memory chunk to inquire
-      constant = memChunk%isConstant
-    END FUNCTION isConstant
+    LOGICAL FUNCTION is_constant(self) RESULT(constant)
+      class(memoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
+      constant = self%isConstant
+    END FUNCTION is_constant
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Returns the persistency flag
@@ -294,67 +300,18 @@ MODULE memchunk_module
     !! Returns .TRUE. if the dataset is fully loaded into memory, so no
     !! further read operations are required.
     !------------------------------------------------------------------
-    LOGICAL FUNCTION isPersistent(memChunk) RESULT(persistent)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(in) :: memChunk     !< Memory chunk to inquire
-      persistent = memChunk%isPersistent
-    END FUNCTION isPersistent
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Checks if the file handle member of the memory chunk is
-    !! properly initialised.
-    !!
-    !! Returns .TRUE. if io_module::isSetFH do so.
-    !------------------------------------------------------------------
-    LOGICAL FUNCTION isSetChunk(memChunk) RESULT(isSet)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout) :: memChunk
-      isSet = isSetFH(memChunk%FH)
-    END FUNCTION isSetChunk
+    LOGICAL FUNCTION is_persistent(self) RESULT(persistent)
+      class(memoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
+      persistent = self%isPersistent
+    END FUNCTION is_persistent
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Returns the length of the chunk
     !------------------------------------------------------------------
-    integer(KINT) FUNCTION getChunkSize(memChunk) RESULT(chunkSize)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(in) :: memChunk     !< Memory chunk to inquire
-      chunkSize = memChunk%chunkSize
-    END FUNCTION
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Checks if the memory chunk was properly initialised
-    !!
-    !! Returns the isInitialised flag which is set to .TRUE. at the end of
-    !! memchunk_module::initMemChunk
-    !------------------------------------------------------------------
-    LOGICAL FUNCTION isInitialised(memChunk) RESULT(isInit)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(in) :: memChunk
-      isInit = memChunk%isInitialised
-    end FUNCTION isInitialised
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Get the file name used to initialise the memoryChunk object
-    !!
-    !! Returns the file name of the memoryChunk object. If the object is not
-    !! initialised, the return value will be an empty string.
-    !------------------------------------------------------------------
-    CHARACTER(CHARLEN) FUNCTION getFileNameMC(memChunk) RESULT(fname)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout)   :: memChunk
-      fname = getFileNameFH(memChunk%FH)
-    END FUNCTION getFileNameMC
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief Get the variable name used to initialise the memoryChunk object
-    !!
-    !! Returns the variable name of the memoryChunk object. If the object is not
-    !! initialised, the return value will be an empty string.
-    !------------------------------------------------------------------
-    CHARACTER(CHARLEN) FUNCTION getVarNameMC(memChunk) RESULT(varname)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout)   :: memChunk
-      varname = getVarNameFH(memChunk%FH)
-    END FUNCTION getVarNameMC
+    ! integer(KINT) FUNCTION get_chunksize(memChunk) RESULT(chunkSize)
+    !   IMPLICIT NONE
+    !   TYPE(memoryChunk), INTENT(in) :: memChunk     !< Memory chunk to inquire
+    !   chunkSize = memChunk%chunkSize
+    ! END FUNCTION
 
 END MODULE memchunk_module

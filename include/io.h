@@ -5,7 +5,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define FILE_IO_SEEN
 
 /* Maximal length of Character arrays */
-#define CHARLEN 1024
+/* #define CHARLEN 1024 */
 #define FULLREC_STRLEN 12
 
 /* Default chunk size for MemChunk */

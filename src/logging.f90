@@ -17,6 +17,8 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
 #define stderr 0
 #endif
   use app, only: Component
+  use types
+  use str, only : to_lower
 
   implicit none
   private
@@ -56,7 +58,6 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
     end subroutine do_nothing
 
     subroutine initLogging(self)      
-      use str, only : to_lower
       class(Logger), intent(inout) :: self
       integer :: stat
       integer :: level

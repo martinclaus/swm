@@ -78,6 +78,9 @@ module io_netcdf
     type(NetCDFFile) :: file_handle
   contains
     procedure :: read_initial_conditions => read_initial_conditions_netcdf
+    procedure :: get_number_of_records => get_nrec_netcdfreader
+    procedure :: get_time => get_time_netcdfreader
+    procedure :: display => display_netcdfreader
     procedure, private :: getVar3Dhandle, getVar2Dhandle, getVar1Dhandle => getVar1D
   end type NetCDFFileReader
 
@@ -86,6 +89,8 @@ module io_netcdf
   contains
     procedure, private :: createDSEuler, createDSLagrange
     procedure, private :: putVarEuler, putVarLagrange
+    procedure :: display_netcdfwriter
+    procedure :: display => display_netcdfwriter
   end type NetCDFFileWriter
 
   type, extends(Io), private :: NetCDFIo
@@ -201,7 +206,43 @@ module io_netcdf
     end select
   end subroutine read_initial_conditions_netcdf
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Number of records (time slices) that the reader can read.
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  function get_nrec_netcdfreader(self) result(nrec)
+    class(NetCDFFileReader), intent(inout) :: self
+    integer(KINT)                         :: nrec
+    nrec = self%file_handle%get_Nrec()
+  end function
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Return a string identifying the source from which data is read 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  function display_netcdfreader(self) result(string)
+    class(NetCDFFileReader) :: self
+    character(CHARLEN)      :: string
+    string = trim(self%file_handle%filename)//":"//trim(self%file_handle%varname)
+  end function
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  !> @brief Return a string identifying the destination to which data is written
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  function display_netcdfwriter(self) result(string)
+    class(NetCDFFileWriter) :: self
+    character(CHARLEN)      :: string
+    string = trim(self%file_handle%filename)//":"//trim(self%file_handle%varname)
+  end function
+
+  subroutine get_time_netcdfreader(self, time, tstart)
+    class(NetCDFFileReader), intent(inout)   :: self
+    real(KDOUBLE), dimension(:), intent(out) :: time
+    integer(KINT), intent(in), optional      :: tstart
+    if (present(tstart)) then
+      call getTimeVar(self%file_handle, time, tstart)
+    else
+      call getTimeVar(self%file_handle, time)
+    end if
+  end subroutine
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief Create an empty netCDF file
   !------------------------------------------------------------------

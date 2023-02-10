@@ -52,6 +52,8 @@ MODULE io_module
   !------------------------------------------------------------------
   type, abstract :: IoHandle
     class(Io), pointer      :: io_comp => null()
+  contains
+    procedure(IDisplayHandle), deferred :: display
   end type IoHandle
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -63,6 +65,10 @@ MODULE io_module
     procedure(iGetVar3Dhandle), deferred, private :: getVar3Dhandle
     procedure(iGetVar2Dhandle), deferred, private :: getVar2Dhandle
     procedure(iGetVar1Dhandle), deferred, private :: getVar1Dhandle
+    !< Number of records (time slices) that the reader can read.
+    !! If this number is unknown, e.g. for streaming input, it should return a negative value.
+    procedure(iGetNumberOfRecords), deferred :: get_number_of_records
+    procedure(IGetTime), deferred :: get_time
     generic :: getVar => getVar3Dhandle, getVar2Dhandle, getVar1Dhandle  !< Read time slice of a variable from a dataset
   end type Reader
 
@@ -123,6 +129,12 @@ MODULE io_module
       class(Io), intent(inout) :: self
     end subroutine iNoArg
 
+    function IDisplayHandle(self) result(str)
+      import IoHandle, CHARLEN
+      class(IoHandle) :: self
+      character(CHARLEN)    :: str
+    end function
+
     subroutine iReadInitialCondition(self, var, missmask)
       import Reader, KDOUBLE, KSHORT
       class(Reader), intent(inout)                           :: self
@@ -148,6 +160,17 @@ MODULE io_module
       class(Reader), intent(inout)             :: self
       real(KDOUBLE), DIMENSION(:), INTENT(out) :: var     !< Data read from disk
       integer(KINT), INTENT(in), OPTIONAL      :: tstart  !< Index to start at
+    end subroutine
+    function IGetNumberOfRecords(self) result (nrec)
+      import Reader, KINT
+      class(Reader), intent(inout)             :: self
+      integer(KINT)                            :: nrec
+    end function
+    subroutine IGetTime(self, time, tstart)
+      import Reader, KDOUBLE, KINT
+      class(Reader), intent(inout)             :: self
+      real(KDOUBLE), dimension(:), intent(out) :: time
+      integer(KINT), intent(in), optional      :: tstart
     end subroutine
     subroutine iCreateDSEuler(self, grid)
       import Writer, grid_t
