@@ -13,21 +13,33 @@ MODULE swm_damping_module
 #include "model.h"
 #include "swm_module.h"
 #include "io.h"
-  use logging
   use types
+  use logging, only: Logger
+  use domain_module, only: Domain
+  use vars_module, only: VariableRepository
   use init_vars
+  use str, only : to_upper
+  use io_module, only: Io, Reader, HandleArgs
   IMPLICIT NONE
   PRIVATE
 
-  PUBLIC :: SWM_damping_init, SWM_damping_finish, &
-            impl_u, impl_v, impl_eta, &
-            gamma_sq_u, gamma_sq_v
+  PUBLIC :: SwmDamping
 
-  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_u      !< Implicit damping term of the zonal momentum budged
-  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_v      !< Implicit damping term of the meridional momentum budged
-  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: impl_eta    !< Implicit damping term of the meridional momentum budged
-  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
-  real(KDOUBLE), DIMENSION(:,:), ALLOCATABLE, TARGET   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
+  type :: SwmDamping
+    class(Logger), private, pointer :: log => null()
+    class(VariableRepository), private, pointer :: repo => null()
+    class(Domain), private, pointer :: dom => null()
+    class(Io), private, pointer :: io => null()
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: impl_u      !< Implicit damping term of the zonal momentum budged
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: impl_v      !< Implicit damping term of the meridional momentum budged
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: impl_eta    !< Implicit damping term of the meridional momentum budged
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
+  contains
+    procedure, nopass :: new => SWM_damping_init
+    procedure, private :: getDampingCoefficient, getSpongeLayer, read_damping_coefficient
+    final :: SWM_damping_finish
+  end type SwmDamping
 
   CONTAINS
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -36,85 +48,95 @@ MODULE swm_damping_module
     !! Alocates and computes the coefficients for implicit linear damping
     !! and/or explicit quadratic damping. If the model is set to be BAROTROPIC,
     !! the damping coefficients are scaled with the depth.
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : dt, addToRegister\n
-    !! domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
     !------------------------------------------------------------------
-    SUBROUTINE SWM_damping_init
-      USE vars_module, ONLY : dt, addToRegister
-      USE domain_module, ONLY : Nx, Ny, H_u, H_v, u_grid, v_grid, eta_grid
-      IMPLICIT NONE
+    function SWM_damping_init(log, dom, repo, io_comp) result(self)
+      class(Logger), pointer, intent(in) :: log
+      class(Domain), pointer, intent(in) :: dom
+      class(VariableRepository), pointer, intent(in) :: repo
+      class(Io), pointer, intent(in) :: io_comp
+      type(SwmDamping)  :: self
       integer(KINT) :: alloc_error
       real(KDOUBLE), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
                                                 gamma_lin_v => null(), &
                                                 gamma_lin_eta => null()
-      integer(KSHORT), DIMENSION(SIZE(u_grid%ocean,1), SIZE(u_grid%ocean,2)) :: ocean_u
-      integer(KSHORT), DIMENSION(SIZE(v_grid%ocean,1), SIZE(v_grid%ocean,2)) :: ocean_v
-      integer(KINT) :: i, j
-      ocean_u = u_grid%ocean
-      ocean_v = v_grid%ocean
+      integer(KSHORT), DIMENSION(:, :), pointer :: ocean_u, ocean_v
+      integer(KINT) :: Nx, Ny, i, j
+
+      self%log => log
+      self%dom => dom
+      self%repo => repo
+      self%io => io_comp
+
+      ocean_u => self%dom%u_grid%ocean
+      ocean_v => self%dom%v_grid%ocean
+      Nx = self%dom%Nx
+      Ny = self%dom%Ny
+
       ! allocate memory
-      ALLOCATE(impl_u(1:Nx, 1:Ny), impl_v(1:Nx, 1:Ny), impl_eta(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
-      call initVar(impl_u, 1._KDOUBLE)
-      call initVar(impl_v, 1._KDOUBLE)
-      call initVar(impl_eta, 1._KDOUBLE)
-      CALL addToRegister(impl_u, "IMPL_U", u_grid)
-      CALL addToRegister(impl_v, "IMPL_V", v_grid)
-      CALL addToRegister(impl_eta, "IMPL_ETA", eta_grid)
+      allocate(self%impl_u(1:Nx, 1:Ny), self%impl_v(1:Nx, 1:Ny), self%impl_eta(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__,__LINE__)
+
+      call initVar(self%impl_u, 1._KDOUBLE)
+      call initVar(self%impl_v, 1._KDOUBLE)
+      call initVar(self%impl_eta, 1._KDOUBLE)
+      CALL self%repo%add(self%impl_u, "IMPL_U", self%dom%u_grid)
+      CALL self%repo%add(self%impl_v, "IMPL_V", self%dom%v_grid)
+      CALL self%repo%add(self%impl_eta, "IMPL_ETA", self%dom%eta_grid)
 
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
-      CALL addToRegister(gamma_lin_u,"GAMMA_LIN_U", u_grid)
-      CALL addToRegister(gamma_lin_v,"GAMMA_LIN_V", v_grid)
+      IF (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__,__LINE__)
+      CALL self%repo%add(gamma_lin_u,"GAMMA_LIN_U", self%dom%u_grid)
+      CALL self%repo%add(gamma_lin_v,"GAMMA_LIN_V", self%dom%v_grid)
       call initVar(gamma_lin_u, 0._KDOUBLE)
       call initVar(gamma_lin_v, 0._KDOUBLE)
 
-      call getDampingCoefficient(gamma_lin_u, "GAMMA_LIN_U")
-      call getDampingCoefficient(gamma_lin_v, "GAMMA_LIN_V")
+      call self%getDampingCoefficient(gamma_lin_u, "GAMMA_LIN_U")
+      call self%getDampingCoefficient(gamma_lin_v, "GAMMA_LIN_V")
 
 #ifdef BAROTROPIC
-      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u / H_u
-      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v / H_v
+      WHERE (ocean_u .EQ. 1) gamma_lin_u = gamma_lin_u / dom%u_grid%H
+      WHERE (ocean_v .EQ. 1) gamma_lin_v = gamma_lin_v / dom%v_grid%H
 #endif
 
       ! quadratic friction
 #ifdef QUADRATIC_BOTTOM_FRICTION
-      ALLOCATE(gamma_sq_u(1:Nx, 1:Ny), gamma_sq_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
-      call initVar(gamma_sq_u, 0._KDOUBLE)
-      call initVar(gamma_sq_v, 0._KDOUBLE)
-      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_U", u_grid)
-      CALL addToRegister(gamma_sq_u,"GAMMA_SQ_V", v_grid)
-      call getDampingCoefficient(gamma_sq_u, "GAMMA_SQ_U")
-      call getDampingCoefficient(gamma_sq_v, "GAMMA_SQ_V")
+      ALLOCATE(self%gamma_sq_u(1:Nx, 1:Ny), self%gamma_sq_v(1:Nx, 1:Ny), stat=alloc_error)
+      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__,__LINE__)
+
+      call initVar(self%gamma_sq_u, 0._KDOUBLE)
+      call initVar(self%gamma_sq_v, 0._KDOUBLE)
+
+      CALL repo%add(self%gamma_sq_u,"GAMMA_SQ_U", dom%u_grid)
+      CALL repo%add(self%gamma_sq_u,"GAMMA_SQ_V", dom%v_grid)
+
+      call getDampingCoefficient(self%gamma_sq_u, "GAMMA_SQ_U")
+      call getDampingCoefficient(self%gamma_sq_v, "GAMMA_SQ_V")
 #ifdef BAROTROPIC
-      WHERE (ocean_u .EQ. 1)  gamma_sq_u = gamma_sq_u / H_u
-      WHERE (ocean_v .EQ. 1)  gamma_sq_v = gamma_sq_v / H_v
+      WHERE (ocean_u .EQ. 1)  self%gamma_sq_u = self%gamma_sq_u / dom%u_grid%H
+      WHERE (ocean_v .EQ. 1)  self%gamma_sq_v = self%gamma_sq_v / dom%v_grid%H
 #endif
 #endif
       ! Newtonian cooling
       ALLOCATE(gamma_lin_eta(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__,__LINE__)
+      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__,__LINE__)
       call initVar(gamma_lin_eta, 0._KDOUBLE)
-      CALL addToRegister(gamma_lin_eta,"GAMMA_LIN_ETA", eta_grid)
+      CALL repo%add(gamma_lin_eta,"GAMMA_LIN_ETA", dom%eta_grid)
 
-      call getDampingCoefficient(gamma_lin_eta, "GAMMA_LIN_ETA")
+      call self%getDampingCoefficient(gamma_lin_eta, "GAMMA_LIN_ETA")
 
       ! build implicit terms (linear damping)
 !$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, Ny
         do i = 1, Nx
-          impl_u(i, j) = 1._KDOUBLE + dt * gamma_lin_u(i, j)
-          impl_v(i, j) = 1._KDOUBLE + dt * gamma_lin_v(i, j)
-          impl_eta(i, j) = 1._KDOUBLE + dt * gamma_lin_eta(i, j)
+          self%impl_u(i, j) = 1._KDOUBLE + repo%dt * gamma_lin_u(i, j)
+          self%impl_v(i, j) = 1._KDOUBLE + repo%dt * gamma_lin_v(i, j)
+          self%impl_eta(i, j) = 1._KDOUBLE + repo%dt * gamma_lin_eta(i, j)
         end do
       end do
 !$OMP end parallel do
 
-    END SUBROUTINE SWM_damping_init
+    END function SWM_damping_init
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -129,32 +151,24 @@ MODULE swm_damping_module
     !! - "GAMMA_SQ_V" Quadratic damping coefficient in meridional momentum equation
     !! If such a namelist is found, the respective damping coefficient is set according
     !! to the namelist if the value is larger.
-    !!
-    !! @par Uses:
-    !! str, only : to_upper\n
-    !! memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
     !------------------------------------------------------------------
-    subroutine getDampingCoefficient(coef, coefName)
-      use str, only : to_upper
-      USE memchunk_module, ONLY : memoryChunk, getChunkData, initMemChunk, isInitialised, finishMemChunk
-      real(KDOUBLE), DIMENSION(:, :), intent(inout)        :: coef          !< damping coefficient
-      CHARACTER(*), INTENT(in)                             :: coefName      !< String naming the requested coefficient
-      TYPE(memoryChunk)                                    :: memChunk      !< memory chunk to load data from file
-      CHARACTER(CHARLEN)                                   :: filename=""   !< Filename of dataset
-      CHARACTER(CHARLEN)                                   :: varname=""    !< Variable of coefficient in dataset
-      CHARACTER(CHARLEN)                                   :: type=""       !< Type of coefficient. Possible values: "file", "sponge"
-      CHARACTER(CHARLEN)                                   :: term=""       !< Name of coefficient to compare with coefName
-      real(KDOUBLE)                                        :: value=0.      !< Type is "uniform": Background value
-                                                                            !< Type is "sponge": Maximum value of the sponge layer at the coast
-      real(KDOUBLE)                                        :: sl_length=1.  !< length scale of the sponge layer decay in units defined in swm_module.h.
-      real(KDOUBLE)                                        :: sl_cutoff=15. !< cutoff distance of sponge layer in units of sl_length, i.e. the cutoff distance in the same unit as sl_length is sl_cutoff * sl_length.
-      character(CHARLEN)                                   :: sl_location=""!< location of the sponge layers, combination of ("N", "S", "E", "W")
-      integer(KINT)                                        :: chunkSize=1   !< Chunksize of memory chunk. 1, because it is constant in time
-      character(1)                                         :: grid_ident="" !< Either "U", "V" or "E"
-      integer(KINT)                                        :: io_stat=0     !< io status of namelist read call
-      NAMELIST / swm_damping_nl / filename, varname, term, &            !< namelist of damping coefficient dataset
+    subroutine getDampingCoefficient(self, coef, coefName)
+      class(SwmDamping), intent(inout)              :: self
+      real(KDOUBLE), DIMENSION(:, :), intent(inout) :: coef          !< damping coefficient
+      CHARACTER(*), INTENT(in)                      :: coefName      !< String naming the requested coefficient
+      CHARACTER(CHARLEN)                            :: filename=""   !< Filename of dataset
+      CHARACTER(CHARLEN)                            :: varname=""    !< Variable of coefficient in dataset
+      CHARACTER(CHARLEN)                            :: type=""       !< Type of coefficient. Possible values: "file", "sponge"
+      CHARACTER(CHARLEN)                            :: term=""       !< Name of coefficient to compare with coefName
+      real(KDOUBLE)                                 :: value=0.      !< Type is "uniform": Background value
+                                                                     !! Type is "sponge": Maximum value of the sponge layer at the coast
+      real(KDOUBLE)                                 :: sl_length=1.  !< length scale of the sponge layer decay in units defined in swm_module.h.
+      real(KDOUBLE)                                 :: sl_cutoff=15. !< cutoff distance of sponge layer in units of sl_length, i.e. the cutoff distance in the same unit as sl_length is sl_cutoff * sl_length.
+      character(CHARLEN)                            :: sl_location=""!< location of the sponge layers, combination of ("N", "S", "E", "W")
+      character(1)                                  :: grid_ident="" !< Either "U", "V" or "E"
+      integer(KINT)                                 :: io_stat=0     !< io status of namelist read call
+      NAMELIST / swm_damping_nl / filename, varname, term, &         !< namelist of damping coefficient dataset
                  value, sl_length, sl_cutoff, sl_location, type
-
       SELECT CASE (coefName)
         CASE ("GAMMA_LIN_U")
           grid_ident = "U"
@@ -167,7 +181,7 @@ MODULE swm_damping_module
         CASE ("GAMMA_LIN_ETA")
           grid_ident = "E"
         CASE DEFAULT
-          call log_fatal("Unknow damping coefficient "//TRIM(coefName)//" requested.")
+          call self%log%fatal("Unknow damping coefficient "//TRIM(coefName)//" requested.")
       END SELECT
 
       ! read input namelists
@@ -184,15 +198,10 @@ MODULE swm_damping_module
 
         select case (type)
           case (SWM_DAMPING_NL_TYPE_SPONGE)
-            call getSpongeLayer(coef, grid_ident, sl_location, value, sl_length, sl_cutoff)
+            call self%getSpongeLayer(coef, grid_ident, sl_location, value, sl_length, sl_cutoff)
 
           case (SWM_DAMPING_NL_TYPE_FILE)
-            CALL initMemChunk(filename,varname,chunkSize,memChunk)
-            IF (.NOT.isInitialised(memChunk)) &
-              call log_fatal("Cannot load damping coefficient "//TRIM(varname)//" from file "//TRIM(filename)//"!")
-            coef = max(getChunkData(memChunk, 0._KDOUBLE), coef)
-            CALL finishMemChunk(memChunk)
-
+            call self%read_damping_coefficient(coef, filename, varname)
           case (SWM_DAMPING_NL_TYPE_UNIFORM)
             coef = max(coef, value)
           case default
@@ -213,7 +222,7 @@ MODULE swm_damping_module
       CHARACTER(CHARLEN), intent(out)  :: varname      !< Variable of coefficient in dataset
       CHARACTER(CHARLEN), intent(out)  :: type         !< Type of coefficient. Possible values: "file", "sponge"
       CHARACTER(CHARLEN), intent(out)  :: term         !< Name of coefficient to compare with coefName
-      real(KDOUBLE), intent(out)       :: value       !< Maximum value of the sponge layer at the coast
+      real(KDOUBLE), intent(out)       :: value        !< Maximum value of the sponge layer at the coast
       real(KDOUBLE), intent(out)       :: sl_length    !< length scale of the sponge layer decay in units defined in swm_module.h.
       real(KDOUBLE), intent(out)       :: sl_cutoff    !< cutoff distance of sponge layer in units of sl_length, i.e. the cutoff distance in the same unit as sl_length is sl_cutoff * sl_length.
       character(CHARLEN), intent(out)  :: sl_location  !< location of the sponge layers, combination of ("N", "S", "E", "W")
@@ -227,6 +236,24 @@ MODULE swm_damping_module
       sl_cutoff = SPONGE_CUT_OFF
       sl_location = ""
     end subroutine setDefault_swm_damping_nl
+
+
+    subroutine read_damping_coefficient(self, coef, filename, varname)
+      class(SwmDamping), intent(inout)              :: self
+      real(KDOUBLE), DIMENSION(:, :), intent(inout) :: coef     !< damping coefficient
+      character(*), intent(in)                      :: filename !< file to read from
+      character(*), intent(in)                      :: varname  !< variable to read
+      class(Reader), allocatable                    :: coef_reader
+      type(HandleArgs)                              :: args
+      real(KDOUBLE), DIMENSION(size(coef, 1), size(coef, 2)) :: new_coef
+
+      call args%add("filename", filename)
+      call args%add("varname", varname)
+      coef_reader = self%io%get_reader(args)
+      call coef_reader%read_initial_conditions(new_coef)
+      coef = max(new_coef, coef)
+      deallocate(coef_reader)
+    end subroutine read_damping_coefficient
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Parses sponge layer string and return coefficient field
@@ -249,15 +276,9 @@ MODULE swm_damping_module
     !! - meters
     !! - degrees
     !! - Radus of deformation
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : G\n
-    !! domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
     !------------------------------------------------------------------
-    subroutine getSpongeLayer(gamma, gString,posString, max_val, length, cutoff)
-      USE vars_module, ONLY : G
-      USE domain_module, ONLY : Nx, Ny, H_grid, u_grid, v_grid, eta_grid, A, OMEGA
-      IMPLICIT NONE
+    subroutine getSpongeLayer(self, gamma, gString,posString, max_val, length, cutoff)
+      class(SwmDamping), intent(in)      :: self
       !> Field of damping coefficients related to the sponge layers
       real(KDOUBLE), dimension(:, :), intent(inout) :: gamma
       !> String specifying the grid to work with. First character of this string must be one of
@@ -277,36 +298,41 @@ MODULE swm_damping_module
       real(KDOUBLE), intent(in)                :: length
       !> cutoff distance in units of length scale
       real(KDOUBLE), intent(in)                :: cutoff
-      real(KDOUBLE)                            :: lat(Ny), lon(Nx), spongeCoefficient
+      real(KDOUBLE)                            :: spongeCoefficient
+      real(KDOUBLE), dimension(:), pointer     :: lat, lon
       integer(KINT)                            :: iGrid, iBoundary, iSponge(4,3)
       real(KDOUBLE), PARAMETER                 :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
       real(KDOUBLE), PARAMETER                 :: D2R = PI/180.               !< factor to convert degree in radian
       character(CHARLEN)                       :: log_msg
+      integer(KINT)                            :: Nx, Ny
+
+      Nx = self%dom%Nx
+      Ny = self%dom%Ny
 
       iSponge = RESHAPE((/1_KINT, Ny-1, 2_KINT, Nx-1,&
                           2_KINT, Ny-1, 1_KINT, Nx-1,&
-                          1_KINT, Ny-1, 1_KINT, Nx-1/),SHAPE(iSponge))
+                          1_KINT, Ny-1, 1_KINT, Nx-1/), SHAPE(iSponge))
 
       SELECT CASE(gString(1:1))
         CASE("u","U")
           iGrid = 1
-          lat = u_grid%lat
-          lon = u_grid%lon
+          lat = self%dom%u_grid%lat
+          lon = self%dom%u_grid%lon
         CASE("v","V")
           iGrid = 2
-          lat = v_grid%lat
-          lon = v_grid%lon
+          lat = self%dom%v_grid%lat
+          lon = self%dom%v_grid%lon
         CASE("e","E")
           iGrid = 3
-          lat = eta_grid%lat
-          lon = eta_grid%lon
+          lat = self%dom%eta_grid%lat
+          lon = self%dom%eta_grid%lon
         CASE default
           WRITE (log_msg,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
-          call log_fatal(log_msg)
+          call self%log%fatal(log_msg)
       END SELECT
-      spongeCoefficient = D2R * A / length / &
+      spongeCoefficient = D2R * self%dom%A / length / &
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
-                                       (D2R*A)
+                                       (D2R * self%dom%A)
 #elif SPONGE_SCALE_UNIT == SCU_RADIUS_OF_DEFORMATION
                                        (SQRT(G*maxval(H_grid%H))/2/OMEGA/ABS(SIN(pos*D2R)))  !TODO: pos is not defined, won't work like this
 #elif SPONGE_SCALE_UNIT == SCU_METER
@@ -363,18 +389,22 @@ MODULE swm_damping_module
     !!
     !! Release memory of allocated member variables
     !------------------------------------------------------------------
-    SUBROUTINE SWM_damping_finish
-      IMPLICIT NONE
+    SUBROUTINE SWM_damping_finish(self)
+      type(SwmDamping), intent(inout) :: self
       integer(KINT) :: alloc_error
-      IF (ALLOCATED(gamma_sq_u)) THEN
-        DEALLOCATE(gamma_sq_u,stat=alloc_error)
-        IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
+      IF (associated(self%gamma_sq_u)) THEN
+        DEALLOCATE(self%gamma_sq_u, stat=alloc_error)
+        IF (alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
-      IF (ALLOCATED(gamma_sq_v)) THEN
-        DEALLOCATE(gamma_sq_v,stat=alloc_error)
-        IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
+      IF (associated(self%gamma_sq_v)) THEN
+        DEALLOCATE(self%gamma_sq_v,stat=alloc_error)
+        IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
-      DEALLOCATE(impl_u,impl_v,impl_eta,stat=alloc_error)
-      IF(alloc_error.NE.0) call log_error("Deallocation failed in "//__FILE__//":__LINE__")
+      DEALLOCATE(self%impl_u,self%impl_v,self%impl_eta,stat=alloc_error)
+      IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+      nullify(self%dom)
+      nullify(self%repo)
+      nullify(self%io)
+      nullify(self%log)
     END SUBROUTINE SWM_damping_finish
 END MODULE swm_damping_module

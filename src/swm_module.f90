@@ -17,11 +17,11 @@ MODULE swm_module
   use logging, only: Logger
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0, N0p1, Ns
-  use io_module, only: Io
+  use io_module, only: Io, HandleArgs, Reader
   use swm_vars, only: SwmState, SWM_vars_init, SWM_vars_finish
-  USE swm_damping_module
-  USE swm_forcing_module
-  USE swm_timestep_module
+  USE swm_damping_module, only: SwmDamping
+  ! USE swm_forcing_module
+  ! USE swm_timestep_module
   implicit none
   save
   private
@@ -34,29 +34,30 @@ MODULE swm_module
     class(Io), pointer :: io => null()
     class(VariableRepository), pointer :: repo => null()
 
-    type(SwmState)         :: state
+    type(SwmState)   :: state
+    type(SwmDamping) :: damping
   contains
     procedure :: initialize
     procedure :: finalize
     procedure :: step
     procedure :: advance
-    procedure, private :: init_state
+    procedure, private :: init_state, init_damping
   end type Swm
 
   CONTAINS
 
-    function make_swm_component(log, dom, repo, io) result(swm_comp)
+    function make_swm_component(log, dom, repo, io_comp) result(swm_comp)
       class(Logger), pointer, intent(in) :: log
       class(Domain), pointer, intent(in) :: dom
       class(VariableRepository), pointer, intent(in) :: repo
-      class(Io), pointer, intent(in) :: io
+      class(Io), pointer, intent(in) :: io_comp
       class(Swm), pointer :: swm_comp
       type(swm) :: concrete_swm
       allocate(swm_comp, source=concrete_swm)
       swm_comp%log => log
       swm_comp%dom => dom
       swm_comp%repo => repo
-      swm_comp%io => io
+      swm_comp%io => io_comp
     end function make_swm_component
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -72,8 +73,7 @@ MODULE swm_module
       call self%init_state()
       CALL SWM_timestep_init
       call self%log%info("swm_timestep_init done")
-      CALL SWM_damping_init
-      call self%log%info("swm_damping_init done")
+      call self%init_damping()
       CALL SWM_forcing_init
       call self%log%info("swm_forcing_init done")
       CALL SWM_initialConditions(self)
@@ -88,33 +88,40 @@ MODULE swm_module
           self%dom%u_grid, self%dom%v_grid, self%dom%eta_grid, self%dom%H_grid  &
       )
 
-      call repo%add(state%SWM_u(:, :, N0), "SWM_U", self%dom%u_grid)
-      call repo%add(state%SWM_v(:, :, N0), "SWM_V", self%dom%v_grid)
-      call repo%add(state%SWM_eta(:, :, N0), "SWM_ETA", self%dom%eta_grid)
-      CALL repo%add(state%G_u(:,:,NG0), "G_U", self%dom%u_grid)
-      CALL repo%add(state%G_v(:,:,NG0), "G_V", self%dom%v_grid)
-      CALL repo%add(state%G_eta(:,:,NG0), "G_ETA", self%dom%eta_grid)
-      CALL repo%add(state%EDens, "SWM_EDENS", self%dom%eta_grid)
-      CALL repo%add(state%Pot, "SWM_POT", self%dom%H_grid)
-      CALL repo%add(state%zeta, "SWM_RELVORT", self%dom%H_grid)
-      CALL repo%add(state%MU, "SWM_MU", self%dom%u_grid)
-      CALL repo%add(state%MV, "SWM_MV", self%dom%v_grid)
-      CALL repo%add(state%D, "SWM_D", self%dom%eta_grid)
-      CALL repo%add(state%Dh, "SWM_DH", self%dom%eta_grid)
-      CALL repo%add(state%Du, "SWM_DU", self%dom%eta_grid)
-      CALL repo%add(state%Dv, "SWM_DV", self%dom%eta_grid)
-      CALL repo%add(state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
-      CALL repo%add(state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
-      CALL repo%add(state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
-      CALL repo%add(state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
-      if (associated(state%psi_bs)) then
-        CALL repo%add(state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
-        CALL repo%add(state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
-        CALL repo%add(state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
-        CALL repo%add(state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
+      call self%repo%add(self%state%SWM_u(:, :, N0), "SWM_U", self%dom%u_grid)
+      call self%repo%add(self%state%SWM_v(:, :, N0), "SWM_V", self%dom%v_grid)
+      call self%repo%add(self%state%SWM_eta(:, :, N0), "SWM_ETA", self%dom%eta_grid)
+      CALL self%repo%add(self%state%G_u(:,:,NG0), "G_U", self%dom%u_grid)
+      CALL self%repo%add(self%state%G_v(:,:,NG0), "G_V", self%dom%v_grid)
+      CALL self%repo%add(self%state%G_eta(:,:,NG0), "G_ETA", self%dom%eta_grid)
+      CALL self%repo%add(self%state%EDens, "SWM_EDENS", self%dom%eta_grid)
+      CALL self%repo%add(self%state%Pot, "SWM_POT", self%dom%H_grid)
+      CALL self%repo%add(self%state%zeta, "SWM_RELVORT", self%dom%H_grid)
+      CALL self%repo%add(self%state%MU, "SWM_MU", self%dom%u_grid)
+      CALL self%repo%add(self%state%MV, "SWM_MV", self%dom%v_grid)
+      CALL self%repo%add(self%state%D, "SWM_D", self%dom%eta_grid)
+      CALL self%repo%add(self%state%Dh, "SWM_DH", self%dom%eta_grid)
+      CALL self%repo%add(self%state%Du, "SWM_DU", self%dom%eta_grid)
+      CALL self%repo%add(self%state%Dv, "SWM_DV", self%dom%eta_grid)
+      CALL self%repo%add(self%state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
+      CALL self%repo%add(self%state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
+      CALL self%repo%add(self%state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
+      CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
+      if (associated(self%state%psi_bs)) then
+        CALL self%repo%add(self%state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
+        CALL self%repo%add(self%state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
+        CALL self%repo%add(self%state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
+        CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
       end if
       call self%log%info("swm_vars_init done")
     end subroutine init_state
+
+
+    subroutine init_damping(self)
+      class(Swm), intent(inout) :: self
+      self%damping = self%damping%new(self%log, self%dom, self%repo, self%io)
+      call self%log%info("swm_damping_init done")
+    end subroutine init_damping
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of shallow water module
@@ -155,15 +162,15 @@ MODULE swm_module
     SUBROUTINE advance(self)
       class(Swm), intent(inout) :: self
       integer(KINT) :: i, j, Nx, Ny
-      real(KDOUBLE), dimension(:, :), pointer :: u, v, eta
+      ! real(KDOUBLE), dimension(:, :), pointer :: u, v, eta
       real(KDOUBLE), dimension(:, :, :), pointer :: swm_u, swm_v, swm_eta
 
       swm_u => self%state%SWM_u
       swm_v => self%state%SWM_v
       swm_eta => self%state%SWM_eta
-      call self%repo%get("u", u)
-      call self%repo%get("v", v)
-      call self%repo%get("eta", eta)
+      ! call self%repo%get("u", u)
+      ! call self%repo%get("v", v)
+      ! call self%repo%get("eta", eta)
 
       Nx = self%dom%Nx
       Ny = self%dom%Ny
@@ -191,28 +198,28 @@ MODULE swm_module
         end do
       end do
       !$omp end do
-      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      do j = 1, size(u, 2)
-        do i = 1, size(u, 1)
-          ! add information to master model
-          u(i, j)     = u(i, j) + SWM_u(i, j, N0)
-        end do
-      end do
-      !$omp end do
-      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      do j = 1, size(v, 2)
-        do i = 1, size(v, 1)
-          v(i, j)     = v(i, j) + SWM_v(i, j, N0)
-        end do
-      end do
-      !$omp end do
-      !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      do j = 1, size(SWM_eta, 2)
-        do i = 1, size(SWM_eta, 1)
-          eta(i, j)   = eta(i, j) + SWM_eta(i, j, N0)
-        end do
-      end do
-      !$omp end do
+      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      ! do j = 1, size(u, 2)
+      !   do i = 1, size(u, 1)
+      !     ! add information to master model
+      !     u(i, j)     = u(i, j) + SWM_u(i, j, N0)
+      !   end do
+      ! end do
+      ! !$omp end do
+      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      ! do j = 1, size(v, 2)
+      !   do i = 1, size(v, 1)
+      !     v(i, j)     = v(i, j) + SWM_v(i, j, N0)
+      !   end do
+      ! end do
+      ! !$omp end do
+      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
+      ! do j = 1, size(SWM_eta, 2)
+      !   do i = 1, size(SWM_eta, 1)
+      !     eta(i, j)   = eta(i, j) + SWM_eta(i, j, N0)
+      !   end do
+      ! end do
+      ! !$omp end do
       !$omp end parallel
       CALL SWM_timestep_advance
       CALL SWM_forcing_update
@@ -246,12 +253,34 @@ MODULE swm_module
       swm_u = 0.
       swm_v = 0.
       ! load initial conditions of dynamic fields if present
-      IF (isSetFH(self%repo%FH_eta)) CALL self%io%readInitialCondition(self%io%FH_eta, SWM_eta(:,:,N0p1))
-      IF (isSetFH(self%repo%FH_u)) CALL self%io%readInitialCondition(self%io%FH_u, SWM_u(:,:,N0p1))
-      IF (isSetFH(self%repo%FH_v)) CALL self%io%readInitialCondition(self%io%FH_v, SWM_v(:,:,N0p1))
+      ! IF (isSetFH(self%repo%FH_eta)) CALL self%io%readInitialCondition(self%io%FH_eta, SWM_eta(:,:,N0p1))
+      ! IF (isSetFH(self%repo%FH_u)) CALL self%io%readInitialCondition(self%io%FH_u, SWM_u(:,:,N0p1))
+      ! IF (isSetFH(self%repo%FH_v)) CALL self%io%readInitialCondition(self%io%FH_v, SWM_v(:,:,N0p1))
       SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
       SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
       SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)
       CALL self%advance
    END SUBROUTINE SWM_initialConditions
+
+   subroutine read_initial_conditions(eta, u, v)
+    real(KDOUBLE), dimension(:, :), intent(inout) :: eta
+    real(KDOUBLE), dimension(:, :), intent(inout) :: u
+    real(KDOUBLE), dimension(:, :), intent(inout) :: v
+    character(CHARLEN) :: file_eta_init="", varname_eta_init=""
+    character(CHARLEN) :: file_u_init="", varname_u_init=""
+    character(CHARLEN) :: file_v_init="", varname_v_init=""
+    type(HandleArgs) :: eta_args, u_args, v_args
+    namelist / model_nl / &
+      A, OMEGA, RHO0, &
+      Nx, Ny, H_overwrite, &
+      lon_s, lon_e, lat_s, lat_e, &
+      in_file_H, in_varname_H, &
+      theta0, lbc, coriolis_approx
+
+    open(UNIT_DOMAIN_NL, file = DOMAIN_NL)
+    read(UNIT_DOMAIN_NL, nml = domain_nl)
+    close(UNIT_DOMAIN_NL)
+
+    
+   end subroutine read_initial_conditions
 END MODULE swm_module
