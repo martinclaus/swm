@@ -8,7 +8,7 @@ module swm_vars
   use types
   use logging, only: Logger
   use grid_module, only: grid_t
-  use memchunk_module, ONLY : memoryChunk
+  ! use memchunk_module, ONLY : memoryChunk
   use init_vars
   implicit none
   private
@@ -40,7 +40,7 @@ module swm_vars
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: u_bs => null()     !< zonal velocity of background state
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: v_bs => null()     !< meridional velocity of background state
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: zeta_bs => null()  !< relative vorticity of background state
-    TYPE(memoryChunk)                        :: SWM_MC_bs_psi      !< Memorychunk associated with a streamfunction dataset defining the basic state
+    ! TYPE(memoryChunk)                        :: SWM_MC_bs_psi      !< Memorychunk associated with a streamfunction dataset defining the basic state
   contains
     final :: SWM_vars_finish
   end type SwmState
@@ -53,7 +53,7 @@ module swm_vars
     function SWM_vars_init(log, Ns, u_grid, v_grid, eta_grid, H_grid) result(state)
       class(Logger), pointer, intent(in) :: log  !< Pointer to Logger component
       ! integer(KINT), intent(in) :: N0  !< Index of the present time step in the time dimension of the state variables
-      integer(KINT), intent(in) :: Ns  !< Length of time dimension of the state variables
+      integer(KSHORT), intent(in) :: Ns  !< Length of time dimension of the state variables
       type(grid_t), pointer, intent(in) :: u_grid, v_grid, eta_grid, H_grid  !< Pointer to grids on which variables will be defined
       type(SwmState)  :: state
       integer(KINT)   :: Nx, Ny, alloc_error

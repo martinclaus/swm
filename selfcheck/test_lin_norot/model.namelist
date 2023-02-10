@@ -3,9 +3,12 @@
   run_length = 8.67e5, ! length of run in seconds
   dt = 25,      ! time step (s)
   meant_out=2.628e5    ! Time span in seconds for each mean step written to disk. Default is 1/12 of a 365 day year.
-  file_eta_init=""
   diag_start=0.
 &end
+
+&swm_nl
+  file_eta_init=""
+/
 
 &calendar_nl
   model_start="1945-01-01 12:00"

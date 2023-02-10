@@ -16,7 +16,6 @@ MODULE vars_module
   use app, only: Component
   use domain_module, only: Domain
   use logging, only: Logger
-  USE io_module, ONLY : fileHandle, IoComponent
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
   use str
@@ -34,9 +33,7 @@ MODULE vars_module
   type, extends(Component) :: VariableRepository
     ! dependencies
     class(Logger), pointer :: log => null()
-    class(IoComponent), pointer :: io => null()
     class(Domain), pointer :: dom => null()
-    
 
     ! Constants (default parameters), contained in model_nl
     real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
@@ -46,15 +43,6 @@ MODULE vars_module
     integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
     real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
     real(KDOUBLE)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
-
-    ! dynamic fields u, v, eta, allocated during initialization
-    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: u           !< Size Nx,Ny,Ns \n Total zonal velocity, i.e. sum of swm_timestep_module::SWM_u and velocity supplied by dynFromFile_module
-    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: v           !< Size Nx,Ny,Ns \n Total meridional velocity, i.e. sum of swm_timestep_module::SWM_v and velocity supplied by dynFromFile_module
-    real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: eta         !< Size Nx,Ny,Ns \n Total interface displacement, i.e. sum of swm_timestep_module::SWM_eta and interface displacement supplied by dynFromFile_module
-
-    TYPE(fileHandle)       :: FH_eta
-    TYPE(fileHandle)       :: FH_u
-    TYPE(fileHandle)       :: FH_v
 
     real(KDOUBLE)               :: diag_start
     integer(KINT)               :: diag_start_ind
@@ -109,14 +97,12 @@ MODULE vars_module
 
   CONTAINS
 
-    function make_variable_register(dom, io, log) result(var_reg)
+    function make_variable_register(dom, log) result(var_reg)
       class(Domain), pointer, intent(in) :: dom
-      class(IoComponent), pointer, intent(in) :: io
       class(Logger), pointer, intent(in) :: log
       class(VariableRepository), pointer :: var_reg
       allocate(var_reg)
       var_reg%log => log
-      var_reg%io => io
       var_reg%dom => dom
     end function make_variable_register
 
@@ -142,20 +128,11 @@ MODULE vars_module
       real(KDOUBLE)      :: dt = 10.                !< stepsize in time \f$[s]\f$.
       real(KDOUBLE)      :: meant_out = 2.628e6     !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
       real(KDOUBLE)      :: diag_start
-      CHARACTER(CHARLEN) :: file_eta_init=""        !< File containing initial condition for interface displacement. Last timestep of dataset used.
-      CHARACTER(CHARLEN) :: varname_eta_init="ETA"  !< Variable name of interface displacement in its initial condition dataset
-      CHARACTER(CHARLEN) :: file_u_init=""          !< File containing initial condition for zonal velocity. Last timestep of dataset used.
-      CHARACTER(CHARLEN) :: varname_u_init="U"      !< Variable name of zonal velocity in its initial condition dataset
-      CHARACTER(CHARLEN) :: file_v_init=""          !< File containing initial condition for meridional velocity. Last timestep of dataset used.
-      CHARACTER(CHARLEN) :: varname_v_init="V"      !< Variable name of meridional velocity in its initial condition dataset
       ! definition of the namelist
       namelist / model_nl / &
         G, Ah, & !friction parameter
         run_length, &
         dt, meant_out, & ! time step and mean step
-        file_eta_init,varname_eta_init, & ! Initial condition for interface displacement
-        file_u_init,varname_u_init, & ! Initial condition for zonal velocity
-        file_v_init, varname_v_init, & ! Initial condition for meridionl velocity
         diag_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)
@@ -176,40 +153,19 @@ MODULE vars_module
       ! set time index of diagnostics start
       self%diag_start_ind = int(diag_start / dt)
 
-      ! allocate vars depending on Nx, Ny, Ns
-      allocate(self%u(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
-      allocate(self%v(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
-      allocate(self%eta(1:self%dom%Nx, 1:self%dom%Ny, 1:Ns))
-
       ! start time loop
       self%itt = 0
-
-      ! init dynamical variables
-      call initVar(self%u, 0._KDOUBLE)
-      call initVar(self%v, 0._KDOUBLE)
-      call initVar(self%eta, 0._KDOUBLE)
-
-      ! add vars_module variables to variable register
-      CALL self%add(self%u(:,:,N0),"U", self%dom%u_grid)
-      CALL self%add(self%v(:,:,N0),"V", self%dom%v_grid)
-      CALL self%add(self%eta(:,:,N0),"ETA", self%dom%eta_grid)
 
       ! add data from domain module to register  
       CALL self%add(self%dom%H_grid%H, "H", self%dom%H_grid)
       CALL self%add(self%dom%u_grid%H, "H_u", self%dom%u_grid)
       CALL self%add(self%dom%v_grid%H,"H_v", self%dom%v_grid)
       CALL self%add(self%dom%eta_grid%H,"H_eta", self%dom%eta_grid)
-
-      CALL self%io%initFH(file_eta_init,varname_eta_init,self%FH_eta)
-      CALL self%io%initFH(file_u_init,varname_u_init,self%FH_u)
-      CALL self%io%initFH(file_v_init,varname_v_init,self%FH_v)
     END SUBROUTINE initVars
 
     subroutine finishVars(self)
       class(VariableRepository), intent(inout) :: self
-      deallocate(self%u, self%v, self%eta)
       nullify(self%dom)
-      nullify(self%io)
       nullify(self%log)
     end subroutine finishVars
 

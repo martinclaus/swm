@@ -36,6 +36,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define OUTPUT_NL MODEL_NL
 #define TRACER_NL MODEL_NL
 #define DYNFROMFILE_NL MODEL_NL
+#define SWM_NL MODEL_NL
 #define SWM_FORCING_NL MODEL_NL
 #define SWM_DAMPING_NL MODEL_NL
 #define DIAG_NL MODEL_NL
@@ -54,6 +55,7 @@ Header file for shallow water model. Meant to set Input/Output constants
 #define UNIT_DOMAIN_NL 24
 #define UNIT_CALENDAR_NL 25
 #define UNIT_LOGGING_NL 26
+#define UNIT_SWM_NL 27
 
 /* Log file unit identifier */
 #define UNIT_LOGFILE 100

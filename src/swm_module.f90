@@ -12,13 +12,14 @@
 !! swm_timestep_module\n
 !------------------------------------------------------------------
 MODULE swm_module
+#include "io.h"
   use types
   use app, only: Component
   use logging, only: Logger
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0, N0p1, Ns
   use io_module, only: Io, HandleArgs, Reader
-  use swm_vars, only: SwmState, SWM_vars_init, SWM_vars_finish
+  use swm_vars, only: SwmState, SWM_vars_init, SWM_vars_finish, NG0
   USE swm_damping_module, only: SwmDamping
   ! USE swm_forcing_module
   ! USE swm_timestep_module
@@ -41,7 +42,7 @@ MODULE swm_module
     procedure :: finalize
     procedure :: step
     procedure :: advance
-    procedure, private :: init_state, init_damping
+    procedure, private :: init_state, init_damping, read_initial_conditions, read_initial_field
   end type Swm
 
   CONTAINS
@@ -113,6 +114,8 @@ MODULE swm_module
         CALL self%repo%add(self%state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
         CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
       end if
+
+      call self%read_initial_conditions()
       call self%log%info("swm_vars_init done")
     end subroutine init_state
 
@@ -262,25 +265,48 @@ MODULE swm_module
       CALL self%advance
    END SUBROUTINE SWM_initialConditions
 
-   subroutine read_initial_conditions(eta, u, v)
-    real(KDOUBLE), dimension(:, :), intent(inout) :: eta
-    real(KDOUBLE), dimension(:, :), intent(inout) :: u
-    real(KDOUBLE), dimension(:, :), intent(inout) :: v
+   subroutine read_initial_conditions(self)
+    class(Swm), intent(inout) :: self
     character(CHARLEN) :: file_eta_init="", varname_eta_init=""
     character(CHARLEN) :: file_u_init="", varname_u_init=""
     character(CHARLEN) :: file_v_init="", varname_v_init=""
-    type(HandleArgs) :: eta_args, u_args, v_args
-    namelist / model_nl / &
-      A, OMEGA, RHO0, &
-      Nx, Ny, H_overwrite, &
-      lon_s, lon_e, lat_s, lat_e, &
-      in_file_H, in_varname_H, &
-      theta0, lbc, coriolis_approx
+    namelist / swm_nl / &
+        file_eta_init, varname_eta_init, & ! Initial condition for interface displacement
+        file_u_init, varname_u_init, & ! Initial condition for zonal velocity
+        file_v_init, varname_v_init    ! Initial condition for meridionl velocity
 
-    open(UNIT_DOMAIN_NL, file = DOMAIN_NL)
-    read(UNIT_DOMAIN_NL, nml = domain_nl)
-    close(UNIT_DOMAIN_NL)
+    open(UNIT_SWM_NL, file = SWM_NL)
+    read(UNIT_SWM_NL, nml = swm_nl)
+    close(UNIT_SWM_NL)
 
-    
+    if (len(trim(file_eta_init)) .ne. 0) &
+      call self%read_initial_field(  &
+        self%state%SWM_eta(:, :, N0), file_eta_init, varname_eta_init  &
+      )
+    if (len(trim(file_u_init)) .ne. 0) &
+    call self%read_initial_field(  &
+      self%state%SWM_u(:, :, N0), file_u_init, varname_u_init  &
+    )
+    if (len(trim(file_v_init)) .ne. 0) &
+    call self%read_initial_field(  &
+      self%state%SWM_v(:, :, N0), file_v_init, varname_v_init  &
+    )
    end subroutine read_initial_conditions
+
+   subroutine read_initial_field(self, var, filename, varname)
+    class(Swm), intent(inout)                     :: self
+    real(KDOUBLE), DIMENSION(:, :), intent(inout) :: var      !< buffer to write to
+    character(*), intent(in)                      :: filename !< file to read from
+    character(*), intent(in)                      :: varname  !< variable to read
+    class(Reader), allocatable                    :: var_reader
+    type(HandleArgs)                              :: args
+
+    call args%add("filename", filename)
+    call args%add("varname", varname)
+    var_reader = self%io%get_reader(args)
+    call var_reader%read_initial_conditions(var)
+    deallocate(var_reader)
+  end subroutine
+
+
 END MODULE swm_module
