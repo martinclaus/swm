@@ -8,18 +8,23 @@
 !! io.h
 !!
 !! @par Uses:
-!! io_module
+!! logging \n
+!! types \n
+!! init_vars \n
+!! io_module, only: Io, Reader \n
+!! calc_lib, only : interpolate \n
 !------------------------------------------------------------------
 MODULE memchunk_module
 #include "io.h"
   use logging
   use types
   use init_vars
-  USE io_module, only: Io, Reader
-  IMPLICIT NONE
-  PRIVATE
+  use io_module, only: Io, Reader
+  use calc_lib, only : interpolate
+  implicit none
+  private
 
-  PUBLIC :: MemoryChunk
+  public :: MemoryChunk
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Type to handle data requests from disk
@@ -31,7 +36,7 @@ MODULE memchunk_module
   !! For now, only dataset with regularly spaced time axis are supported propperly.
   !! If the time axis is irregular, it will be assumed that \f$dt=(t_{last}-t_{first})/(n_t-1)\f$.
   !------------------------------------------------------------------
-  TYPE :: memoryChunk
+  TYPE :: MemoryChunk
     private
     class(Reader), allocatable    :: handle                  !< File handle pointing to a existing file.
     LOGICAL                       :: isPersistent=.FALSE.    !< .TRUE. if complete variable fits into chunksize. No dynamic reloading of data needed.
@@ -45,7 +50,8 @@ MODULE memchunk_module
     integer(KINT)                 :: chunkSize=1             !< Length of time chunk.
     integer(KINT)                 :: nFpC                    !< how often does the file completely fit into the chunk
   contains
-    procedure, private :: get_dt, is_constant, is_persistent
+    procedure, private :: get_dt, is_persistent
+    procedure :: is_constant, display, get=>getChunkData
     final :: finishMemChunk
   END TYPE
 
@@ -79,7 +85,7 @@ MODULE memchunk_module
     function initMemChunk(handle, shape) result(memChunk)
       class(Reader), intent(in)               :: handle       !< Reader handle to wrap
       integer(KINT), dimension(3), intent(in) :: shape        !< Shape of the buffer (/Nx, Ny, chunk_size/)
-      TYPE(memoryChunk)                       :: memChunk     !< object to construct
+      TYPE(MemoryChunk)                       :: memChunk     !< object to construct
       integer(KINT)  :: nrec         !< length of dataset
       integer(KINT)  :: alloc_error  !< return value of allocation command
       integer(KINT)  :: Nx, Ny       !< Horizontal domain size
@@ -114,18 +120,18 @@ MODULE memchunk_module
       ALLOCATE(memChunk%var(1:Nx, 1:Ny, 1:memChunk%chunkSize), &
                memChunk%time(1:memChunk%chunkSize), &
                stat=alloc_error)
-      IF (alloc_error.NE.0) call log_alloc_fatal(__FILE__,__LINE__)
+      IF (alloc_error.NE.0) call memchunk%handle%io_comp%log%fatal_alloc(__FILE__,__LINE__)
       call initVar(memChunk%var, 0._KDOUBLE)
       memChunk%time = 0.
       CALL readChunk(memChunk, .true.)
-      memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize)/nrec), 1)
+      memChunk%nFpC = MAX(floor(REAL(memChunk%chunkSize) / nrec), 1)
     END function initMemChunk
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of a memoryChunk
     !------------------------------------------------------------------
     SUBROUTINE finishMemChunk(self)
-      TYPE(memoryChunk), intent(inout)  :: self     !< memoryChunk to destroy
+      TYPE(MemoryChunk), intent(inout)  :: self     !< memoryChunk to destroy
       if (allocated(self%var)) deallocate(self%var)
       if (allocated(self%time)) deallocate(self%time)
       if (allocated(self%handle)) deallocate(self%handle)
@@ -144,7 +150,7 @@ MODULE memchunk_module
     !! than one time step, the time axis of the input is reconstructed.
     !------------------------------------------------------------------
     SUBROUTINE readChunk(memChunk, first_read)
-      TYPE(memoryChunk), intent(inout) :: memChunk
+      TYPE(MemoryChunk), intent(inout) :: memChunk
       logical, optional, intent(in)    :: first_read
       integer(KINT)  :: i
       logical        :: is_first_read=.false.
@@ -175,8 +181,7 @@ MODULE memchunk_module
     !! TODO: Fix for streaming input
     !------------------------------------------------------------------
     RECURSIVE SUBROUTINE readVarChunk(memChunk,var,nstart,len)
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout)       :: memChunk !< memory chunk to work with
+      TYPE(MemoryChunk), INTENT(inout)       :: memChunk !< memory chunk to work with
       real(KDOUBLE), DIMENSION(:,:,:), INTENT(out) :: var      !< data read
       integer(KINT), INTENT(inout)                 :: nstart   !< start index in time
       integer(KINT), INTENT(in)                    :: len      !< length of stripe to read
@@ -211,40 +216,36 @@ MODULE memchunk_module
     !! not exacly match the time value of the datasets time axis, the data will
     !! be linearly interpolated onto the requested time using calc_lib::interpolate.
     !!
-    !! @par Uses:
-    !! calc_lib, ONLY : interpolate
     !! @note The requested time must always be greater than the time requested at the
     !! last call of this routine.
     !------------------------------------------------------------------
-    FUNCTION getChunkData(memChunk,time)
-      USE calc_lib, ONLY : interpolate
-      IMPLICIT NONE
-      TYPE(memoryChunk), INTENT(inout)  :: memChunk !< Chunk to get data from
+    FUNCTION getChunkData(self, time)
+      class(MemoryChunk), INTENT(inout)  :: self !< Chunk to get data from
       real(KDOUBLE), INTENT(in)               :: time     !< time of the data in units of the internal model calendar, i.e. seconds since model start.
-      real(KDOUBLE), DIMENSION(1:size(memChunk%var,1),1:size(memChunk%var,2)) :: getChunkData !< 2D data slice.
-      IF (is_constant(memChunk)) THEN
-        getChunkData = memChunk%var(:,:,1)
+      real(KDOUBLE), DIMENSION(1:size(self%var,1),1:size(self%var,2)) :: getChunkData !< 2D data slice.
+      IF (is_constant(self)) THEN
+        getChunkData = self%var(:,:,1)
         RETURN
       END IF
       ! load new data if necessary
-      IF (memChunk%chunkCounter.GE.memChunk%chunkSize) THEN
-        CALL readChunk(memChunk)
+      IF (self%chunkCounter.GE.self%chunkSize) THEN
+        CALL readChunk(self)
       END IF
       ! advance through chunk to find the right position
-      DO WHILE (memChunk%time(memChunk%chunkCounter+1).LT.time)
-        memChunk%chunkCounter = memChunk%chunkCounter + 1
+      DO WHILE (self%time(self%chunkCounter+1).LT.time)
+        self%chunkCounter = self%chunkCounter + 1
         ! load new data if necessary
-        IF (memChunk%chunkCounter.GE.memChunk%chunkSize) THEN
-          CALL readChunk(memChunk)
+        IF (self%chunkCounter.GE.self%chunkSize) THEN
+          CALL readChunk(self)
         END IF
       END DO
-      IF (time.EQ.memChunk%time(memChunk%chunkCounter)) THEN
-        getChunkData = memChunk%var(:,:,memChunk%chunkCounter)
+      IF (time.EQ.self%time(self%chunkCounter)) THEN
+        getChunkData = self%var(:,:,self%chunkCounter)
       ELSE
-        getChunkData = interpolate(memChunk%var(:,:,memChunk%chunkCounter),&
-                                   memChunk%var(:,:,memChunk%chunkCounter+1),&
-                                   memChunk%time(memChunk%chunkCounter),&
-                                   memChunk%time(memChunk%chunkCounter+1),&
+        getChunkData = interpolate(self%var(:,:,self%chunkCounter),&
+                                   self%var(:,:,self%chunkCounter+1),&
+                                   self%time(self%chunkCounter),&
+                                   self%time(self%chunkCounter+1),&
                                    time)
       END IF
       RETURN
@@ -259,13 +260,13 @@ MODULE memchunk_module
     !! axis and it resolution, i.e.
     !! \f[
     !! dt = \frac{t_{end}-t_{start}}{n-1}
-    !!\f]
-    ! 
-    ! Note: this will fail for streaming input!!!
-    ! TODO: Fix for streaming input, i.e. where nrec < 0
+    !! \f]
+    !! 
+    !! @note: this will fail for streaming input!!!
+    !! TODO: Fix for streaming input, i.e. where nrec < 0
     !------------------------------------------------------------------
     real(KDOUBLE) FUNCTION get_dt(self) RESULT(dt)
-      class(memoryChunk), INTENT(inout)   :: self   !< Memory chunk to work with
+      class(MemoryChunk), INTENT(inout)   :: self   !< Memory chunk to work with
       real(KDOUBLE)                      :: tmin(1), tmax(1)
       integer(KINT)                      :: nrec
       IF (self%dt .lt. 0) THEN
@@ -290,7 +291,7 @@ MODULE memchunk_module
     !! dataset, i.e. dataset has no time axis or it has a length of one.
     !------------------------------------------------------------------
     LOGICAL FUNCTION is_constant(self) RESULT(constant)
-      class(memoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
+      class(MemoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
       constant = self%isConstant
     END FUNCTION is_constant
 
@@ -301,9 +302,16 @@ MODULE memchunk_module
     !! further read operations are required.
     !------------------------------------------------------------------
     LOGICAL FUNCTION is_persistent(self) RESULT(persistent)
-      class(memoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
+      class(MemoryChunk), INTENT(in) :: self     !< Memory chunk to inquire
       persistent = self%isPersistent
     END FUNCTION is_persistent
+
+    !> Returns a human readable description of the streamed data
+    function display(self) result(string)
+      class(MemoryChunk), intent(in) :: self
+      character(CHARLEN) :: string
+      string = self%handle%display()
+    end function display
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Returns the length of the chunk

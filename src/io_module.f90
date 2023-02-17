@@ -1,5 +1,5 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!> @brief Interface to netcdf library
+!> @brief Abstract API for IO components
 !! @author Martin Claus (mclaus@geomar.de)
 !!
 !! This module provides functions to interface the Fortran netcdf library.
@@ -9,7 +9,12 @@
 !! io.h
 !!
 !! @par Uses:
-!! netcdf, clendar_module, grid_module, logging, types, grid_module
+!! types \n
+!! app, only: Component \n
+!! calendar_module, ONLY : calendar, openCal, closeCal \n
+!! grid_module, only: grid_t, t_grid_lagrange \n
+!! logging, only: Logger \n
+!! list_mod, only: List, ListIterator \n
 !------------------------------------------------------------------
 MODULE io_module
 #include "io.h"

@@ -91,8 +91,8 @@ module app
     end type DefaultApp
 
     type, extends(AbstractAppBuilder) :: DefaultAppBuilder
-        contains
-            procedure, pass :: build => build_impl
+    contains
+        procedure, pass :: build => build_impl
     end type DefaultAppBuilder
 
     type, extends(List) :: ComponentList

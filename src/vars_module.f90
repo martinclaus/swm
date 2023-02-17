@@ -8,7 +8,13 @@
 !! io.h
 !!
 !! @par Uses:
-!! types, app, domian_module, logging, generic_list, grid_module, io_module, str, init_vars 
+!! types \n
+!! app, only: Component \n
+!! domain_module, only: Domain \n
+!! logging, only: Logger \n
+!! generic_list \n
+!! grid_module, only : t_grid_lagrange, grid_t \n
+!! str \n
 !------------------------------------------------------------------
 MODULE vars_module
 #include "io.h"
@@ -19,7 +25,6 @@ MODULE vars_module
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
   use str
-  use init_vars, ONLY : initVar
   IMPLICIT NONE
   private
 
@@ -58,6 +63,7 @@ MODULE vars_module
     procedure :: finalize => finishVars
     procedure :: step => do_nothing
     procedure :: advance => do_nothing
+    procedure :: elapsed_time
     procedure, private :: add3dToRegister, add2dToRegister, add1dToRegister  !< Subroutines to add variables with different dimensions to the register
     generic :: add => add1dToRegister, add2dToRegister, add3dToRegister  !< Adds variables to the register
     procedure, private :: get3DFromRegister, get2DFromRegister, get1DFromRegister  !< Subroutines to get variables with different dimensions from the register
@@ -419,5 +425,14 @@ MODULE vars_module
       IF (ASSOCIATED(var%grid)) grid => var%grid
       if (associated(var%grid_l)) grid_l => var%grid_l
     END SUBROUTINE get1DFromRegister
+
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    !> @brief Time elapsed in seconds since model start
+    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    function elapsed_time(self) result(time)
+      class(VariableRepository), intent(in) :: self
+      real(KDOUBLE) :: time
+      time = self%itt * self%dt      
+    end function elapsed_time
 
 END MODULE vars_module
