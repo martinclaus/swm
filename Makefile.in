@@ -193,8 +193,8 @@ clean-conf:
 	@rm -fv Makefile
 
 clean :
-	@rm -fv $(builddir)*
-	@rm -fv $(bindir)*
+	@rm -rfv $(builddir)*
+	@rm -rfv $(bindir)*
 
 clean-doc :
 	@rm -rvf $(docdir)latex $(docdir)html $(docdir)doxygen_objdb_*
