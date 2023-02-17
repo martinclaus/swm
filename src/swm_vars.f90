@@ -2,19 +2,26 @@
 !> @brief  Module containing the free variables of the shallow water model
 !!
 !! This module holds the dynamical variables of the shallow water model.
+!!
+!! @par Includes:
+!! model.h
+!! @par Uses:
+!! types \n
+!! logging, only: Logger \n
+!! grid_module, only: grid_t \n
+!! init_vars \n
 !------------------------------------------------------------------
 module swm_vars
 #include "model.h"
   use types
   use logging, only: Logger
   use grid_module, only: grid_t
-  ! use memchunk_module, ONLY : memoryChunk
   use init_vars
   implicit none
   private
-  public SwmState, &
-         SWM_vars_init, SWM_vars_finish, &
-         NG0, NG0m1, NG
+  
+  public :: SwmState, new, NG0, NG0m1, NG
+  
   integer(KINT), PARAMETER                             :: NG=3        !< maximal level of timestepping. Increments stored in memory
   integer(KINT), PARAMETER                             :: NG0=NG      !< Index of newest increment
   integer(KINT), PARAMETER                             :: NG0m1=NG0-1 !< Index of n-1 level
@@ -35,13 +42,21 @@ module swm_vars
     real(KDOUBLE), DIMENSION(:,:), pointer   :: zeta => null()     !< relative vorticity
     real(KDOUBLE), DIMENSION(:,:), pointer   :: MV => null()       !< meridional mass flux
     real(KDOUBLE), DIMENSION(:,:), pointer   :: MU => null()       !< zonal mass flux
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: F_u => null()      !< zonal body forces
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: F_v => null()      !< meridional body forces
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: F_eta => null()    !< forcing in continuity equation
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: diss_u => null()   !< implicit zonal momentum dissipation
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: diss_v => null()   !< implicit meridional momentum dissipation
+    real(KDOUBLE), DIMENSION(:,:), pointer   :: diss_eta => null() !< implicit dissipation in continuity equation
     real(KDOUBLE)                            :: minD=1._KDOUBLE    !< Minimum layer thickness
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: psi_bs => null()   !< backround state streamfunction
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: u_bs => null()     !< zonal velocity of background state
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: v_bs => null()     !< meridional velocity of background state
     real(KDOUBLE), DIMENSION(:,:,:), pointer :: zeta_bs => null()  !< relative vorticity of background state
-    ! TYPE(memoryChunk)                        :: SWM_MC_bs_psi      !< Memorychunk associated with a streamfunction dataset defining the basic state
+    real(KDOUBLE), dimension(:,:), pointer   :: latmix_u       !< zonal momentum trend due to lateral mixing
+    real(KDOUBLE), dimension(:,:), pointer   :: latmix_v       !< meridional momentum trend due to lateral mixing
   contains
+    procedure, nopass :: new
     final :: SWM_vars_finish
   end type SwmState
 
@@ -50,7 +65,7 @@ module swm_vars
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialises the free variables of the shallow water model
     !------------------------------------------------------------------
-    function SWM_vars_init(log, Ns, u_grid, v_grid, eta_grid, H_grid) result(state)
+    function new(log, Ns, u_grid, v_grid, eta_grid, H_grid) result(state)
       class(Logger), pointer, intent(in) :: log  !< Pointer to Logger component
       ! integer(KINT), intent(in) :: N0  !< Index of the present time step in the time dimension of the state variables
       integer(KSHORT), intent(in) :: Ns  !< Length of time dimension of the state variables
@@ -82,6 +97,22 @@ module swm_vars
       call initVar(state%MU, 0._KDOUBLE)
       call initVar(state%MV, 0._KDOUBLE)
 
+      allocate(state%F_u(1:Nx, 1:Ny), state%F_v(1:Nx, 1:Ny), state%F_eta(1:Nx, 1:Ny), stat=alloc_error)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
+      call initVar(state%F_u, 0._KDOUBLE)
+      call initVar(state%F_v, 0._KDOUBLE)
+      call initVar(state%F_eta, 0._KDOUBLE)
+
+      allocate(state%diss_u(1:Nx, 1:Ny), state%diss_v(1:Nx, 1:Ny), state%diss_eta(1:Nx, 1:Ny), stat=alloc_error)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
+      call initVar(state%diss_u, 1._KDOUBLE)
+      call initVar(state%diss_v, 1._KDOUBLE)
+      call initVar(state%diss_eta, 1._KDOUBLE)
+
+      allocate(state%latmix_u(1:Nx, 1:Ny), state%latmix_v(1:Nx, 1:Ny), stat=alloc_error)
+      call initVar(state%latmix_u, 0._KDOUBLE)
+      call initVar(state%latmix_v, 0._KDOUBLE)
+
 #if defined FULLY_NONLINEAR
       ALLOCATE(state%D(1:Nx, 1:Ny), state%Dh(1:Nx, 1:Ny), state%Du(1:Nx, 1:Ny), state%Dv(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
@@ -104,7 +135,7 @@ module swm_vars
       call initVar(state%v_bs, 0._KDOUBLE)
       call initVar(state%zeta_bs, 0._KDOUBLE)
 #endif
-    end function SWM_vars_init
+    end function new
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Frees memory allocated for the free variables of the shallow water model
@@ -126,6 +157,11 @@ module swm_vars
       if (associated(self%Du)) deallocate(self%Du)
       if (associated(self%Dv)) deallocate(self%Dv)
       if (associated(self%Dh)) deallocate(self%Dh)
+      if (associated(self%F_u)) deallocate(self%F_u)
+      if (associated(self%F_v)) deallocate(self%F_v)
+      if (associated(self%F_eta)) deallocate(self%F_eta)
+      if (associated(self%latmix_u)) deallocate(self%latmix_u)
+      if (associated(self%latmix_v)) deallocate(self%latmix_v)
       if (associated(self%psi_bs)) deallocate(self%psi_bs)
       if (associated(self%u_bs)) deallocate(self%u_bs)
       if (associated(self%v_bs)) deallocate(self%v_bs)

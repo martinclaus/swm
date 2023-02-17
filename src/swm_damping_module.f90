@@ -7,7 +7,17 @@
 !! equation.
 !!
 !! @par Includes:
-!! model.h, swm_module.h
+!! model.h, swm_module.h, io.h
+!!
+!! @par Uses:
+!! types \n
+!! logging, only: Logger \n
+!! domain_module, only: Domain \n
+!! vars_module, only: VariableRepository \n
+!! swm_vars, only: SwmState \n
+!! init_vars \n
+!! str, only : to_upper \n
+!! io_module, only: Io, Reader, HandleArgs \n
 !------------------------------------------------------------------
 MODULE swm_damping_module
 #include "model.h"
@@ -17,13 +27,14 @@ MODULE swm_damping_module
   use logging, only: Logger
   use domain_module, only: Domain
   use vars_module, only: VariableRepository
+  use swm_vars, only: SwmState
   use init_vars
   use str, only : to_upper
   use io_module, only: Io, Reader, HandleArgs
-  IMPLICIT NONE
-  PRIVATE
+  implicit none
+  private
 
-  PUBLIC :: SwmDamping
+  public :: SwmDamping
 
   type :: SwmDamping
     class(Logger), private, pointer :: log => null()
@@ -36,7 +47,7 @@ MODULE swm_damping_module
     real(KDOUBLE), DIMENSION(:,:), pointer   :: gamma_sq_v  !< Coefficient for explicit quadratic damping of the meridional momentum budged
     real(KDOUBLE), DIMENSION(:,:), pointer   :: gamma_sq_u  !< Coefficient for explicit quadratic damping of the meridional zonal budged
   contains
-    procedure, nopass :: new => SWM_damping_init
+    procedure, nopass :: new
     procedure, private :: getDampingCoefficient, getSpongeLayer, read_damping_coefficient
     final :: SWM_damping_finish
   end type SwmDamping
@@ -49,11 +60,12 @@ MODULE swm_damping_module
     !! and/or explicit quadratic damping. If the model is set to be BAROTROPIC,
     !! the damping coefficients are scaled with the depth.
     !------------------------------------------------------------------
-    function SWM_damping_init(log, dom, repo, io_comp) result(self)
-      class(Logger), pointer, intent(in) :: log
-      class(Domain), pointer, intent(in) :: dom
-      class(VariableRepository), pointer, intent(in) :: repo
-      class(Io), pointer, intent(in) :: io_comp
+    function new(log, dom, repo, io_comp, state) result(self)
+      class(Logger), target, intent(in) :: log
+      class(Domain), target, intent(in) :: dom
+      class(VariableRepository), target, intent(in) :: repo
+      class(Io), target, intent(in) :: io_comp
+      class(SwmState), target, intent(in) :: state
       type(SwmDamping)  :: self
       integer(KINT) :: alloc_error
       real(KDOUBLE), DIMENSION(:,:), POINTER :: gamma_lin_u => null() , &
@@ -67,22 +79,16 @@ MODULE swm_damping_module
       self%repo => repo
       self%io => io_comp
 
+      self%impl_eta => state%diss_eta
+      self%impl_u => state%diss_u
+      self%impl_v => state%diss_v
+
       ocean_u => self%dom%u_grid%ocean
       ocean_v => self%dom%v_grid%ocean
       Nx = self%dom%Nx
       Ny = self%dom%Ny
 
       ! allocate memory
-      allocate(self%impl_u(1:Nx, 1:Ny), self%impl_v(1:Nx, 1:Ny), self%impl_eta(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__,__LINE__)
-
-      call initVar(self%impl_u, 1._KDOUBLE)
-      call initVar(self%impl_v, 1._KDOUBLE)
-      call initVar(self%impl_eta, 1._KDOUBLE)
-      CALL self%repo%add(self%impl_u, "IMPL_U", self%dom%u_grid)
-      CALL self%repo%add(self%impl_v, "IMPL_V", self%dom%v_grid)
-      CALL self%repo%add(self%impl_eta, "IMPL_ETA", self%dom%eta_grid)
-
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
       IF (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__,__LINE__)
@@ -136,7 +142,7 @@ MODULE swm_damping_module
       end do
 !$OMP end parallel do
 
-    END function SWM_damping_init
+    END function new
 
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

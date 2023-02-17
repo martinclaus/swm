@@ -1,15 +1,22 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!> @brief  Root module of the Shallow water modules
+!> @brief  Root module of the Shallow water Component
 !! @author Martin Claus, mclaus@geomar.de
 !! @author Willi Rath, wrath@geomar.de
 !!
 !! This module controlls the integration of the shallow water equations.
 !!
 !! @par Uses:
-!! swm_vars\n
-!! swm_damping_module\n
-!! swm_forcing_module\n
-!! swm_timestep_module\n
+!!  types \n
+!!  app, only: Component \n
+!!  logging, only: Logger \n
+!!  domain_module, only: Domain \n
+!!  vars_module, only: VariableRepository, N0, N0p1, Ns \n
+!!  io_module, only: Io, HandleArgs, Reader \n
+!!  calc_lib, only: Calc \n
+!!  swm_vars, only: SwmState, new, NG0 \n
+!!  swm_forcing_module, only: SwmForcing \n
+!!  swm_damping_module, only: SwmDamping \n
+!!  swm_timestep_module, only: SwmTimeStep \n
 !------------------------------------------------------------------
 MODULE swm_module
 #include "io.h"
@@ -19,10 +26,11 @@ MODULE swm_module
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0, N0p1, Ns
   use io_module, only: Io, HandleArgs, Reader
-  use swm_vars, only: SwmState, SWM_vars_init, SWM_vars_finish, NG0
+  use calc_lib, only: Calc
+  use swm_vars, only: SwmState, new, NG0
+  USE swm_forcing_module, only: SwmForcing
   USE swm_damping_module, only: SwmDamping
-  ! USE swm_forcing_module
-  ! USE swm_timestep_module
+  USE swm_timestep_module, only: SwmTimeStep
   implicit none
   save
   private
@@ -34,24 +42,30 @@ MODULE swm_module
     class(Domain), pointer :: dom => null()
     class(Io), pointer :: io => null()
     class(VariableRepository), pointer :: repo => null()
+    class(Calc), pointer :: calc => null()
 
-    type(SwmState)   :: state
-    type(SwmDamping) :: damping
+    type(SwmState)    :: state
+    type(SwmDamping)  :: damping
+    type(SwmForcing)  :: forcing
+    type(SwmTimeStep) :: timestep
   contains
     procedure :: initialize
     procedure :: finalize
     procedure :: step
     procedure :: advance
-    procedure, private :: init_state, init_damping, read_initial_conditions, read_initial_field
+    procedure, private :: init_state, init_timestep, init_damping, init_forcing, &
+                          register_state_variables, &
+                          read_initial_conditions, read_initial_field
   end type Swm
 
   CONTAINS
 
-    function make_swm_component(log, dom, repo, io_comp) result(swm_comp)
-      class(Logger), pointer, intent(in) :: log
-      class(Domain), pointer, intent(in) :: dom
-      class(VariableRepository), pointer, intent(in) :: repo
-      class(Io), pointer, intent(in) :: io_comp
+    function make_swm_component(log, dom, repo, io_comp, calc_comp) result(swm_comp)
+      class(Logger), target, intent(in) :: log
+      class(Domain), target, intent(in) :: dom
+      class(VariableRepository), target, intent(in) :: repo
+      class(Io), target, intent(in) :: io_comp
+      class(Calc), target, intent(in) :: calc_comp
       class(Swm), pointer :: swm_comp
       type(swm) :: concrete_swm
       allocate(swm_comp, source=concrete_swm)
@@ -59,6 +73,7 @@ MODULE swm_module
       swm_comp%dom => dom
       swm_comp%repo => repo
       swm_comp%io => io_comp
+      swm_comp%calc => calc_comp
     end function make_swm_component
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -72,23 +87,45 @@ MODULE swm_module
     SUBROUTINE initialize(self)
       class(swm), intent(inout) :: self
       call self%init_state()
-      CALL SWM_timestep_init
-      call self%log%info("swm_timestep_init done")
+      CALL self%init_timestep()
       call self%init_damping()
-      CALL SWM_forcing_init
-      call self%log%info("swm_forcing_init done")
-      CALL SWM_initialConditions(self)
+      CALL self%init_forcing()
     END SUBROUTINE initialize
     
     
     subroutine init_state(self)
       class(Swm), intent(inout) :: self
 
-      self%state = swm_vars_init( &
+      self%state = self%state%new( &
           self%log, Ns, &
           self%dom%u_grid, self%dom%v_grid, self%dom%eta_grid, self%dom%H_grid  &
       )
+      call self%register_state_variables()
 
+      call self%read_initial_conditions()
+      call self%log%info("swm_vars_init done")
+    end subroutine init_state
+
+    subroutine init_timestep(self)
+      class(Swm), intent(inout) :: self
+      self%timestep = self%timestep%new(self%log, self%dom, self%io, self%repo, self%calc, self%state)
+      call self%log%info("swm_timestep_init done")      
+    end subroutine init_timestep
+
+    subroutine init_damping(self)
+      class(Swm), intent(inout) :: self
+      self%damping = self%damping%new(self%log, self%dom, self%repo, self%io, self%state)
+      call self%log%info("swm_damping_init done")
+    end subroutine init_damping
+
+    subroutine init_forcing(self)
+      class(Swm), intent(inout) :: self
+      self%forcing = self%forcing%new(self%dom, self%log, self%io, self%calc, self%state)
+      call self%log%info("swm_forcing_init done")
+    end subroutine init_forcing
+
+    subroutine register_state_variables(self)
+      class(Swm) :: self
       call self%repo%add(self%state%SWM_u(:, :, N0), "SWM_U", self%dom%u_grid)
       call self%repo%add(self%state%SWM_v(:, :, N0), "SWM_V", self%dom%v_grid)
       call self%repo%add(self%state%SWM_eta(:, :, N0), "SWM_ETA", self%dom%eta_grid)
@@ -104,40 +141,31 @@ MODULE swm_module
       CALL self%repo%add(self%state%Dh, "SWM_DH", self%dom%eta_grid)
       CALL self%repo%add(self%state%Du, "SWM_DU", self%dom%eta_grid)
       CALL self%repo%add(self%state%Dv, "SWM_DV", self%dom%eta_grid)
+      CALL self%repo%add(self%state%F_u, "SWM_FU", self%dom%u_grid)
+      CALL self%repo%add(self%state%F_v, "SWM_FV", self%dom%v_grid)
+      CALL self%repo%add(self%state%F_eta, "SWM_FETA", self%dom%eta_grid)
+      CALL self%repo%add(self%state%diss_u, "SWM_DISS_U", self%dom%u_grid)
+      CALL self%repo%add(self%state%diss_v, "SWM_DISS_V", self%dom%v_grid)
+      CALL self%repo%add(self%state%diss_eta, "SWM_DISS_ETA", self%dom%eta_grid)
       CALL self%repo%add(self%state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
       CALL self%repo%add(self%state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
       CALL self%repo%add(self%state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
       CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
+      CALL self%repo%add(self%state%latmix_u, "SWM_LATMIX_U", self%dom%u_grid)
+      CALL self%repo%add(self%state%latmix_v, "SWM_LATMIX_V", self%dom%v_grid)
       if (associated(self%state%psi_bs)) then
         CALL self%repo%add(self%state%psi_bs(:,:,1), "PSI_BS", self%dom%H_grid)
         CALL self%repo%add(self%state%u_bs(:,:,1), "U_BS", self%dom%H_grid)
         CALL self%repo%add(self%state%v_bs(:,:,1), "V_BS", self%dom%H_grid)
         CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
-      end if
-
-      call self%read_initial_conditions()
-      call self%log%info("swm_vars_init done")
-    end subroutine init_state
-
-
-    subroutine init_damping(self)
-      class(Swm), intent(inout) :: self
-      self%damping = self%damping%new(self%log, self%dom, self%repo, self%io)
-      call self%log%info("swm_damping_init done")
-    end subroutine init_damping
+      end if      
+    end subroutine register_state_variables
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Release memory of shallow water module
-    !!
-    !! Calls finishing routines of all submodules and deallocate dynamical
-    !! variables and increment vectors.
     !------------------------------------------------------------------
     SUBROUTINE finalize(self)
       class(swm), intent(inout) :: self
-      CALL SWM_timestep_finish
-      CALL SWM_forcing_finish
-      CALL SWM_damping_finish
-      nullify(self%io, self%repo, self%dom, self%log)
     END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -149,7 +177,7 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE step(self)
       class(swm), intent(inout) :: self
-      CALL SWM_timestep_step
+      call self%timestep%step()
     END SUBROUTINE step
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -158,22 +186,15 @@ MODULE swm_module
     !! Shifts the dynamical variables backward in time dimension,
     !! add information of shallow water model to host model and shift
     !! increment vectors backward in time.
-    !!
-    !! @par Uses:
-    !! vars_module, ONLY : u,v,eta,N0,N0p1, Nx, Ny
     !------------------------------------------------------------------
     SUBROUTINE advance(self)
       class(Swm), intent(inout) :: self
       integer(KINT) :: i, j, Nx, Ny
-      ! real(KDOUBLE), dimension(:, :), pointer :: u, v, eta
       real(KDOUBLE), dimension(:, :, :), pointer :: swm_u, swm_v, swm_eta
 
       swm_u => self%state%SWM_u
       swm_v => self%state%SWM_v
       swm_eta => self%state%SWM_eta
-      ! call self%repo%get("u", u)
-      ! call self%repo%get("v", v)
-      ! call self%repo%get("eta", eta)
 
       Nx = self%dom%Nx
       Ny = self%dom%Ny
@@ -201,31 +222,9 @@ MODULE swm_module
         end do
       end do
       !$omp end do
-      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      ! do j = 1, size(u, 2)
-      !   do i = 1, size(u, 1)
-      !     ! add information to master model
-      !     u(i, j)     = u(i, j) + SWM_u(i, j, N0)
-      !   end do
-      ! end do
-      ! !$omp end do
-      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      ! do j = 1, size(v, 2)
-      !   do i = 1, size(v, 1)
-      !     v(i, j)     = v(i, j) + SWM_v(i, j, N0)
-      !   end do
-      ! end do
-      ! !$omp end do
-      ! !$omp do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      ! do j = 1, size(SWM_eta, 2)
-      !   do i = 1, size(SWM_eta, 1)
-      !     eta(i, j)   = eta(i, j) + SWM_eta(i, j, N0)
-      !   end do
-      ! end do
-      ! !$omp end do
       !$omp end parallel
-      CALL SWM_timestep_advance
-      CALL SWM_forcing_update
+      CALL self%timestep%advance()
+      CALL self%forcing%update_forcing()
     END SUBROUTINE advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -256,9 +255,7 @@ MODULE swm_module
       swm_u = 0.
       swm_v = 0.
       ! load initial conditions of dynamic fields if present
-      ! IF (isSetFH(self%repo%FH_eta)) CALL self%io%readInitialCondition(self%io%FH_eta, SWM_eta(:,:,N0p1))
-      ! IF (isSetFH(self%repo%FH_u)) CALL self%io%readInitialCondition(self%io%FH_u, SWM_u(:,:,N0p1))
-      ! IF (isSetFH(self%repo%FH_v)) CALL self%io%readInitialCondition(self%io%FH_v, SWM_v(:,:,N0p1))
+      call self%read_initial_conditions()
       SWM_eta(:,:,N0p1) = ocean_eta * SWM_eta(:,:,N0p1)
       SWM_u(:,:,N0p1)   = ocean_u * SWM_u(:,:,N0p1)
       SWM_v(:,:,N0p1)   = ocean_v * SWM_v(:,:,N0p1)
@@ -307,6 +304,5 @@ MODULE swm_module
     call var_reader%read_initial_conditions(var)
     deallocate(var_reader)
   end subroutine
-
 
 END MODULE swm_module
