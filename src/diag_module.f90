@@ -383,6 +383,8 @@ module diag_module
       diag_var%calc => self%calc
       call initDiagVar(diag_var, name, self%dom)
       call self%diag_vars%add(diag_var)
+      ! make sure to return pointer to polymorphic object in list
+      diag_var => self%diag_vars%find(name)
       call self%repo%add(diag_var%data, diag_var%name, diag_var%get_grid(self%dom))
     end function make_diagvar
 
