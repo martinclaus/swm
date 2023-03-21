@@ -59,7 +59,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module io_netcdf calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module io_netcdf calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
 
 objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
@@ -110,10 +110,7 @@ io_netcdf.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) logging.$(OBJEXT) app.$
 ElSolv_SOR.$(OBJEXT) : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-tracer_vars.$(OBJEXT) : tracer_vars.f90 tracer_module.h io.h generic_list.$(OBJEXT) io_module.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
-	$(COMPILE)
-
-tracer_module.$(OBJEXT) : tracer_module.f90 model.h tracer_vars.$(OBJEXT) vars_module.$(OBJEXT) generic_list.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) time_integration_module.$(OBJEXT) types.$(OBJEXT) logging.$(OBJEXT)
+tracer_module.$(OBJEXT) : tracer_module.f90 model.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.%(OBJEXT) io_module.$(OBJEXT) list_mod.$(OBJEXT) time_integration_module.$(OBJEXT), init_vars.$(OBJEXT)
 	$(COMPILE)
 
 calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h app.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)

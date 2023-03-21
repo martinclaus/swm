@@ -67,8 +67,7 @@ MODULE swm_module
       class(Io), target, intent(in) :: io_comp
       class(Calc), target, intent(in) :: calc_comp
       class(Swm), pointer :: swm_comp
-      type(swm) :: concrete_swm
-      allocate(swm_comp, source=concrete_swm)
+      allocate(swm_comp)
       swm_comp%log => log
       swm_comp%dom => dom
       swm_comp%repo => repo
