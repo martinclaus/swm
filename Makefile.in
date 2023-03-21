@@ -59,7 +59,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module io_netcdf calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list diagTask diagVar domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
+modules = str vars_module calendar_module diag_module swm_module tracer_module tracer_vars io_module io_netcdf calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
 
 objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
@@ -98,13 +98,7 @@ f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
 calendar_module.$(OBJEXT) : calendar_module.f90 f_udunits_2.$(OBJEXT) io.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-diag_module.$(OBJEXT) : diag_module.f90 vars_module.$(OBJEXT) diagTask.$(OBJEXT) model.h
-	$(COMPILE)
-
-diagTask.$(OBJEXT) : diagTask.f90 io.h model.h diag_module.h io_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) diagVar.$(OBJEXT) generic_list.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
-	$(COMPILE)
-
-diagVar.$(OBJEXT) : diagVar.f90 vars_module.$(OBJEXT) io.h domain_module.$(OBJEXT) calc_lib.$(OBJEXT) generic_list.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
+diag_module.$(OBJEXT) : diag_module.f90 io.h diag_module.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) list_mod.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) init_vars.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
 io_module.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) app.$(OBJEXT) calendar_module.$(OBJEXT) grid_module.$(OBJEXT) logging.$(OBJEXT) list_mod.$(OBJEXT)

@@ -132,13 +132,12 @@ MODULE vars_module
       real(KDOUBLE)      :: Ah=0.                   !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
       real(KDOUBLE)      :: run_length = 100000     !< Length of model run \f$[s]\f$
       real(KDOUBLE)      :: dt = 10.                !< stepsize in time \f$[s]\f$.
-      real(KDOUBLE)      :: meant_out = 2.628e6     !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
       real(KDOUBLE)      :: diag_start
       ! definition of the namelist
       namelist / model_nl / &
         G, Ah, & !friction parameter
         run_length, &
-        dt, meant_out, & ! time step and mean step
+        dt, & ! time step and mean step
         diag_start
       ! read the namelist and close again
       open(UNIT_MODEL_NL, file = MODEL_NL)
@@ -150,7 +149,6 @@ MODULE vars_module
       self%Ah =Ah 
       self%run_length = run_length
       self%dt = dt
-      self%meant_out = meant_out
       self%diag_start = diag_start
 
       ! set vars depending on run_length, dt

@@ -13,8 +13,6 @@
 !     Time step [s]
 ! diag_start: float
 !     Time after which diagnostics are done [s].
-! meant_out: float
-!     Default interval for averaged output [s].
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 &model_nl
   G = 9.80665,

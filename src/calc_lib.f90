@@ -103,7 +103,7 @@ MODULE calc_lib
     function make_calc_component(log, dom) result(calc_comp)
       class(Logger), pointer    :: log
       class(Domain), pointer    :: dom
-      class(Calc), pointer :: calc_comp
+      class(Calc), pointer      :: calc_comp
       allocate(calc_comp)
       calc_comp%log => log
       calc_comp%dom => dom
@@ -491,10 +491,11 @@ MODULE calc_lib
       real(KDOUBLE), dimension(self%dom%Nx, self%dom%Ny), intent(out), optional  :: chi_out !< Velocity potential of input flow
       real(KDOUBLE), dimension(self%dom%Nx, self%dom%Ny), intent(in)             :: u_in    !< Zonal component of input flow
       real(KDOUBLE), dimension(self%dom%Nx, self%dom%Ny), intent(in)             :: v_in    !< Meridional component of input flow
-      integer(KINT_ITT), intent(in)                                              :: itt     !< time step index
+      integer(KINT_ITT), optional, intent(in)                                    :: itt     !< time step index
 #ifdef CALC_LIB_ELLIPTIC_SOLVER
-      real(KDOUBLE), dimension(Nx,Ny)                   :: div_u
-      real(KDOUBLE)                                     :: epsilon !< Default Value EPS in calc_lib.h
+      real(KDOUBLE), dimension(self%dom%Nx, self%dom%Ny)  :: div_u
+      real(KDOUBLE)                                       :: epsilon !< Default Value EPS in calc_lib.h
+      logical                                             :: first_guess = .true.
 #endif
 
       if (self%chi_computed) then
@@ -507,7 +508,8 @@ MODULE calc_lib
       ! compute divergence of velocity field
       call computeDivergence(u_in, v_in, div_u, u_grid, v_grid)
       ! Solve elliptic PDE
-      call CALC_LIB_ELLIPTIC_SOLVER_MAIN(div_u,chi,epsilon,itt.EQ.1)
+      if (present(itt)) first_guess = itt.le.1
+      call CALC_LIB_ELLIPTIC_SOLVER_MAIN(div_u, chi, epsilon, first_guess)
 #endif
       self%chi_computed = .TRUE.
       if (present(chi_out)) chi_out = self%chi

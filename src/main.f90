@@ -35,8 +35,9 @@ PROGRAM main_program
 ! #ifdef TRACER
 !   USE tracer_module
 ! #endif
-  IMPLICIT NONE
+  implicit none
 
+  call main()
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !! Call initialization routines
@@ -78,14 +79,15 @@ PROGRAM main_program
       use calc_lib, only: make_calc_component, Calc
       use time_integration_module, only: make_time_integration_component
       use swm_module, only: make_swm_component
+      use diag_module, only: make_diag_component
 
       class(AbstractApp), pointer :: application
       class(AbstractAppBuilder), pointer :: app_factory
-      type(Logger), pointer :: log
-      type(Io), pointer :: io_comp
-      type(Domain), pointer :: domain_comp
-      type(VariableRepository), pointer :: repo
-      type(Calc), pointer :: calc
+      class(Logger), pointer :: log
+      class(Io), pointer :: io_comp
+      class(Domain), pointer :: domain_comp
+      class(VariableRepository), pointer :: repo
+      class(Calc), pointer :: calc_comp
       
       app_factory => new_default_app_builder()
 
@@ -97,19 +99,23 @@ PROGRAM main_program
       domain_comp => make_domain_component(io_comp, log)
       call app_factory%add_component(domain_comp)
 
-      repo => make_variable_register(domain_comp, io_comp, log)
+      repo => make_variable_register(domain_comp, log)
       call app_factory%add_component(repo)
 
-      calc => make_calc_component(log, domain_comp)
-      call app_factory%add_component(calc)
+      calc_comp => make_calc_component(log, domain_comp)
+      call app_factory%add_component(calc_comp)
 
-      call app_factory%add_component(make_time_integration_component())
+      call app_factory%add_component(make_time_integration_component(repo))
 
 #ifdef SWM
       call app_factory%add_component( &
-          make_swm_component(log, domain_comp, repo, io_comp)  &
+          make_swm_component(log, domain_comp, repo, io_comp, calc_comp)  &
       )
 #endif
+
+      call app_factory%add_component(  &
+        make_diag_component(log, domain_comp, repo, io_comp, calc_comp)  &
+      )
 
       application => app_factory%build()
 
