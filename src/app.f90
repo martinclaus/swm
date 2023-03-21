@@ -72,12 +72,6 @@ module app
             class(AbstractAppBuilder), intent(inout) :: self
             class(AbstractApp), pointer :: app
         end function build
-
-        subroutine add_component(self, comp)
-            import AbstractAppBuilder, Component
-            class(AbstractAppBuilder), intent(inout) :: self
-            class(Component), intent(in) :: comp
-        end subroutine add_component
     end interface
 
     type, extends(AbstractApp) :: DefaultApp
@@ -96,16 +90,9 @@ module app
     end type DefaultAppBuilder
 
     type, extends(List) :: ComponentList
-        contains
+    contains
         procedure :: add => add_component_to_list
     end type ComponentList
-
-    abstract interface
-        subroutine mappable(self)
-            import Component
-            class(Component), pointer, intent(inout) :: self
-        end subroutine
-    end interface
 
 contains
     subroutine run_default_app(self, steps)
