@@ -59,7 +59,7 @@ else
   $(info Elliptic solver used by calc_lib module: none)
 endif
 
-modules = str vars_module calendar_module diag_module swm_module tracer_module io_module io_netcdf calc_lib dynFromFile_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
+modules = str vars_module calendar_module diag_module swm_module tracer_module io_module io_netcdf calc_lib dynFromIo_module $(cl_elsolv) memchunk_module swm_vars swm_forcing_module swm_timestep_module swm_damping_module swm_lateralmixing_module generic_list domain_module grid_module f_udunits_2 time_integration_module types init_vars logging
 
 objects = $(modules:%=$(builddir)%.$(OBJEXT))
 
@@ -77,7 +77,7 @@ $(bindir):
 model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) main.$(OBJEXT) $(bindir)
 	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(builddir)main.$(OBJEXT) $(LDFLAGS) $(libcu)
 
-main.$(OBJEXT) : main.f90 app.$(OBJEXT) io_module.$(OBJEXT) io_netcdf.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromFile_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
+main.$(OBJEXT) : main.f90 app.$(OBJEXT) io_module.$(OBJEXT) io_netcdf.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromIo_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
 	$(COMPILE)
 
 types.$(OBJEXT) : types.f90 types.h
@@ -110,19 +110,19 @@ io_netcdf.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) logging.$(OBJEXT) app.$
 ElSolv_SOR.$(OBJEXT) : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-tracer_module.$(OBJEXT) : tracer_module.f90 model.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.%(OBJEXT) io_module.$(OBJEXT) list_mod.$(OBJEXT) time_integration_module.$(OBJEXT), init_vars.$(OBJEXT)
+tracer_module.$(OBJEXT) : tracer_module.f90 model.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) list_mod.$(OBJEXT) time_integration_module.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
 calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h app.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-dynFromFile_module.$(OBJEXT) : dynFromFile_module.f90 model.h io.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT)
+dynFromIo_module.$(OBJEXT) : dynFromIo_module.f90 model.h io.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT)
 	$(COMPILE)
 
 memchunk_module.$(OBJEXT) : memchunk_module.f90 logging.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-swm_module.$(OBJEXT) : swm_module.f90 io.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_timestep_module.$(OBJEXT)
+swm_module.$(OBJEXT) : swm_module.f90 model.h io.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_timestep_module.$(OBJEXT)
 	$(COMPILE)
 
 swm_vars.$(OBJEXT) : swm_vars.f90 model.h types.$(OBJEXT) logging.$(OBJEXT) grid_module.$(OBJEXT) init_vars.$(OBJEXT)

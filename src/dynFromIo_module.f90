@@ -256,7 +256,7 @@ MODULE dynFromIo_module
 
       ! compute interface displacement assuming quasi-geostrophy
       ! \eta = \psi * f / g
-!$OMP parallel do private(i, j) schedule(ompschedule, OMPCHUNK) OMP_COLLAPSE(2)
+!$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
       do j = 1, self%dom%Ny
         do i = 1, self%dom%Nx
           self%eta(:, j) = self%dom%H_grid%f(j) * self%eta(:, j) / g
