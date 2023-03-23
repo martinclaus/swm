@@ -7,7 +7,7 @@ module io_netcdf
   USE grid_module, only: grid_t, t_grid_lagrange
   use calendar_module, only: Calendar
   use str, only : to_upper, to_lower
-  USE netcdf
+  use netcdf
   implicit none
   private
 
@@ -720,7 +720,7 @@ module io_netcdf
     end if
     ! convert to model time unit
     call self%io_comp%log%debug("Convert time for input "//self%get_filename())
-    call convertTime(self%calendar, self%io_comp%modelCalendar, time)
+    call self%calendar%convertTime(self%calendar, self%io_comp%modelCalendar, time)
   end subroutine getTimeVar
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

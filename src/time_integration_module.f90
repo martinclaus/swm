@@ -16,7 +16,7 @@ MODULE time_integration_module
   implicit none
   private
 
-  public :: TimeIntegration, make_time_integration_component, integrate_AB
+  public :: make_time_integration_component, integrate_AB
 
   integer(KINT), parameter :: MAX_ORDER = 5
 

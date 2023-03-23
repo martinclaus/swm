@@ -126,7 +126,7 @@ MODULE calc_lib
       class(Calc), intent(inout) :: self
       integer(KINT) :: alloc_error
       ALLOCATE(self%chi(1:self%dom%Nx,1:self%dom%Ny), self%u_nd(1:self%dom%Nx, 1:self%dom%Ny), self%v_nd(1:self%dom%Nx, 1:self%dom%Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
+      IF (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
 
       call initVar(self%chi, 0._KDOUBLE)
       call initVar(self%u_nd, 0._KDOUBLE)
@@ -222,7 +222,7 @@ MODULE calc_lib
           ip => self%dom%ip0
           im => self%dom%ip0
         case default
-          call log_fatal("Wrong direction for interpolation specified. Check your Code!")
+          call self%log%fatal("Wrong direction for interpolation specified. Check your Code!")
       end select
 
       int_obj%mask => from_grid%ocean
@@ -649,7 +649,7 @@ MODULE calc_lib
       call getOutGrid(self, u_grid_in,"theta",out_grid)
       call getOutGrid(self, v_grid_in, "lambda", out_grid2)
       if (.not.associated(out_grid, out_grid2)) &
-        call log_fatal("Input grids are not suitable for vorticity calculation.")
+        call self%log%fatal("Input grids are not suitable for vorticity calculation.")
       vort = self%pder_zonal(v_in,v_grid_in) &
             - self%pder_meridional(spread(u_grid_in%cos_lat,1,size(u_in,1))*u_in,u_grid_in)/spread(out_grid%cos_lat,1,size(u_in,1))
     end function vorticityFromVelocities2D
@@ -676,7 +676,7 @@ MODULE calc_lib
       call getOutGrid(self, u_grid_in, "theta", out_grid)
       call getOutGrid(self, v_grid_in, "lambda", out_grid2)
       if (.not.associated(out_grid, out_grid2)) &
-        call log_fatal("Input grids are not suitable for vorticity calculation.")
+        call self%log%fatal("Input grids are not suitable for vorticity calculation.")
       vort = self%pder_zonal(v_in,v_grid_in) &
             - self%pder_meridional(spread(spread(u_grid_in%cos_lat, 1, size(u_in,1)), 3, size(u_in, 3)) * u_in,u_grid_in) &
               / spread(spread(out_grid%cos_lat,1,size(u_in,1)), 3, size(u_in, 3))

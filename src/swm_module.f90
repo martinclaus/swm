@@ -19,6 +19,7 @@
 !!  swm_timestep_module, only: SwmTimeStep \n
 !------------------------------------------------------------------
 MODULE swm_module
+#include "model.h"
 #include "io.h"
   use types
   use app, only: Component

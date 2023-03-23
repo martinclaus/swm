@@ -30,6 +30,7 @@
 !! init_vars, only: initVar\n
 !------------------------------------------------------------------
 MODULE tracer_module
+#include "model.h"
 #include "tracer_module.h"
 #include "io.h"
   use types

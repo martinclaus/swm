@@ -723,12 +723,12 @@ module diag_module
       end if
       formatedString = '("****",X,A10,X,A80)'
       formatedLogical = '("****",X,A10,X,L2)'
-      call log_info("**** DiagVar info ********************************")
+      call self%log%info("**** DiagVar info ********************************")
       write (msg, formatedString) "Name:", self%name
-      call log_info(msg)
+      call self%log%info(msg)
       WRITE (msg, formatedLogical) "Allocated:", allocated(self%data)
-      call log_info(msg)
-      call log_info("****************************************************")
+      call self%log%info(msg)
+      call self%log%info("****************************************************")
     END SUBROUTINE print_diagvar
 
 end module diag_module

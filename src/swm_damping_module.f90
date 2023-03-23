@@ -211,7 +211,7 @@ MODULE swm_damping_module
           case (SWM_DAMPING_NL_TYPE_UNIFORM)
             coef = max(coef, value)
           case default
-            call log_fatal("Unkown type identifyer in swm_damping_nl. Check your namelists!")
+            call self%log%fatal("Unkown type identifyer in swm_damping_nl. Check your namelists!")
         end select
       END DO
       CLOSE(UNIT_SWM_DAMPING_NL)

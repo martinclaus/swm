@@ -67,6 +67,7 @@ PROGRAM main_program
       application => make_app()
       call application%run(100)
       
+      deallocate(application)
     end subroutine main
 
     function make_app() result(application)
@@ -183,8 +184,8 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! initialise dynFromFile module
         !------------------------------------------------------------------
-        call DFF_initDynFromFile
-        call log_info('DFF_initDynFromFile done')
+        ! call DFF_initDynFromFile
+        ! call log_info('DFF_initDynFromFile done')
 #endif
 
 #ifdef SWM
@@ -199,21 +200,21 @@ PROGRAM main_program
         !! Initialise tracer field, timestepping coefficients and compute 2nd initial condition
         !------------------------------------------------------------------
 #ifdef TRACER
-        call TRC_initTracer
-        call log_info('initTracer done')
+        ! call TRC_initTracer
+        ! call log_info('initTracer done')
 #endif
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Prepare output file (don't forget to close the files at the end of the programm)
         !------------------------------------------------------------------
-        call initDiag
-        call log_info('initDiag done')
+        ! call initDiag
+        ! call log_info('initDiag done')
 
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! write initial fields to file
         !------------------------------------------------------------------
-        call Diag
-        call log_info('first call of Diag done')
+        ! call Diag
+        ! call log_info('first call of Diag done')
 
     END SUBROUTINE initModel
 
@@ -226,48 +227,48 @@ PROGRAM main_program
     !------------------------------------------------------------------------
     SUBROUTINE timestepModel
       IMPLICIT NONE
-        call log_info('starting integration')
+        ! call log_info('starting integration')
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Do the integration
         !------------------------------------------------------------------
-        TIME: DO itt=1,Nt       ! loop over all time steps
+        ! TIME: DO itt=1,Nt       ! loop over all time steps
 
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! integrate modules to time itt*dt (stored as N0p1)
           !------------------------------------------------------------------
 #ifdef DYNFROMFILE
-          call DFF_timestep
+          ! call DFF_timestep
 #endif
 
 #if defined(SWM)
-          call step
+          ! call step
 #endif
 
 #ifdef TRACER
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! time step tracer
           !------------------------------------------------------------------
-          call TRC_timestep
+          ! call TRC_timestep
 #endif
 
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! shift model timestep and update diagnostic variables
           !------------------------------------------------------------------
-          call model_advance
+          ! call model_advance
 
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! write fields to file and do diagnostics
           !------------------------------------------------------------------
-          call Diag
+          ! call Diag
 
           !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           !! be verbose
           !------------------------------------------------------------------
-          if (mod(REAL(itt), Nt / 100.) .LT. 1.) then
-            write (*, '(A,"itt = ",I10," (", F5.1,"% of ", I10,") done")', ADVANCE='NO') ACHAR(13),itt,100.0*itt/Nt,Nt
-          end if
+          ! if (mod(REAL(itt), Nt / 100.) .LT. 1.) then
+          !   write (*, '(A,"itt = ",I10," (", F5.1,"% of ", I10,") done")', ADVANCE='NO') ACHAR(13),itt,100.0*itt/Nt,Nt
+          ! end if
 
-        END DO TIME
+        ! END DO TIME
     END SUBROUTINE timestepModel
 
 
@@ -282,25 +283,25 @@ PROGRAM main_program
         !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         !! Close opened files
         !------------------------------------------------------------------
-        call finishDiag
+        ! call finishDiag
 
-        call finishCalcLib
+        ! call finishCalcLib
 
 #ifdef TRACER
-        call TRC_finishTracer
+        ! call TRC_finishTracer
 #endif
 
 #ifdef SWM
-        call finalize
+        ! call finalize
 #endif
 
 #ifdef DYNFROMFILE
-        call DFF_finishDynFromFile
+        ! call DFF_finishDynFromFile
 #endif
 
-        call finishIO
+        ! call finishIO
 
-        call finishLogging
+        ! call finishLogging
     END SUBROUTINE finishModel
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -314,22 +315,22 @@ PROGRAM main_program
       !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       !! reset dynamic variables
       !------------------------------------------------------------------
-      u = 0.
-      v = 0.
-      eta = 0.
+      ! u = 0.
+      ! v = 0.
+      ! eta = 0.
       !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       !! advance each module to write new information at time N0
       !------------------------------------------------------------------
 #ifdef DYNFROMFILE
-      CALL DFF_advance
+      ! CALL DFF_advance
 #endif
 #ifdef SWM
-      CALL advance
+      ! CALL advance
 #endif
 #ifdef TRACER
-      CALL TRC_advance
+      ! CALL TRC_advance
 #endif
-      CALL advanceCalcLib
+      ! CALL advanceCalcLib
     END SUBROUTINE model_advance
 
 END PROGRAM main_program

@@ -62,7 +62,7 @@ MODULE ElSolv_SOR
       END FORALL COEFFICIENTS
       ! initialise odd/even index spaces
       CALL init_oe_index_space
-      call log_info('initElSolv_SOR done')
+      ! call log_info('initElSolv_SOR done')
     END SUBROUTINE init_ElSolv_SOR
     
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
