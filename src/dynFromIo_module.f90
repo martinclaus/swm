@@ -39,6 +39,41 @@ MODULE dynFromIo_module
 
   public :: make_dynFromIo_component
 
+  type, abstract, private :: DynInput
+  contains
+    procedure(call_on_self), deferred :: init
+    procedure(call_on_self_with_real_arg), deferred :: get_data
+  end type DynInput
+
+  abstract interface
+    subroutine call_on_self(self)
+      import DynInput
+      class(DynInput), intent(inout) :: self
+    end subroutine
+
+    subroutine call_on_self_with_real_arg(self, arg)
+      import DynInput, KDOUBLE
+      class(DynInput), intent(inout) :: self
+      real(KDOUBLE), intent(in) :: arg
+    end subroutine call_on_self_with_real_arg
+  end interface
+
+  type, extends(DynInput) :: PsiInput
+    type(MemoryChunk) :: psi_chunk
+  contains
+    procedure :: init => init_psi_input
+    procedure :: get_data => get_data_from_psi           !< Input stream associated with a dataset containing the geostrophic streamfunction
+  end type PsiInput
+
+  type, extends(DynInput) :: UVEInput
+    type(MemoryChunk) :: eta_chunk                      !< Input stream associated with a dataset containing interace displacement
+    type(MemoryChunk) :: u_chunk                        !< Input stream associated with a dataset containing zonal velocity
+    type(MemoryChunk) :: v_chunk                        !< Input stream associated with a dataset containing meridional
+  contains
+    procedure :: init => init_uveta_input
+    procedure :: get_data => get_data_from_uveta        !< Input stream associated with a dataset containing the geostrophic streamfunction
+  end type UVEInput
+
   type, extends(Component) :: DynFromIo
     private
     class(Logger), pointer             :: log => null()
@@ -46,11 +81,7 @@ MODULE dynFromIo_module
     class(VariableRepository), pointer :: repo => null()
     class(Io), pointer                 :: io => null()
     class(Calc), pointer               :: calc => null()
-    type(MemoryChunk) :: eta_chunk                      !< Input stream associated with a dataset containing interace displacement
-    type(MemoryChunk) :: u_chunk                        !< Input stream associated with a dataset containing zonal velocity
-    type(MemoryChunk) :: v_chunk                        !< Input stream associated with a dataset containing meridional
-    type(MemoryChunk) :: psi_chunk                      !< Input stream associated with a dataset containing the geostrophic streamfunction
-    logical           :: is_psi_input                   !< .TRUE. if streamfunction input is used
+    class(DynInput), allocatable       :: input
     real(KDOUBLE), dimension(:, :), allocatable :: eta  !< Interface displacement
     real(KDOUBLE), dimension(:, :), allocatable :: u    !< Zonal velocity
     real(KDOUBLE), dimension(:, :), allocatable :: v    !< Meridional velocity
