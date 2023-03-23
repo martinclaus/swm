@@ -79,6 +79,7 @@ PROGRAM main_program
       use calc_lib, only: make_calc_component, Calc
       use time_integration_module, only: make_time_integration_component
       use swm_module, only: make_swm_component
+      use dynFromIo_module, only: make_dynFromIo_component
       use tracer_module, only: make_tracer_component
       use diag_module, only: make_diag_component
 
@@ -111,6 +112,12 @@ PROGRAM main_program
 #ifdef SWM
       call app_factory%add_component( &
           make_swm_component(log, domain_comp, repo, io_comp, calc_comp)  &
+      )
+#endif
+
+#ifdef DYNFROMFILE
+      call app_factory%add_component(  &
+        make_dynFromIo_component(log, domain_comp, repo, io_comp, calc_comp)
       )
 #endif
 
