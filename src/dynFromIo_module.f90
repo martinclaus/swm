@@ -40,28 +40,25 @@ MODULE dynFromIo_module
   public :: make_dynFromIo_component
 
   type, abstract, private :: DynInput
+    class(Io), pointer  :: io => null()
   contains
-    procedure(call_on_self), deferred :: init
-    procedure(call_on_self_with_real_arg), deferred :: get_data
+    procedure(i_get_data), deferred :: get_data
   end type DynInput
 
   abstract interface
-    subroutine call_on_self(self)
-      import DynInput
-      class(DynInput), intent(inout) :: self
-    end subroutine
-
-    subroutine call_on_self_with_real_arg(self, arg)
+    subroutine i_get_data(self, time, u, v, eta)
       import DynInput, KDOUBLE
       class(DynInput), intent(inout) :: self
-      real(KDOUBLE), intent(in) :: arg
-    end subroutine call_on_self_with_real_arg
+      real(KDOUBLE), intent(in) :: time
+      real(KDOUBLE), dimension(:, :), intent(out) :: u, v, eta
+    end subroutine i_get_data
   end interface
 
   type, extends(DynInput) :: PsiInput
+    class(Domain), pointer :: dom => null()
+    class(Calc), pointer :: calc => null()
     type(MemoryChunk) :: psi_chunk
   contains
-    procedure :: init => init_psi_input
     procedure :: get_data => get_data_from_psi           !< Input stream associated with a dataset containing the geostrophic streamfunction
   end type PsiInput
 
@@ -70,7 +67,6 @@ MODULE dynFromIo_module
     type(MemoryChunk) :: u_chunk                        !< Input stream associated with a dataset containing zonal velocity
     type(MemoryChunk) :: v_chunk                        !< Input stream associated with a dataset containing meridional
   contains
-    procedure :: init => init_uveta_input
     procedure :: get_data => get_data_from_uveta        !< Input stream associated with a dataset containing the geostrophic streamfunction
   end type UVEInput
 
@@ -90,10 +86,10 @@ MODULE dynFromIo_module
                  finalize, &
                  step => timestep, &
                  advance
-    procedure, private :: get_memchunk, reader_from_fileargs, &
-                          init_psi_input, init_uveta_input, &
+    procedure, private :: init_psi_input, init_uveta_input, &
                           allocate_buffer, register_variables, &
-                          get_data, get_data_from_uveta, get_data_from_psi
+                          get_data
+    generic :: init_input => init_psi_input, init_uveta_input
   end type DynFromIo
 
   contains
@@ -138,14 +134,13 @@ MODULE dynFromIo_module
       read(UNIT_DYNFROMFILE_NL, nml = dynFromFile)
       close(UNIT_DYNFROMFILE_NL)
       
-
-      self%is_psi_input = (varname_psi .ne. "")
-
       ! initialise file handles
-      if (self%is_psi_input) then
-        call self%init_psi_input(filename_psi, varname_psi, chunk_size)
+      if (varname_psi .ne. "") then
+        call self%init_input(  &
+          filename_psi, varname_psi, &
+          chunk_size)
       else
-        call self%init_uveta_input(  &
+        call self%init_input(  &
           filename_u, varname_u, &
           filename_v, varname_v, &
           filename_eta, varname_eta, &
@@ -160,10 +155,23 @@ MODULE dynFromIo_module
     END SUBROUTINE initialize
 
     subroutine init_psi_input(self, filename, varname, chunk_size)
-      class(DynFromIo) :: self
+      class(DynFromIo), intent(inout)  :: self
       character(*), intent(in) :: filename, varname
       integer(KINT), intent(in) :: chunk_size
-      self%psi_chunk = self%get_memchunk(filename, varname, chunk_size)
+      type(PsiInput), allocatable :: input
+      integer :: alloc_stat
+      allocate(input, stat=alloc_stat)
+      if (alloc_stat .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+
+      input%dom => self%dom
+      input%calc => self%calc
+
+      input%psi_chunk = get_memchunk( &
+        self%io, &
+        filename, varname, &
+        (/ self%dom%Nx, self%dom%Ny, chunk_size/) &
+      )
+      self%input = input
     end subroutine init_psi_input
 
     subroutine init_uveta_input(  &
@@ -178,9 +186,20 @@ MODULE dynFromIo_module
                                   filename_v, varname_v, &
                                   filename_eta, varname_eta
       integer(KINT), intent(in) :: chunk_size
-      self%u_chunk = self%get_memchunk(filename_u, varname_u, chunk_size)
-      self%v_chunk = self%get_memchunk(filename_v, varname_v, chunk_size)
-      self%eta_chunk = self%get_memchunk(filename_eta, varname_eta, chunk_size)
+      integer(KINT), dimension(3) :: shape
+      type(UVEInput), allocatable :: input
+      integer :: alloc_error
+
+      allocate(input, stat=alloc_error)
+      if (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+
+      shape = (/self%dom%Nx, self%dom%Ny, chunk_size/)
+
+      input%u_chunk = get_memchunk(self%io, filename_u, varname_u, shape)
+      input%v_chunk = get_memchunk(self%io, filename_v, varname_v, shape)
+      input%eta_chunk = get_memchunk(self%io, filename_eta, varname_eta, shape)
+
+      self%input = input
     end subroutine init_uveta_input
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -221,6 +240,7 @@ MODULE dynFromIo_module
       if (allocated(self%u)) deallocate(self%u)
       if (allocated(self%v)) deallocate(self%v)
       if (allocated(self%eta)) deallocate(self%eta)
+      if (allocated(self%input)) deallocate(self%input)
     END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -245,22 +265,19 @@ MODULE dynFromIo_module
     subroutine get_data(self, time)
       class(DynFromIo), intent(inout) :: self
       real(KDOUBLE), intent(in)       :: time
-      if (self%is_psi_input) then
-        call self%get_data_from_psi(time)
-      else
-        call self%get_data_from_uveta(time)
-      end if      
+      call self%input%get_data(time, self%u, self%v, self%eta)
     end subroutine get_data
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Read data from u, v, eta input
     !------------------------------------------------------------------
-    subroutine get_data_from_uveta(self, time)
-      class(DynFromIo), intent(inout) :: self
-      real(KDOUBLE), intent(in)       :: time
-      self%u = self%u_chunk%get(time)
-      self%v = self%v_chunk%get(time)
-      self%eta = self%eta_chunk%get(time)
+    subroutine get_data_from_uveta(self, time, u, v, eta)
+      class(UVEInput), intent(inout) :: self
+      real(KDOUBLE), intent(in)      :: time
+      real(KDOUBLE), dimension(:, :), intent(out) :: u, v, eta
+      u = self%u_chunk%get(time)
+      v = self%v_chunk%get(time)
+      eta = self%eta_chunk%get(time)
     end subroutine get_data_from_uveta
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -268,9 +285,10 @@ MODULE dynFromIo_module
     !!
     !! TODO: Make g configurable
     !------------------------------------------------------------------
-    subroutine get_data_from_psi(self, time)
-      class(DynFromIo), intent(inout) :: self
+    subroutine get_data_from_psi(self, time, u, v, eta)
+      class(PsiInput), intent(inout)  :: self
       real(KDOUBLE), intent(in)       :: time
+      real(KDOUBLE), dimension(:, :), intent(out) :: u, v, eta
       logical :: must_compute
       real(KDOUBLE) :: g=9.80665
       integer(KINT) :: i, j
@@ -280,41 +298,41 @@ MODULE dynFromIo_module
       ! return early if nothing needs to be done
       if (.not. must_compute) return
 
-      self%eta = self%psi_chunk%get(time)
+      eta = self%psi_chunk%get(time)
 
       ! compute velocity from streamfunction
-      call self%calc%evaluateStreamfunction(self%eta, self%u, self%v)
+      call self%calc%evaluateStreamfunction(eta, u, v)
 
       ! compute interface displacement assuming quasi-geostrophy
       ! \eta = \psi * f / g
 !$OMP parallel do private(i, j) schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
-      do j = 1, self%dom%Ny
-        do i = 1, self%dom%Nx
-          self%eta(:, j) = self%dom%H_grid%f(j) * self%eta(:, j) / g
+      do j = 1, size(eta, 2)
+        do i = 1, size(eta, 1)
+          eta(i, j) = self%dom%H_grid%f(j) * eta(i, j) / g
         end do
       end do
 !$OMP end parallel do
     end subroutine get_data_from_psi
 
-    type(MemoryChunk) function get_memchunk(self, filename, varname, chunk_size) result(mchunk)
-      class(DynFromIo) :: self
+    type(MemoryChunk) function get_memchunk(io_comp, filename, varname, shape) result(mchunk)
+      class(Io)                :: io_comp
       character(*), intent(in) :: filename, varname
-      integer(KINT), intent(in) :: chunk_size
+      integer(KINT), dimension(3), intent(in) :: shape
       mchunk = MemoryChunk( &
-        self%reader_from_fileargs(filename, varname), &
-        (/self%dom%Nx, self%dom%Ny, chunk_size/)  &
+        reader_from_fileargs(io_comp, filename, varname), &
+        shape  &
       )
     end function
 
-    class(Reader) function reader_from_fileargs(self, filename, varname) result(var_reader)
-      class(DynFromIo)         :: self
+    class(Reader) function reader_from_fileargs(io_comp, filename, varname) result(var_reader)
+      class(Io)                :: io_comp
       character(*), intent(in) :: filename
       character(*), intent(in) :: varname
       allocatable :: var_reader
       type(HandleArgs) :: args
       call args%add("filename", filename)
       call args%add("varname", varname)
-      var_reader = self%io%get_reader(args)
+      var_reader = io_comp%get_reader(args)
     end function
 
 END MODULE dynFromIo_module
