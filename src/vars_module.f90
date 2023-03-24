@@ -9,7 +9,7 @@
 !!
 !! @par Uses:
 !! types \n
-!! app, only: Component \n
+!! component_module, only: Component \n
 !! domain_module, only: Domain \n
 !! logging, only: log \n
 !! generic_list \n
@@ -19,7 +19,7 @@
 MODULE vars_module
 #include "io.h"
   use types
-  use app, only: Component
+  use component_module, only: Component
   use domain_module, only: Domain
   use logging, only: log
   USE generic_list

@@ -1,7 +1,7 @@
 MODULE grid_module
 #include "model.h"
-  use logging
   use types
+  use logging, only: log
   IMPLICIT NONE
   real(KDOUBLE), PARAMETER     :: PI = 3.14159265358979323846 !< copied from math.h @todo include math.h instead?
   real(KDOUBLE), PARAMETER     :: D2R = PI/180.               !< factor to convert degree in radian

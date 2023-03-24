@@ -2,7 +2,7 @@ module io_netcdf
 #include "io.h"
   use types
   use logging, only: log
-  use app, only: Component
+  use component_module, only: Component
   use io_module, only: Reader, Writer, HandleArgs, Io
   USE grid_module, only: grid_t, t_grid_lagrange
   use calendar_module, only: Calendar

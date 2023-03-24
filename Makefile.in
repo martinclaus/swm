@@ -83,10 +83,10 @@ types.$(OBJEXT) : types.f90 types.h
 init_vars.$(OBJEXT) : init_vars.f90 types.$(OBJEXT) model.h
 	$(COMPILE)
 
-vars_module.$(OBJEXT) : vars_module.f90 io.h types.$(OBJEXT) app.$(OBJEXT) domain_module.$(OBJEXT) logging.$(OBJEXT) generic_list.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT)
+vars_module.$(OBJEXT) : vars_module.f90 io.h types.$(OBJEXT) component_module.$(OBJEXT) domain_module.$(OBJEXT) logging.$(OBJEXT) generic_list.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
-time_integration_module.$(OBJEXT) : time_integration_module.f90 app.$(OBJEXT) vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT)
+time_integration_module.$(OBJEXT) : time_integration_module.f90 component_module.$(OBJEXT) vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT)
 	$(COMPILE)
 
 f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
@@ -95,31 +95,31 @@ f_udunits_2.$(OBJEXT) : f_udunits_2.f90 f_udunits_2.inc
 calendar_module.$(OBJEXT) : calendar_module.f90 f_udunits_2.$(OBJEXT) io.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-diag_module.$(OBJEXT) : diag_module.f90 io.h diag_module.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) list_mod.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) init_vars.$(OBJEXT) str.$(OBJEXT)
+diag_module.$(OBJEXT) : diag_module.f90 io.h diag_module.h types.$(OBJEXT) logging.$(OBJEXT) component_module.$(OBJEXT) list_mod.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) init_vars.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
-io_module.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) app.$(OBJEXT) calendar_module.$(OBJEXT) grid_module.$(OBJEXT) logging.$(OBJEXT) list_mod.$(OBJEXT)
+io_module.$(OBJEXT) : io_module.f90 io.h types.$(OBJEXT) component_module.$(OBJEXT) calendar_module.$(OBJEXT) grid_module.$(OBJEXT) logging.$(OBJEXT) list_mod.$(OBJEXT)
 	$(COMPILE)
 
-io_netcdf.$(OBJEXT) : io_netcdf.f90 io.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) io_module.$(OBJEXT) grid_module.$(OBJEXT) calendar_module.$(OBJEXT) str.$(OBJEXT)
+io_netcdf.$(OBJEXT) : io_netcdf.f90 io.h types.$(OBJEXT) logging.$(OBJEXT) component_module.$(OBJEXT) io_module.$(OBJEXT) grid_module.$(OBJEXT) calendar_module.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
 ElSolv_SOR.$(OBJEXT) : ElSolv_SOR.f90 ElSolv_SOR.h vars_module.$(OBJEXT) domain_module.$(OBJEXT) model.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-tracer_module.$(OBJEXT) : tracer_module.f90 model.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) list_mod.$(OBJEXT) time_integration_module.$(OBJEXT) init_vars.$(OBJEXT)
+tracer_module.$(OBJEXT) : tracer_module.f90 model.h types.$(OBJEXT) component_module.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) list_mod.$(OBJEXT) time_integration_module.$(OBJEXT) init_vars.$(OBJEXT)
 	$(COMPILE)
 
-calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h app.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
+calc_lib.$(OBJEXT) : calc_lib.f90 calc_lib.h component_module.$(OBJEXT) domain_module.$(OBJEXT) grid_module.$(OBJEXT) model.h $(cl_elsolv.$(OBJEXT)) types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-dynFromIo_module.$(OBJEXT) : dynFromIo_module.f90 model.h io.h types.$(OBJEXT) logging.$(OBJEXT) app.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT)
+dynFromIo_module.$(OBJEXT) : dynFromIo_module.f90 model.h io.h types.$(OBJEXT) logging.$(OBJEXT) component_module.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) memchunk_module.$(OBJEXT)
 	$(COMPILE)
 
 memchunk_module.$(OBJEXT) : memchunk_module.f90 logging.$(OBJEXT) types.$(OBJEXT) init_vars.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT)
 	$(COMPILE)
 
-swm_module.$(OBJEXT) : swm_module.f90 model.h io.h types.$(OBJEXT) app.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_timestep_module.$(OBJEXT)
+swm_module.$(OBJEXT) : swm_module.f90 model.h io.h types.$(OBJEXT) component_module.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) io_module.$(OBJEXT) io_module.$(OBJEXT) calc_lib.$(OBJEXT) swm_vars.$(OBJEXT) swm_forcing_module.$(OBJEXT) swm_damping_module.$(OBJEXT) swm_timestep_module.$(OBJEXT)
 	$(COMPILE)
 
 swm_vars.$(OBJEXT) : swm_vars.f90 model.h types.$(OBJEXT) logging.$(OBJEXT) grid_module.$(OBJEXT) init_vars.$(OBJEXT)
@@ -137,16 +137,19 @@ swm_damping_module.$(OBJEXT) : swm_damping_module.f90 model.h swm_module.h io.h 
 swm_lateralmixing_module.$(OBJEXT) : swm_lateralmixing_module.f90 model.h types.$(OBJEXT) logging.$(OBJEXT) domain_module.$(OBJEXT) vars_module.$(OBJEXT) swm_vars.$(OBJEXT) init_vars.$(OBJEXT) grid_module.$(OBJEXT)
 	$(COMPILE)
 
-domain_module.$(OBJEXT) : domain_module.f90 app.$(OBJEXT) model.h grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
+domain_module.$(OBJEXT) : domain_module.f90 component_module.$(OBJEXT) model.h grid_module.$(OBJEXT) io_module.$(OBJEXT) io.h types.$(OBJEXT) init_vars.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
 grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
-logging.$(OBJEXT) : logging.f90 io.h app.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
+logging.$(OBJEXT) : logging.f90 io.h component_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-app.$(OBJEXT) : app.f90 list_mod.$(OBJEXT)
+app.$(OBJEXT) : app.f90 list_mod.$(OBJEXT) component_module.$(OBJEXT) logging.$(OBJEXT)
+	$(COMPILE)
+
+component_module.$(OBJEXT) : component_module.f90
 	$(COMPILE)
 
 %.$(OBJEXT) : %.f90

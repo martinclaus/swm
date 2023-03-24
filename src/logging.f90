@@ -16,7 +16,7 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
 #define stdout 6
 #define stderr 0
 #endif
-  use app, only: Component
+  use component_module, only: Component
   use types
   use str, only : to_lower
 

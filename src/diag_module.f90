@@ -10,16 +10,26 @@
 !! TODO: Deal with fixed length time dimension
 !!
 !! @par Includes:
-!! model.h
+!! io.h, diag_module.h
 !! @par Uses:
-!! vars_module, diagTask
+!! types\n
+!! logging, only: log\n
+!! component_module, only: Component\n
+!! list_mod, only: List, ListIterator\n
+!! io_module, only: Io, Writer, HandleArgs\n
+!! calc_lib, only: Calc\n
+!! vars_module, only: VariableRepository\n
+!! domain_module, only: Domain\n
+!! grid_module, only: grid_t, t_grid_lagrange\n
+!! init_vars, only: initVar\n
+!! str, only: to_upper\n
 !------------------------------------------------------------------
 module diag_module
 #include "io.h"
 #include "diag_module.h"
   use types
   use logging, only: log
-  use app, only: Component
+  use component_module, only: Component
   use list_mod, only: List, ListIterator
   use io_module, only: Io, Writer, HandleArgs
   use calc_lib, only: Calc

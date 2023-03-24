@@ -10,7 +10,7 @@
 !!
 !! @par Uses:
 !! types \n
-!! app, only: Component \n
+!! component_module, only: Component \n
 !! calendar_module, ONLY : calendar, openCal, closeCal \n
 !! grid_module, only: grid_t, t_grid_lagrange \n
 !! logging, only: log \n
@@ -19,7 +19,7 @@
 MODULE io_module
 #include "io.h"
   use types
-  use app, only: Component
+  use component_module, only: Component
   USE calendar_module, ONLY : calendar, openCal, closeCal
   USE grid_module, only: grid_t, t_grid_lagrange
   use logging, only: log

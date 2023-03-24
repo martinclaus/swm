@@ -1,40 +1,17 @@
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-!> @brief  App component
+!> @brief  App
 !! @author Martin Claus, mclaus@geomar.de
 !!
-!! This module provides abstract interfaces for other components to be
-!! used as app components. And an app builder.
+!! This module provides abstract interfaces for the app and an app builder.
 !------------------------------------------------------------------
-
 module app
     use list_mod, only: list, ListIterator, apply_to_list_value
+    use component_module, only: Component
+    use logging, only: make_logger, Logger
     implicit none
 
     private
-    public :: Component, AbstractApp, AbstractAppBuilder, new_default_app_builder
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief A component of the app.
-    !!
-    !! Components may be initialize on app startup and finalized in shutdown.
-    !! A component executes its `step` method at each time step.
-    !! After all components have performed its `step`, the components get their
-    !! `advance` methods called by the app. 
-    !------------------------------------------------------------------
-    type, abstract :: Component
-    contains
-        procedure, private, pass :: initialize => do_nothing
-        procedure, private, pass :: finalize => do_nothing
-        procedure, private, pass :: step => do_nothing
-        procedure, private, pass :: advance => do_nothing
-    end type Component
-
-    abstract interface
-        subroutine call_on_component(self)
-            import Component
-            class(Component), intent(inout) :: self            
-        end subroutine call_on_component
-    end interface
+    public :: AbstractApp, AbstractAppBuilder, new_default_app_builder
                 
     type, abstract :: AbstractApp
     contains
@@ -151,11 +128,11 @@ contains
         call self%component_list%add(comp)
     end subroutine add_component_impl
 
-    function new_default_app_builder()
-        class(AbstractAppBuilder), pointer :: new_default_app_builder
-        type(DefaultAppBuilder) :: concret_builder
-        allocate(concret_builder%component_list)
-        allocate(new_default_app_builder, source=concret_builder)
+    function new_default_app_builder() result(builder)
+        class(DefaultAppBuilder), pointer :: builder
+        allocate(builder)
+        allocate(builder%component_list)
+        call builder%add_component(make_logger())
     end function
 
     function builder_get_component_list(self) result(component_list)
@@ -200,9 +177,4 @@ contains
             call self%advance()
         end select
     end subroutine advance
-
-    subroutine do_nothing(self)
-        class(Component), intent(inout) :: self
-        ! do nothing
-    end subroutine do_nothing
 end module app

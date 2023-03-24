@@ -28,7 +28,7 @@ MODULE dynFromIo_module
 #include "io.h"
   use types
   use logging, only: log
-  use app, only: Component
+  use component_module, only: Component
   use vars_module, only: VariableRepository
   use domain_module, only: Domain
   use io_module, only: Io, Reader, HandleArgs

@@ -72,7 +72,6 @@ PROGRAM main_program
 
     function make_app() result(application)
       use app, only: new_default_app_builder, AbstractAppBuilder
-      use logging, only: Logger, make_logger
       use io_module, only: Io
       use io_netcdf, only: make_netcdf_io
       use domain_module, only: make_domain_component, Domain
@@ -86,15 +85,12 @@ PROGRAM main_program
 
       class(AbstractApp), pointer :: application
       class(AbstractAppBuilder), pointer :: app_factory
-      class(Logger), pointer :: log
       class(Io), pointer :: io_comp
       class(Domain), pointer :: domain_comp
       class(VariableRepository), pointer :: repo
       class(Calc), pointer :: calc_comp
       
       app_factory => new_default_app_builder()
-
-      log => make_logger()
 
       io_comp => make_netcdf_io()
       call app_factory%add_component(io_comp)

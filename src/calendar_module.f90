@@ -7,7 +7,11 @@
 !! the use of real-world data
 !!
 !! @par Includes:
-!!      io.h
+!! io.h
+!! @par Uses:
+!! types\n
+!! logging, only: log\n
+!! f_udunits_2
 !------------------------------------------------------------------
 MODULE calendar_module
 #include "io.h"

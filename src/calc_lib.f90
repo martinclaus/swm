@@ -7,11 +7,17 @@
 !! @par Include files
 !! calc_lib.h, model.h
 !! @par Uses:
+!! types\n
+!! component_module, only: Component\n
+!! logging, only: log\n
+!! domain_module, only: Domain\n
+!! grid_module, only: grid_t\n
+!! init_vars\n
 !! CALC_LIB_ELLIPTIC_SOLVER_MODULE
 !------------------------------------------------------------------
 MODULE calc_lib
   use types
-  use app, only: Component
+  use component_module, only: Component
   use logging, only: log
   use domain_module, only: Domain
   use grid_module, only: grid_t

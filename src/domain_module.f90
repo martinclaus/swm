@@ -5,7 +5,7 @@ MODULE domain_module
   use logging, only: log
   USE grid_module
   use init_vars
-  use app, only: Component
+  use component_module, only: Component
   use io_module, only: Io, HandleArgs, Reader
   implicit none
   private

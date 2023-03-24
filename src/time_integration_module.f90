@@ -4,14 +4,17 @@
 !! This module holds the time integration routines.
 !!
 !! @par Includes:
-!! io.h
-!! model.h
+!! io.h, model.h
+!! @par Uses:
+!! types\n
+!! component_module, only: Component\n
+!! vars_module, only: VariableRepository\n
 !------------------------------------------------------------------
 MODULE time_integration_module
 #include "model.h"
 #include "io.h"
   use types
-  use app, only: Component
+  use component_module, only: Component
   use vars_module, only: VariableRepository
   implicit none
   private

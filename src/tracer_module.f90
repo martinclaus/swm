@@ -20,7 +20,7 @@
 !!
 !! @par Uses:
 !! types\n
-!! app, only: Component\n
+!! component_module, only: Component\n
 !! logging, only: log\n
 !! domain_module, only: Domain\n
 !! vars_module, only: VariableRepository\n
@@ -34,7 +34,7 @@ MODULE tracer_module
 #include "tracer_module.h"
 #include "io.h"
   use types
-  use app, only: Component
+  use component_module, only: Component
   use logging, only: log
   use domain_module, only: Domain
   use vars_module, only: VariableRepository
