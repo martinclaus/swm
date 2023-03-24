@@ -11,7 +11,7 @@
 !!
 !! @par Uses:
 !! types \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! domain_module, only: Domain \n
 !! vars_module, only: VariableRepository \n
 !! swm_vars, only: SwmState \n
@@ -24,7 +24,7 @@ MODULE swm_damping_module
 #include "swm_module.h"
 #include "io.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use vars_module, only: VariableRepository
   use swm_vars, only: SwmState
@@ -37,7 +37,6 @@ MODULE swm_damping_module
   public :: SwmDamping
 
   type :: SwmDamping
-    class(Logger), private, pointer :: log => null()
     class(VariableRepository), private, pointer :: repo => null()
     class(Domain), private, pointer :: dom => null()
     class(Io), private, pointer :: io => null()
@@ -60,8 +59,7 @@ MODULE swm_damping_module
     !! and/or explicit quadratic damping. If the model is set to be BAROTROPIC,
     !! the damping coefficients are scaled with the depth.
     !------------------------------------------------------------------
-    function new(log, dom, repo, io_comp, state) result(self)
-      class(Logger), target, intent(in) :: log
+    function new(dom, repo, io_comp, state) result(self)
       class(Domain), target, intent(in) :: dom
       class(VariableRepository), target, intent(in) :: repo
       class(Io), target, intent(in) :: io_comp
@@ -74,7 +72,6 @@ MODULE swm_damping_module
       integer(KSHORT), DIMENSION(:, :), pointer :: ocean_u, ocean_v
       integer(KINT) :: Nx, Ny, i, j
 
-      self%log => log
       self%dom => dom
       self%repo => repo
       self%io => io_comp
@@ -91,7 +88,7 @@ MODULE swm_damping_module
       ! allocate memory
       ! linear friction
       ALLOCATE(gamma_lin_u(1:Nx, 1:Ny), gamma_lin_v(1:Nx, 1:Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__,__LINE__)
+      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__,__LINE__)
       CALL self%repo%add(gamma_lin_u,"GAMMA_LIN_U", self%dom%u_grid)
       CALL self%repo%add(gamma_lin_v,"GAMMA_LIN_V", self%dom%v_grid)
       call initVar(gamma_lin_u, 0._KDOUBLE)
@@ -187,7 +184,7 @@ MODULE swm_damping_module
         CASE ("GAMMA_LIN_ETA")
           grid_ident = "E"
         CASE DEFAULT
-          call self%log%fatal("Unknow damping coefficient "//TRIM(coefName)//" requested.")
+          call log%fatal("Unknow damping coefficient "//TRIM(coefName)//" requested.")
       END SELECT
 
       ! read input namelists
@@ -211,7 +208,7 @@ MODULE swm_damping_module
           case (SWM_DAMPING_NL_TYPE_UNIFORM)
             coef = max(coef, value)
           case default
-            call self%log%fatal("Unkown type identifyer in swm_damping_nl. Check your namelists!")
+            call log%fatal("Unkown type identifyer in swm_damping_nl. Check your namelists!")
         end select
       END DO
       CLOSE(UNIT_SWM_DAMPING_NL)
@@ -334,7 +331,7 @@ MODULE swm_damping_module
           lon = self%dom%eta_grid%lon
         CASE default
           WRITE (log_msg,'("Error in ",A,":",I4,X,"Unspecified Grid identifier",X,A)') __FILE__,__LINE__,gString
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
       spongeCoefficient = D2R * self%dom%A / length / &
 #if SPONGE_SCALE_UNIT == SCU_DEGREE
@@ -400,17 +397,16 @@ MODULE swm_damping_module
       integer(KINT) :: alloc_error
       IF (associated(self%gamma_sq_u)) THEN
         DEALLOCATE(self%gamma_sq_u, stat=alloc_error)
-        IF (alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+        IF (alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       IF (associated(self%gamma_sq_v)) THEN
         DEALLOCATE(self%gamma_sq_v,stat=alloc_error)
-        IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+        IF(alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
       END IF
       DEALLOCATE(self%impl_u,self%impl_v,self%impl_eta,stat=alloc_error)
-      IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+      IF(alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
       nullify(self%dom)
       nullify(self%repo)
       nullify(self%io)
-      nullify(self%log)
     END SUBROUTINE SWM_damping_finish
 END MODULE swm_damping_module

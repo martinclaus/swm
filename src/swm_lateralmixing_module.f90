@@ -32,7 +32,7 @@
 !! @par Includes: model.h
 !! @par Uses:
 !! types \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! domain_module, only: Domain \n
 !! vars_module, only: VariableRepository, N0 \n
 !! swm_vars, only: SwmState \n
@@ -42,7 +42,7 @@
 MODULE swm_lateralmixing_module
 #include "model.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0
   use swm_vars, only: SwmState
@@ -55,7 +55,6 @@ MODULE swm_lateralmixing_module
 
   type :: SwmLateralMixing
     private
-    class(Logger), pointer :: log => null()
     real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_u !< Coefficient matrix for the zonal momentum equation. Size 3,Nx,Ny
     real(KDOUBLE), DIMENSION(:,:,:), ALLOCATABLE  :: lat_mixing_v !< Coefficient matrix for the meridional momentum equation. Size 3,Nx,Ny
     real(KDOUBLE), dimension(:,:,:), allocatable  :: pll_coeff  !< Time independent coefficients for the computation of \f$P_{\lambda\lambda}\f$. Size 3, Nx, Ny
@@ -82,16 +81,13 @@ MODULE swm_lateralmixing_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief allocates and initalise lateral mixing module
     !------------------------------------------------------------------
-    function new(log, dom, repo, state) result(self)
+    function new(dom, repo, state) result(self)
       type(SwmLateralMixing) :: self
-      class(Logger), target :: log
       class(Domain), target :: dom
       class(VariableRepository), target :: repo
       type(SwmState), target :: state
       integer(KINT)   :: alloc_error, Nx, Ny
       
-      self%log => log
-
       call link_domain_dependencies(self, dom)
       call link_swm_state_dependencies(self, state)
 
@@ -200,7 +196,7 @@ MODULE swm_lateralmixing_module
         self%lat_mixing_u, self%lat_mixing_v, &
         stat=alloc_error &
       )
-      IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+      IF(alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE SWM_LateralMixing_finish
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

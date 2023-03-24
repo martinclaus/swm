@@ -23,8 +23,8 @@ module app
     !------------------------------------------------------------------
     type, abstract :: Component
     contains
-        procedure(call_on_component), private, deferred, pass :: initialize
-        procedure(call_on_component), private, deferred, pass :: finalize
+        procedure, private, pass :: initialize => do_nothing
+        procedure, private, pass :: finalize => do_nothing
         procedure, private, pass :: step => do_nothing
         procedure, private, pass :: advance => do_nothing
     end type Component

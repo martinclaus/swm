@@ -12,7 +12,7 @@
 MODULE calc_lib
   use types
   use app, only: Component
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use grid_module, only: grid_t
   use init_vars
@@ -64,7 +64,6 @@ MODULE calc_lib
 
   type, extends(Component) :: Calc
     ! dependencies
-    class(Logger), pointer, private :: log => null()
     class(Domain), pointer, private :: dom => null()
 
     real(KDOUBLE), DIMENSION(:,:), pointer, private   :: chi      !< Size Nx, Ny. Velocity correction potential
@@ -100,12 +99,10 @@ MODULE calc_lib
 
   CONTAINS
 
-    function make_calc_component(log, dom) result(calc_comp)
-      class(Logger), pointer    :: log
+    function make_calc_component(dom) result(calc_comp)
       class(Domain), pointer    :: dom
       class(Calc), pointer      :: calc_comp
       allocate(calc_comp)
-      calc_comp%log => log
       calc_comp%dom => dom
     end function make_calc_component
   
@@ -119,7 +116,7 @@ MODULE calc_lib
       class(Calc), intent(inout) :: self
       integer(KINT) :: alloc_error
       ALLOCATE(self%chi(1:self%dom%Nx,1:self%dom%Ny), self%u_nd(1:self%dom%Nx, 1:self%dom%Ny), self%v_nd(1:self%dom%Nx, 1:self%dom%Ny), stat=alloc_error)
-      IF (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      IF (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
       call initVar(self%chi, 0._KDOUBLE)
       call initVar(self%u_nd, 0._KDOUBLE)
@@ -173,10 +170,9 @@ MODULE calc_lib
       call CALC_LIB_ELLIPTIC_SOLVER_FINISH
 #endif
       DEALLOCATE(self%chi, self%u_nd, self%v_nd, STAT=alloc_error)
-      IF(alloc_error.NE.0) call self%log%error("Deallocation failed")
+      IF(alloc_error.NE.0) call log%error("Deallocation failed")
 
       nullify(self%dom)
-      nullify(self%log)
     END SUBROUTINE finishCalcLib
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -215,7 +211,7 @@ MODULE calc_lib
           ip => self%dom%ip0
           im => self%dom%ip0
         case default
-          call self%log%fatal("Wrong direction for interpolation specified. Check your Code!")
+          call log%fatal("Wrong direction for interpolation specified. Check your Code!")
       end select
 
       int_obj%mask => from_grid%ocean
@@ -225,7 +221,7 @@ MODULE calc_lib
 
       allocate(int_obj%weight_vec(2, 1:Nx, 1:Ny),&
                int_obj%iind(2, 1:Nx, 1:Ny), int_obj%jind(2, 1:Nx, 1:Ny), stat=stat)
-      if (stat .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
 !$omp parallel private(i, j, ii, jj, weight)
 !$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
@@ -296,7 +292,7 @@ MODULE calc_lib
 
       allocate(int_obj%weight_vec(4, 1:Nx, 1:Ny),&
                int_obj%iind(4, 1:Nx, 1:Ny), int_obj%jind(4, 1:Nx, 1:Ny), stat=stat)
-      if (stat .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
 !$omp parallel private(i, j, ii, jj, weight)
 !$omp do schedule(OMPSCHEDULE, OMPCHUNK) OMP_COLLAPSE(2)
@@ -559,11 +555,11 @@ MODULE calc_lib
       call computeDivergenceself%u_nd, self%v_nd, res_div, u_grid, v_grid)
 
       WRITE (log_msg, '(A25,e20.15)') "Initial divergence:", sum(abs(div_u))
-      call self%log%debug(log_msg)
+      call log%debug(log_msg)
       WRITE (log_msg,'(A25,e20.15)') "Residual divergence:", sum(abs(res_div))
-      call self%log%debug(log_msg)
+      call log%debug(log_msg)
       WRITE (log_msg,'(A25,e20.15)') "Ratio:", sum(abs(res_div))/sum(abs(div_u))
-      call self%log%debug(log_msg)
+      call log%debug(log_msg)
 #endif
       self%u_nd_computed=.TRUE.
       if (present(u_nd_out)) u_nd_out = self%u_nd
@@ -642,7 +638,7 @@ MODULE calc_lib
       call getOutGrid(self, u_grid_in,"theta",out_grid)
       call getOutGrid(self, v_grid_in, "lambda", out_grid2)
       if (.not.associated(out_grid, out_grid2)) &
-        call self%log%fatal("Input grids are not suitable for vorticity calculation.")
+        call log%fatal("Input grids are not suitable for vorticity calculation.")
       vort = self%pder_zonal(v_in,v_grid_in) &
             - self%pder_meridional(spread(u_grid_in%cos_lat,1,size(u_in,1))*u_in,u_grid_in)/spread(out_grid%cos_lat,1,size(u_in,1))
     end function vorticityFromVelocities2D
@@ -669,7 +665,7 @@ MODULE calc_lib
       call getOutGrid(self, u_grid_in, "theta", out_grid)
       call getOutGrid(self, v_grid_in, "lambda", out_grid2)
       if (.not.associated(out_grid, out_grid2)) &
-        call self%log%fatal("Input grids are not suitable for vorticity calculation.")
+        call log%fatal("Input grids are not suitable for vorticity calculation.")
       vort = self%pder_zonal(v_in,v_grid_in) &
             - self%pder_meridional(spread(spread(u_grid_in%cos_lat, 1, size(u_in,1)), 3, size(u_in, 3)) * u_in,u_grid_in) &
               / spread(spread(out_grid%cos_lat,1,size(u_in,1)), 3, size(u_in, 3))
@@ -1286,7 +1282,7 @@ MODULE calc_lib
             local_indm1 => self%dom%jp0
           end if
         case default
-          call self%log%fatal("Wrong direction for getOutGrid specified. Check your code!")
+          call log%fatal("Wrong direction for getOutGrid specified. Check your code!")
       end select
       if (present(ind0)) ind0 => local_ind0
       if (present(indm1)) indm1 => local_indm1

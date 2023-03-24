@@ -15,7 +15,7 @@
 !! io.h, model.h
 !! @par Uses:
 !! types \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! app, only: Component \n
 !! vars_module, only: VariableRepository \n
 !! domain_module, only: Domain \n
@@ -27,7 +27,7 @@ MODULE dynFromIo_module
 #include "model.h"
 #include "io.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use app, only: Component
   use vars_module, only: VariableRepository
   use domain_module, only: Domain
@@ -72,7 +72,6 @@ MODULE dynFromIo_module
 
   type, extends(Component) :: DynFromIo
     private
-    class(Logger), pointer             :: log => null()
     class(Domain), pointer             :: dom => null()
     class(VariableRepository), pointer :: repo => null()
     class(Io), pointer                 :: io => null()
@@ -96,15 +95,13 @@ MODULE dynFromIo_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Create a DynFromIo component
     !------------------------------------------------------------------
-    function make_dynFromIo_component(log, dom, repo, io_comp, calc_comp) result(comp)
-      class(Logger), target, intent(in) :: log
+    function make_dynFromIo_component(dom, repo, io_comp, calc_comp) result(comp)
       class(Domain), target, intent(in) :: dom
       class(VariableRepository), target, intent(in) :: repo
       class(Io), target, intent(in) :: io_comp
       class(Calc), target, intent(in) :: calc_comp
       class(DynFromIo), pointer :: comp
       allocate(comp)
-      comp%log => log
       comp%dom => dom
       comp%repo => repo
       comp%io => io_comp
@@ -160,7 +157,7 @@ MODULE dynFromIo_module
       type(PsiInput), allocatable :: input
       integer :: alloc_stat
       allocate(input, stat=alloc_stat)
-      if (alloc_stat .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
       input%dom => self%dom
       input%calc => self%calc
@@ -190,7 +187,7 @@ MODULE dynFromIo_module
       integer :: alloc_error
 
       allocate(input, stat=alloc_error)
-      if (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
       shape = (/self%dom%Nx, self%dom%Ny, chunk_size/)
 
@@ -218,7 +215,7 @@ MODULE dynFromIo_module
         self%eta(1:Nx, 1:Ny),  &
         stat=alloc_error)
 
-      if (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
     end subroutine allocate_buffer
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

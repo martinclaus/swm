@@ -1,7 +1,7 @@
 module io_netcdf
 #include "io.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use app, only: Component
   use io_module, only: Reader, Writer, HandleArgs, Io
   USE grid_module, only: grid_t, t_grid_lagrange
@@ -106,12 +106,9 @@ module io_netcdf
   end type NetCDFFileWriter
 
   contains
-  function make_netcdf_io(logger_ptr) result(io_comp)
-    class(Logger), pointer, intent(in) :: logger_ptr
-    class(Io), pointer                 :: io_comp
-    type(NetCDFIo)                     :: concrete_io
-    allocate(io_comp, source=concrete_io)
-    io_comp%log => logger_ptr
+  function make_netcdf_io() result(io_comp)
+    class(NetCDFIo), pointer :: io_comp
+    allocate(io_comp)
   end function make_netcdf_io
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -119,7 +116,6 @@ module io_netcdf
   !------------------------------------------------------------------
   subroutine do_nothing_netcdf_io(self)
     class(NetCDFIo), intent(inout) :: self
-    nullify(self%log)
   end subroutine do_nothing_netcdf_io
 
   subroutine init_netcdf_io(self)
@@ -152,7 +148,6 @@ module io_netcdf
     close(UNIT_OUTPUT_NL)
     
     self%nc_par = parse_nc_file_params( &
-      self, &
       nc_cmode, &
       nc_contiguous, nc_chunksizes, &
       nc_shuffle, nc_deflate_level, nc_fletcher32, &
@@ -173,8 +168,7 @@ module io_netcdf
   !! the filename you try to access. If status is indicating and error,
   !! a fatal error will be logged and program execution will be terminated
   !------------------------------------------------------------------
-  subroutine check(self, status, line, fileName)
-    class(Io), intent(in) :: self
+  subroutine check(status, line, fileName)
     integer(KINT_NF90), intent(in)         :: status          !< Status returned by a call of a netcdf library function
     integer, intent(in), optional          :: line            !< Line of file where the subroutine was called
     character(len=*), intent(in), optional :: fileName        !< Name of file the function trys to access
@@ -183,9 +177,9 @@ module io_netcdf
       if (present(line) .AND. present(fileName)) then
         WRITE(log_msg, '("Error in io_module.f90:",I4,X,A, " while processing file",X,A)') &
           line, trim(nf90_strerror(status)), trim(fileName)
-        call self%log%fatal(log_msg)
+        call log%fatal(log_msg)
       ELSE
-        call self%log%fatal(trim(nf90_strerror(status)))
+        call log%fatal(trim(nf90_strerror(status)))
       end if
     end if
   end subroutine check
@@ -203,7 +197,7 @@ module io_netcdf
     class is (NetCDFFileReader)
       call self%getVar(var, self%file_handle%get_Nrec(), missmask)
     class default
-      call self%io_comp%log%fatal("Tried to read from a non-netCDF IO handle with the netCDF IO component.")
+      call log%fatal("Tried to read from a non-netCDF IO handle with the netCDF IO component.")
     end select
   end subroutine read_initial_conditions_netcdf
 
@@ -346,7 +340,7 @@ module io_netcdf
     class is (NetCDFIO)
       call createDSEuler_netcdf(self%file_handle, grid, io)
     class default
-      call io%log%fatal("Wrong IO component used to create a netCDF file")
+      call log%fatal("Wrong IO component used to create a netCDF file")
     end select
   end subroutine createDSEuler
 
@@ -368,54 +362,54 @@ module io_netcdf
     self%filename = getFname(io_comp, self%filename)
 
     ! create file
-    call check(io_comp, create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
+    call check(create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
     self%isOpen = .TRUE.
 
     ! create dimensions
-    call check(io_comp, nf90_def_dim(self%ncid, XAXISNAME, Nx, lon_dimid))
-    call check(io_comp, nf90_def_dim(self%ncid, YAXISNAME, Ny, lat_dimid))
-    call check(io_comp, nf90_def_dim(self%ncid, TAXISNAME, Ntime, self%timedid))
+    call check(nf90_def_dim(self%ncid, XAXISNAME, Nx, lon_dimid))
+    call check(nf90_def_dim(self%ncid, YAXISNAME, Ny, lat_dimid))
+    call check(nf90_def_dim(self%ncid, TAXISNAME, Ntime, self%timedid))
 
     ! define variables
     ! longitude vector
-    call check(io_comp, create_nc_coord_var( &
+    call check(create_nc_coord_var( &
       self, XAXISNAME, NF90_DOUBLE, (/lon_dimid/), lon_varid), &
       __LINE__, self%filename &
     )
-    call check(io_comp, nf90_put_att(self%ncid, lon_varid, NUG_ATT_UNITS, XUNIT))
-    call check(io_comp, nf90_put_att(self%ncid, lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
+    call check(nf90_put_att(self%ncid, lon_varid, NUG_ATT_UNITS, XUNIT))
+    call check(nf90_put_att(self%ncid, lon_varid, NUG_ATT_LONG_NAME, XAXISNAME))
 
     ! latitude vector
-    call check(io_comp, create_nc_coord_var( &
+    call check(create_nc_coord_var( &
       self, YAXISNAME, NF90_DOUBLE, (/lat_dimid/), lat_varid), &
       __LINE__, self%filename &
     )
-    call check(io_comp, nf90_put_att(self%ncid, lat_varid, NUG_ATT_UNITS, YUNIT))
-    call check(io_comp, nf90_put_att(self%ncid, lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
+    call check(nf90_put_att(self%ncid, lat_varid, NUG_ATT_UNITS, YUNIT))
+    call check(nf90_put_att(self%ncid, lat_varid, NUG_ATT_LONG_NAME, YAXISNAME))
 
     ! time vector
-    call check(io_comp, create_nc_coord_var( &
+    call check(create_nc_coord_var( &
       self, TAXISNAME, NF90_DOUBLE, (/self%timedid/), self%timevid), &
       __LINE__, self%filename &
     )
-    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
-    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
+    call check(nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
+    call check(nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
 
     ! variable field
-    call check(io_comp,  &
+    call check( &
       create_nc_data_var( &
         self, NF90_DOUBLE, (/lon_dimid,lat_dimid,self%timedid/), io_comp%nc_par &
       ), &
       __LINE__, self%filename &
     )
-    call check(io_comp, nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
+    call check(nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
     ! end define mode
-    call check(io_comp, nf90_enddef(self%ncid))
+    call check(nf90_enddef(self%ncid))
     ! write domain variables
-    call check(io_comp, nf90_put_var(self%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
-    call check(io_comp, nf90_put_var(self%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
+    call check(nf90_put_var(self%ncid, lat_varid, grid%lat))      ! Fill lat dimension variable
+    call check(nf90_put_var(self%ncid, lon_varid, grid%lon))      ! Fill lon dimension variable
     self%nrec = 0
-    self%calendar = self%calendar%new(io_comp%log, io_comp%modelCalendar%time_unit)
+    self%calendar = self%calendar%new(io_comp%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
     call close(self)
 #endif    
@@ -437,7 +431,7 @@ module io_netcdf
     class is (NetCDFIO)
       call createDSLagrange_netcdf(self%file_handle, grid, io)
     class default
-      call io%log%fatal("Wrong IO component used to create a netCDF file")
+      call log%fatal("Wrong IO component used to create a netCDF file")
     end select
   end subroutine createDSLagrange
 
@@ -453,31 +447,31 @@ module io_netcdf
     self%filename = getFname(io_comp, self%filename)
 
     ! create file
-    call check(io_comp, create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
+    call check(create_nc_file(self, io_comp%nc_par), __LINE__, self%filename)
     self%isOpen = .TRUE.
 
     ! create dimensions
-    call check(io_comp, nf90_def_dim(self%ncid, IDAXISNAME, Nr, id_dimid))
-    call check(io_comp, nf90_def_dim(self%ncid, TAXISNAME, NF90_UNLIMITED, self%timedid))
+    call check(nf90_def_dim(self%ncid, IDAXISNAME, Nr, id_dimid))
+    call check(nf90_def_dim(self%ncid, TAXISNAME, NF90_UNLIMITED, self%timedid))
 
     ! define variables
     ! id vector
-    call check(io_comp, nf90_def_var(self%ncid, IDAXISNAME, NF90_DOUBLE, (/id_dimid/), id_varid))
-    call check(io_comp, nf90_put_att(self%ncid, id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
+    call check(nf90_def_var(self%ncid, IDAXISNAME, NF90_DOUBLE, (/id_dimid/), id_varid))
+    call check(nf90_put_att(self%ncid, id_varid, NUG_ATT_LONG_NAME, IDAXISNAME))
     ! time vector
-    call check(io_comp, nf90_def_var(self%ncid, TAXISNAME, NF90_DOUBLE, (/self%timedid/), self%timevid))
-    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
-    call check(io_comp, nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
+    call check(nf90_def_var(self%ncid, TAXISNAME, NF90_DOUBLE, (/self%timedid/), self%timevid))
+    call check(nf90_put_att(self%ncid, self%timevid, NUG_ATT_UNITS, io_comp%modelCalendar%time_unit))
+    call check(nf90_put_att(self%ncid, self%timevid, NUG_ATT_LONG_NAME, TAXISNAME))
     ! variable field
-    call check(io_comp, nf90_def_var(self%ncid, self%varname, NF90_DOUBLE, (/id_dimid, self%timedid/), self%varid))
-    call check(io_comp, nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
+    call check(nf90_def_var(self%ncid, self%varname, NF90_DOUBLE, (/id_dimid, self%timedid/), self%varid))
+    call check(nf90_put_att(self%ncid, self%varid, NUG_ATT_MISS, self%missval))
     ! end define mode
-    call check(io_comp, nf90_enddef(self%ncid))
+    call check(nf90_enddef(self%ncid))
     ! write domain variables
-    call check(io_comp, nf90_put_var(self%ncid, id_varid, grid%id))   ! Fill id dimension variable
+    call check(nf90_put_var(self%ncid, id_varid, grid%id))   ! Fill id dimension variable
 
     self%nrec = 0
-    self%calendar = self%calendar%new(io_comp%log, io_comp%modelCalendar%time_unit)
+    self%calendar = self%calendar%new(io_comp%modelCalendar%time_unit)
 #ifdef DIAG_FLUSH
     call close(self)
 #endif
@@ -497,11 +491,14 @@ module io_netcdf
     type(NetCDFFile)                 :: time_handle   !< FileHandle of time axis for temporary use.
     character(CHARLEN)               :: t_string  !< String of time unit
     if ( self%isopen ) return
-    call check(self%io, nf90_open(trim(self%filename), NF90_WRITE, self%ncid), __LINE__, self%filename)
+    call check(nf90_open(trim(self%filename), NF90_WRITE, self%ncid), __LINE__, self%filename)
     self%isopen = .TRUE.
 
-    if (self%varid.EQ.DEF_VARID) call check(self%io, nf90_inq_varid(self%ncid,trim(self%varname),self%varid),&
-                                          __LINE__,self%filename)
+    if (self%varid.EQ.DEF_VARID) call check( &
+      nf90_inq_varid(self%ncid,trim(self%varname),self%varid), &
+      __LINE__, &
+      self%filename &
+    )
     ! get time dimension id
     call self%get_time_dim_id()
 
@@ -516,11 +513,11 @@ module io_netcdf
         call time_handle%getAtt(NUG_ATT_UNITS, t_string)
         if (LEN_trim(t_string).EQ.0) then
           t_string = self%io%modelCalendar%time_unit
-          call self%io%log%warn("Input dataset "//trim(self%filename)//" has no time axis. Assumed time axis: "//trim(t_string))
+          call log%warn("Input dataset "//trim(self%filename)//" has no time axis. Assumed time axis: "//trim(t_string))
         end if
-        self%calendar = self%calendar%new(self%io%log, t_string)
+        self%calendar = self%calendar%new(t_string)
       ELSE ! datset has no non-singleton time axis
-        self%calendar = self%calendar%new(self%io%log, self%io%modelCalendar%time_unit)
+        self%calendar = self%calendar%new(self%io%modelCalendar%time_unit)
       end if
     end if
   end subroutine open
@@ -533,8 +530,7 @@ module io_netcdf
   subroutine close(self)
     class(NetCDFFile), intent(inout) :: self     !< File handle pointing to an existing dataset.
     if ( .not. self%isOpen ) return
-    call check(self%io, nf90_close(self%ncid), &
-               __LINE__, trim(self%filename))
+    call check(nf90_close(self%ncid), __LINE__, trim(self%filename))
     self%isOpen = .false.
   end subroutine close
 
@@ -576,12 +572,12 @@ module io_netcdf
     if (present(time)) local_time = time
     wasOpen = self%file_handle%isOpen
     call self%file_handle%open()
-    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
+    call check(nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
                             start = (/1, 1 , int(self%file_handle%nrec, KINT_NF90)/), &
                             count=(/size(varData,1),size(varData,2),1/)),&
               __LINE__,trim(self%file_handle%filename))
-    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%timevid,local_time,start=(/int(self%file_handle%nrec, KINT_NF90)/)),&
-              __LINE__,trim(self%file_handle%filename))
+    call check(nf90_put_var(self%file_handle%ncid, self%file_handle%timevid,local_time,start=(/int(self%file_handle%nrec, KINT_NF90)/)),&
+              __LINE__, trim(self%file_handle%filename))
     call updateNrec(self%file_handle)
     if ( .not. wasOpen ) call close(self%file_handle)
   end subroutine putVarEuler
@@ -605,11 +601,11 @@ module io_netcdf
     if (present(time))  local_time = time
     wasOpen = self%file_handle%isOpen
     call self%file_handle%open()
-    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
+    call check(nf90_put_var(self%file_handle%ncid, self%file_handle%varid, var_dummy, &
                             start = (/1, int(self%file_handle%nrec, KINT_NF90)/), &
                             count=(/size(varData),1/)), &
               __LINE__,trim(self%file_handle%filename))
-    call check(self%io_comp, nf90_put_var(self%file_handle%ncid, self%file_handle%timevid, local_time, start=(/int(self%file_handle%nrec, KINT_NF90)/)), &
+    call check(nf90_put_var(self%file_handle%ncid, self%file_handle%timevid, local_time, start=(/int(self%file_handle%nrec, KINT_NF90)/)), &
               __LINE__,trim(self%file_handle%filename))
     call updateNrec(self%file_handle)
     if (.not.wasOpen) call close(self%file_handle)
@@ -630,7 +626,7 @@ module io_netcdf
     logical                                                  :: wasOpen
     wasOpen = self%file_handle%isOpen
     call self%file_handle%open()
-    call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
+    call check(nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/1, 1, int(tstart, KINT_NF90)/), count=SHAPE(var)),&
               __LINE__,trim(self%file_handle%filename))
     ! assume that if getatt gives an error, there's no missing value defined.
     if ( present(missmask)) then
@@ -659,7 +655,7 @@ module io_netcdf
     logical                                                :: wasOpen
     wasOpen = self%file_handle%isOpen
     call self%file_handle%open()
-    call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, &
+    call check(nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, &
                             start=(/1, 1, int(tstart, KINT_NF90)/), &
                             count=(/size(var,1),size(var,2),1/)))
     ! assume that if getatt gives an error, there's no missing value defined.
@@ -687,15 +683,14 @@ module io_netcdf
     call self%file_handle%open()
     if (present(tstart)) then
       if (size(var).ne.1) then
-        call check(  &
-          self%io_comp, &
+        call check( &
           nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/int(tstart, KINT_NF90)/), count=SHAPE(var))  &
         )
       ELSE
-        call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/int(tstart, KINT_NF90)/)))
+        call check(nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var, start=(/int(tstart, KINT_NF90)/)))
       end if
     ELSE
-        call check(self%io_comp, nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var))
+        call check(nf90_get_var(self%file_handle%ncid, self%file_handle%varid, var))
     end if
     if ( .not. wasOpen ) call close(self%file_handle)
   end subroutine getVar1D
@@ -720,7 +715,7 @@ module io_netcdf
       call time_reader%getVar(time)
     end if
     ! convert to model time unit
-    call self%io%log%debug("Convert time for input "//self%get_filename())
+    call log%debug("Convert time for input "//self%get_filename())
     call self%calendar%convertTime(self%calendar, self%io%modelCalendar, time)
   end subroutine getTimeVar
 
@@ -793,8 +788,8 @@ module io_netcdf
     type(NetCDFFile)                      :: handle             !< File handle to be returned
     handle = NetCDFFile(  &
       self,  &
-      get_validated_arg(self, args, "filename"),  &
-      get_validated_arg(self, args, "varname")  &
+      get_validated_arg(args, "filename"),  &
+      get_validated_arg(args, "varname")  &
     )
   end function make_netcdf_file_handle
 
@@ -840,8 +835,7 @@ module io_netcdf
     allocate(handle, source=netcdf_writer)
   end function get_writer_netcdf
 
-  function get_validated_arg(self, args, key) result(value)
-    class(Io), intent(in) :: self
+  function get_validated_arg(args, key) result(value)
     type(HandleArgs), intent(inout) :: args
     character(*) :: key
     character(CHARLEN) :: value
@@ -851,14 +845,14 @@ module io_netcdf
     arg_val => args%get(key)
     if (.not. associated(arg_val)) then
       write(msg, "(/'Missing arguemnt ', A, ' when trying to create an IO handle.'/)") trim(key)
-      call self%log%fatal(msg)
+      call log%fatal(msg)
     end if
     select type(arg_val)
     type is (character(*))
       value = trim(arg_val)
     class default
       write(msg, "(/'Wrong type of argument ', A, ' when trying to create an IO handle.'/)") trim(key)
-      call self%log%fatal(msg)
+      call log%fatal(msg)
     end select
   end function get_validated_arg
 
@@ -986,22 +980,22 @@ module io_netcdf
     if (self%timedid .ne. DEF_TIMEDID) then
       return
     end if
-    call check(self%io, nf90_inquire(self%ncid, unlimitedDimId=self%timedid), __LINE__, self%filename) !< get dimid by record dimension
+    call check(nf90_inquire(self%ncid, unlimitedDimId=self%timedid), __LINE__, self%filename) !< get dimid by record dimension
     if (self%timedid .ne. NF90_NOTIMEDIM) then
-      call check(self%io, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+      call check(nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
       self%nrec = len
       return
     end if
-    call check(self%io, nf90_inquire_variable(self%ncid, self%varid, ndims=nDims))
+    call check(nf90_inquire_variable(self%ncid, self%varid, ndims=nDims))
     if (nDims .lt. 3) then                                                              !< no time dimension
       self%nrec = 1
       return
     end if
     if (nf90_inq_dimid(self%ncid, TAXISNAME, dimid=self%timedid) .ne. nf90_noerr) then         !< get dimid by name
       if (nf90_inq_dimid(self%ncid, to_upper(TAXISNAME), dimid=self%timedid) .ne. nf90_noerr) &
-        call check(self%io, nf90_inq_dimid(self%ncid, to_lower(TAXISNAME), dimid=self%timedid), __LINE__, self%filename)
+        call check(nf90_inq_dimid(self%ncid, to_lower(TAXISNAME), dimid=self%timedid), __LINE__, self%filename)
     end if
-    call check(self%io, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+    call check(nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
     self%nrec = len
   end subroutine get_time_dim_id
 
@@ -1019,7 +1013,7 @@ module io_netcdf
     if (self%timevid .ne. DEF_TIMEVID) return
     if (nf90_inq_varid(self%ncid, TAXISNAME, self%timevid) .ne. nf90_noerr) then
       if (nf90_inq_varid(self%ncid, to_upper(TAXISNAME), self%timevid) .ne. nf90_noerr) &
-        call check(self%io, nf90_inq_varid(self%ncid, to_lower(TAXISNAME), self%timevid), __LINE__, self%filename)
+        call check(nf90_inq_varid(self%ncid, to_lower(TAXISNAME), self%timevid), __LINE__, self%filename)
     end if
   end subroutine get_time_var_id
 
@@ -1028,23 +1022,21 @@ module io_netcdf
   !> @brief  Parse name list arguments related to NetCDF file output
   !------------------------------------------------------------------
   function parse_nc_file_params( &
-    self, &
     cmode, &
     contiguous, chunksizes, &
     shuffle, deflate_level, fletcher32, &
     endianness &
   ) result(params)
-    class(Io), intent(in) :: self
     type(nc_file_parameter) :: params
     character(len=*) :: cmode(:)
     integer :: deflate_level, contiguous
     character(len=*) :: endianness
     logical :: shuffle, fletcher32
     integer, dimension(:) :: chunksizes
-    params%cmode = get_NF90_cmode(self, cmode)
-    params%endianness = get_NF90_endianness(self, endianness)
+    params%cmode = get_NF90_cmode(cmode)
+    params%endianness = get_NF90_endianness(endianness)
     params%shuffle = get_NF90_shuffle(shuffle)
-    params%deflate_level = get_NF90_deflate_level(self, deflate_level)
+    params%deflate_level = get_NF90_deflate_level(deflate_level)
     params%fletcher32 = get_NF90_fletcher32(fletcher32)
     params%n_dims = count(chunksizes .ne. 0.)
     params%chunksizes = get_NF90_chunksizes(chunksizes)
@@ -1055,8 +1047,7 @@ module io_netcdf
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Parse endianness argument for NetCDF file output
   !------------------------------------------------------------------
-  integer function get_NF90_endianness(self, endianness) result(res)
-    class(Io), intent(in) :: self
+  integer function get_NF90_endianness(endianness) result(res)
     character(len=*), intent(in) :: endianness
     select case (to_upper(trim(endianness)))
     case ("NF90_endIAN_NATIVE", "")
@@ -1066,7 +1057,7 @@ module io_netcdf
     case ("NF90_endIAN_BIG")
       res = nf90_endian_big
     case default
-      call self%log%fatal( &
+      call log%fatal( &
         "NetCDF endianness not recognized. Must be one of 'NF90_endIAN_NATIVE', " &
         // "'NF90_endIAN_LITTLE' or 'NF90_endIAN_BIG'" &
       )
@@ -1087,11 +1078,10 @@ module io_netcdf
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Parse deflate_level argument for NetCDF file output
   !------------------------------------------------------------------
-  integer function get_NF90_deflate_level(self, deflate_level) result(res)
-    class(Io), intent(in) :: self
+  integer function get_NF90_deflate_level(deflate_level) result(res)
     integer, intent(in) :: deflate_level
     if (deflate_level .lt. 0 .or. deflate_level .gt. 9) then
-      call self%log%fatal("Deflate level of NetCDF outut invalid. Must be in 0-9.")
+      call log%fatal("Deflate level of NetCDF outut invalid. Must be in 0-9.")
     end if
     res = deflate_level
   end function get_NF90_deflate_level
@@ -1128,15 +1118,14 @@ module io_netcdf
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Construct NetCDF cmode argument from array of flag names
   !------------------------------------------------------------------
-  integer function get_NF90_cmode(self, mode_strings) result(mode_code)
-    class(Io), intent(in) :: self
+  integer function get_NF90_cmode(mode_strings) result(mode_code)
     character(*), intent(in)  :: mode_strings(:)
     integer :: i
 
     mode_code = 0
     do i = 1, size(mode_strings)
       if (trim(mode_strings(i)) .eq. "") exit
-      mode_code = ior(mode_code, nf90cmode_string_to_int(self, mode_strings(i)))
+      mode_code = ior(mode_code, nf90cmode_string_to_int(mode_strings(i)))
     end do 
   end function get_NF90_cmode
 
@@ -1147,8 +1136,7 @@ module io_netcdf
   !! NetCDF file creation mode.
   !! See https://docs.unidata.ucar.edu/netcdf-fortran/current/f90_datasets.html#f90-nf90_create
   !------------------------------------------------------------------
-  integer function nf90cmode_string_to_int(self, s) result(code)
-    class(Io), intent(in) :: self
+  integer function nf90cmode_string_to_int(s) result(code)
     character(*), intent(in)  :: s
     select case (to_upper(trim(s)))
     case ("NF90_CLOBBER", "")  !< default if no input provided
@@ -1164,7 +1152,7 @@ module io_netcdf
     case ("NF90_CLASSIC_MODEL")
       code = nf90_classic_model
     case default
-      call self%log%fatal( &
+      call log%fatal( &
         "NetCDF creation mode not recognized. Must be one of 'NF90_CLOBBER', " &
         //"'NF90_NOCLOBBER','NF90_SHARE', 'NF90_64BIT_OFFSET', 'NF90_NETCDF4', "&
         //"or 'NF90_CLASSIC_MODEL'. Got '" // s // "'" &

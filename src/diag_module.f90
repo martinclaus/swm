@@ -18,7 +18,7 @@ module diag_module
 #include "io.h"
 #include "diag_module.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use app, only: Component
   use list_mod, only: List, ListIterator
   use io_module, only: Io, Writer, HandleArgs
@@ -42,7 +42,6 @@ module diag_module
   !! already computed at the present time step.
   !------------------------------------------------------------------
   type, private :: DiagVar
-    class(Logger), pointer                     :: log => null()
     class(VariableRepository), pointer         :: repo => null()
     class(Calc), pointer                       :: calc => null()
     real(KDOUBLE), dimension(:,:), allocatable :: data     !< variable data, Size(Nx,Ny)
@@ -65,7 +64,6 @@ module diag_module
   !! Create tasks only by using a `Diag` object via its `make_DiagTask` procedure
   !------------------------------------------------------------------
   type, private :: DiagTask
-    class(Logger), pointer                     :: log => null()
     class(VariableRepository), pointer         :: repo => null()
     integer(KINT)                              :: ID=0               !< Task index, starting at 1, incrementing by 1
     class(Writer), allocatable                 :: writer             !< File handle to variable in output dataset
@@ -105,7 +103,6 @@ module diag_module
 
   type, extends(Component) :: Diag
     private
-    class(Logger), pointer :: log => null()
     class(VariableRepository), pointer :: repo => null()
     class(Io), pointer :: io => null()
     class(Domain), pointer :: dom => null()
@@ -164,9 +161,8 @@ module diag_module
     end function find
 
     function make_diag_component(  &
-      log, dom, repo, io_comp, calc_comp  &
+      dom, repo, io_comp, calc_comp  &
     ) result(diag_comp)
-      class(Logger), target, intent(in) :: log
       class(Domain), target, intent(in) :: dom
       class(VariableRepository), target, intent(in) :: repo
       class(Io), target, intent(in) :: io_comp
@@ -175,7 +171,6 @@ module diag_module
       type(Diag) :: concrete_diag
 
       allocate(diag_comp, source=concrete_diag)
-      diag_comp%log => log
       diag_comp%dom => dom
       diag_comp%repo => repo
       diag_comp%io => io_comp
@@ -271,7 +266,7 @@ module diag_module
       READ(UNIT_DIAG_NL, nml=diag_nl, iostat=io_stat)
       IF (io_stat.NE.0) THEN
         WRITE (log_msg, '("ERROR: There is a problem in diag_nl",X,I2,". Check if your datatypes are correct!")') nlist
-        call self%log%fatal(log_msg)
+        call log%fatal(log_msg)
         return
       END IF
 
@@ -318,7 +313,6 @@ module diag_module
       integer(KINT), intent(in)       :: ID             !< ID of diagTask
       ! logical, intent(in)             :: unlimited_tdim !< Use an unlimited time dimension in output dataset.
 
-      task%log => self%log
       task%repo => self%repo
       task%writer = writer_handle
       task%type = type
@@ -340,7 +334,7 @@ module diag_module
       IF (.not.any(  &
         (/associated(task%varData2D), associated(task%varData1D)/)  &
       )) &
-        call self%log%fatal("Diagnostics for variable "//TRIM(task%varname)//" not supported!")
+        call log%fatal("Diagnostics for variable "//TRIM(task%varname)//" not supported!")
 
       !< Setup task object, allocate memory if needed
       SELECT CASE (task%type(1:1))
@@ -378,7 +372,6 @@ module diag_module
       if (associated(diag_var)) return
       
       allocate(diag_var)
-      diag_var%log => self%log
       diag_var%repo => self%repo
       diag_var%calc => self%calc
       call initDiagVar(diag_var, name, self%dom)
@@ -562,23 +555,23 @@ module diag_module
       character(CHARLEN) :: formatedString, formatedInteger, msg
       formatedString = '("**",X,A10,X,A80,/)'
       formatedInteger = '("**",X,A10,X,I4,/)'
-      call self%log%info("** Diag task info **********************************")
+      call log%info("** Diag task info **********************************")
       write(msg, formatedInteger) "ID:", self%ID
-      call self%log%info(msg)
+      call log%info(msg)
       write(msg, formatedString) "Varname:", self%varname
-      call self%log%info(msg)
+      call log%info(msg)
       if (associated(self%diagVar)) call print_diagvar(self%diagVar)
       write(msg, formatedString) "Destination:", self%writer%display()
-      call self%log%info(msg)
+      call log%info(msg)
       write(msg, formatedString) "Type:", self%type
-      call self%log%info(msg)
+      call log%info(msg)
       write(msg, formatedString) "Process:", self%process
-      call self%log%info(msg)
+      call log%info(msg)
       write(msg, formatedString) "Period:", self%period
-      call self%log%info(msg)
+      call log%info(msg)
       write(msg, formatedInteger) "Frequency:", self%frequency
-      call self%log%info(msg)
-      call self%log%info("****************************************************")
+      call log%info(msg)
+      call log%info("****************************************************")
     end subroutine
 
     subroutine print_diagtask_generic(self)
@@ -604,12 +597,12 @@ module diag_module
       ! CALL closeDS(self%FH)
       if (allocated(self%writer)) then
         deallocate(self%writer, stat=alloc_error)
-        if ( alloc_error .NE. 0 ) call self%log%error("Deallocation failed in " // __FILE__)
+        if ( alloc_error .NE. 0 ) call log%error("Deallocation failed in " // __FILE__)
       end if
 
       if (allocated(self%buffer)) then
         deallocate(self%buffer, stat=alloc_error)
-        if ( alloc_error .NE. 0 ) call self%log%error("Deallocation failed in " // __FILE__)
+        if ( alloc_error .NE. 0 ) call log%error("Deallocation failed in " // __FILE__)
       end if
     end subroutine finalize_DiagTask
 
@@ -627,7 +620,7 @@ module diag_module
       integer(KINT)                         :: alloc_error
       if (.not. allocated(self%data)) then
         allocate(self%data(1:dom%Nx,1:dom%Ny), stat=alloc_error)
-        if (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+        if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
       end if
       call initVar(self%data, 0._KDOUBLE)
       self%name = name(1:MIN(len(name),CHARLEN))
@@ -659,7 +652,7 @@ module diag_module
         case (DVARNAME_V_ND)
           call self%calc%computeNonDivergentFlowField(u, v, v_nd_out=self%data)
         case default
-          call self%log%fatal("Usupported diagnostic variable " // TRIM(self%name))
+          call log%fatal("Usupported diagnostic variable " // TRIM(self%name))
       end select
       self%computed = .true.
     END SUBROUTINE compute
@@ -683,7 +676,7 @@ module diag_module
         case (DVARNAME_V_ND)
           gout => dom%v_grid
         case default
-          call self%log%fatal("No grid can be found for diagnostic variable "//TRIM(self%name))
+          call log%fatal("No grid can be found for diagnostic variable "//TRIM(self%name))
       end select
     end function
 
@@ -718,17 +711,17 @@ module diag_module
       type(DiagVar), pointer, intent(in)    :: self  !< task to print information about
       CHARACTER(CHARLEN) :: formatedString, formatedLogical, msg
       if (.not.associated(self)) then
-        call self%log%error("Try to print non-existent diagnostic variable!")
+        call log%error("Try to print non-existent diagnostic variable!")
         return
       end if
       formatedString = '("****",X,A10,X,A80)'
       formatedLogical = '("****",X,A10,X,L2)'
-      call self%log%info("**** DiagVar info ********************************")
+      call log%info("**** DiagVar info ********************************")
       write (msg, formatedString) "Name:", self%name
-      call self%log%info(msg)
+      call log%info(msg)
       WRITE (msg, formatedLogical) "Allocated:", allocated(self%data)
-      call self%log%info(msg)
-      call self%log%info("****************************************************")
+      call log%info(msg)
+      call log%info("****************************************************")
     END SUBROUTINE print_diagvar
 
 end module diag_module

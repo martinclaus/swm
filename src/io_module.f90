@@ -13,7 +13,7 @@
 !! app, only: Component \n
 !! calendar_module, ONLY : calendar, openCal, closeCal \n
 !! grid_module, only: grid_t, t_grid_lagrange \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! list_mod, only: List, ListIterator \n
 !------------------------------------------------------------------
 MODULE io_module
@@ -22,7 +22,7 @@ MODULE io_module
   use app, only: Component
   USE calendar_module, ONLY : calendar, openCal, closeCal
   USE grid_module, only: grid_t, t_grid_lagrange
-  use logging, only: Logger
+  use logging, only: log
   use list_mod, only: List, ListIterator
   IMPLICIT NONE
   private
@@ -37,7 +37,6 @@ MODULE io_module
   !! procedures must be provided.
   !------------------------------------------------------------------
   type, abstract, extends(Component) :: Io
-    class(Logger), pointer :: log => null()  !< Pointer to logger object
     type(calendar) :: modelCalendar          !< Internal Calendar of the model
   contains
     procedure :: initialize => initIO
@@ -211,7 +210,7 @@ MODULE io_module
     SUBROUTINE initIO(self)
       class(Io), intent(inout) :: self
       CALL OpenCal
-      self%modelCalendar = self%modelCalendar%new(self%log)
+      self%modelCalendar = self%modelCalendar%new()
 
       !< Call initializer of extending types
       call self%init()
@@ -226,9 +225,7 @@ MODULE io_module
       class(Io), intent(inout) :: self
       !< Call destructor of extending types
       call self%finish()
-
       CALL CloseCal
-      nullify(self%log)
     END SUBROUTINE finishIO
 
     subroutine add_handle_arg(self, key, val)

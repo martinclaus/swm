@@ -21,7 +21,7 @@
 !! @par Uses:
 !! types\n
 !! app, only: Component\n
-!! logging, only: Logger\n
+!! logging, only: log\n
 !! domain_module, only: Domain\n
 !! vars_module, only: VariableRepository\n
 !! io_module, only: Io, Reader, HandleArgs\n
@@ -35,7 +35,7 @@ MODULE tracer_module
 #include "io.h"
   use types
   use app, only: Component
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use vars_module, only: VariableRepository
   use io_module, only: Io, Reader, HandleArgs
@@ -99,7 +99,6 @@ MODULE tracer_module
 
   type, extends(Component) :: Tracer
     private
-    class(Logger), pointer :: log => null()
     class(Domain), pointer :: dom => null()
     class(VariableRepository), pointer :: repo => null()
     class(Io), pointer :: io => null()
@@ -123,14 +122,12 @@ MODULE tracer_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Create a tracer component
     !------------------------------------------------------------------
-    function make_tracer_component(log, dom, repo, io_comp) result(tracer_comp)
-      class(Logger), target, intent(in) :: log
+    function make_tracer_component(dom, repo, io_comp) result(tracer_comp)
       class(Domain), target, intent(in) :: dom
       class(VariableRepository), target, intent(in) :: repo
       class(Io), target, intent(in) :: io_comp
       class(Tracer), pointer :: tracer_comp
       allocate(tracer_comp)
-      tracer_comp%log => log
       tracer_comp%dom => dom
       tracer_comp%repo => repo
       tracer_comp%io => io_comp
@@ -177,12 +174,12 @@ MODULE tracer_module
       ! return early on read error, return val is null()
       if (stat .ne. 0) return
 
-      if (trim(varid) .eq. "") call self%log%fatal(  &
+      if (trim(varid) .eq. "") call log%fatal(  &
         "Missing mandatory field 'varid' in one of the trc_tracer_nl namelists"  &
       )
 
       ! create field object
-      field => field%new(self%log, self%dom)
+      field => field%new(self%dom)
 
       field%dom => self%dom
       field%coeff => self%coeff
@@ -203,8 +200,7 @@ MODULE tracer_module
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Allocate new tracer field object
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    function new_field(log, dom) result(field)
-      class(Logger) :: log
+    function new_field(dom) result(field)
       class(Domain) :: dom
       type(TracerField), pointer :: field
       integer(KINT) :: stat, Nx, Ny
@@ -519,7 +515,7 @@ MODULE tracer_module
       integer(KINT) :: alloc_error
 
       allocate(self%coeff(TRC_NCOEFF, self%dom%Nx, self%dom%Ny), stat=alloc_error)
-      if (alloc_error .ne. 0) call self%log%fatal_alloc(__FILE__, __LINE__)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
       call self%init_coeffs_tracer()
       call self%repo%add(self%coeff, "TRC_COEFF")
@@ -645,7 +641,7 @@ MODULE tracer_module
       class(Tracer), intent(inout) :: self
       integer(KINT)       :: alloc_error
       deallocate(self%coeff, STAT=alloc_error)
-      if (alloc_error.NE.0) call self%log%warn("Deallocation failed in "//__FILE__//":__LINE__")
+      if (alloc_error.NE.0) call log%warn("Deallocation failed in "//__FILE__//":__LINE__")
     END SUBROUTINE finish_coeffs_tracer
 
 END MODULE tracer_module

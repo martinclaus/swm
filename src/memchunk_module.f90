@@ -16,8 +16,8 @@
 !------------------------------------------------------------------
 MODULE memchunk_module
 #include "io.h"
-  use logging
   use types
+  use logging, only: log
   use init_vars
   use io_module, only: Io, Reader
   use calc_lib, only : interpolate
@@ -106,7 +106,7 @@ MODULE memchunk_module
       else if (chunkSize.GE.nrec+1) then ! chunk size too large, persistent chunk is cheaper and faster
         memChunk%isPersistent = .TRUE.
         memChunk%chunkSize    = nrec+1
-        IF (chunksize.GT.nrec+1) call memchunk%handle%io_comp%log%debug( &
+        IF (chunksize.GT.nrec+1) call log%debug( &
           "INFO: Chunksize of "//TRIM(memChunk%handle%display()) &
           //" changed to increase efficiency" &
         )
@@ -120,7 +120,7 @@ MODULE memchunk_module
       ALLOCATE(memChunk%var(1:Nx, 1:Ny, 1:memChunk%chunkSize), &
                memChunk%time(1:memChunk%chunkSize), &
                stat=alloc_error)
-      IF (alloc_error.NE.0) call memchunk%handle%io_comp%log%fatal_alloc(__FILE__,__LINE__)
+      IF (alloc_error.NE.0) call log%fatal_alloc(__FILE__,__LINE__)
       call initVar(memChunk%var, 0._KDOUBLE)
       memChunk%time = 0.
       CALL readChunk(memChunk, .true.)

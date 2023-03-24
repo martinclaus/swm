@@ -8,7 +8,7 @@
 !! @par Uses:
 !!  types \n
 !!  app, only: Component \n
-!!  logging, only: Logger \n
+!!  logging, only: log \n
 !!  domain_module, only: Domain \n
 !!  vars_module, only: VariableRepository, N0, N0p1, Ns \n
 !!  io_module, only: Io, HandleArgs, Reader \n
@@ -23,7 +23,7 @@ MODULE swm_module
 #include "io.h"
   use types
   use app, only: Component
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use vars_module, only: VariableRepository, N0, N0p1, Ns
   use io_module, only: Io, HandleArgs, Reader
@@ -39,7 +39,6 @@ MODULE swm_module
 
   type, extends(Component) :: Swm
     private
-    class(Logger), pointer :: log => null()
     class(Domain), pointer :: dom => null()
     class(Io), pointer :: io => null()
     class(VariableRepository), pointer :: repo => null()
@@ -61,15 +60,13 @@ MODULE swm_module
 
   CONTAINS
 
-    function make_swm_component(log, dom, repo, io_comp, calc_comp) result(swm_comp)
-      class(Logger), target, intent(in) :: log
+    function make_swm_component(dom, repo, io_comp, calc_comp) result(swm_comp)
       class(Domain), target, intent(in) :: dom
       class(VariableRepository), target, intent(in) :: repo
       class(Io), target, intent(in) :: io_comp
       class(Calc), target, intent(in) :: calc_comp
       class(Swm), pointer :: swm_comp
       allocate(swm_comp)
-      swm_comp%log => log
       swm_comp%dom => dom
       swm_comp%repo => repo
       swm_comp%io => io_comp
@@ -97,31 +94,31 @@ MODULE swm_module
       class(Swm), intent(inout) :: self
 
       self%state = self%state%new( &
-          self%log, Ns, &
+          Ns, &
           self%dom%u_grid, self%dom%v_grid, self%dom%eta_grid, self%dom%H_grid  &
       )
       call self%register_state_variables()
 
       call self%read_initial_conditions()
-      call self%log%info("swm_vars_init done")
+      call log%info("swm_vars_init done")
     end subroutine init_state
 
     subroutine init_timestep(self)
       class(Swm), intent(inout) :: self
-      self%timestep = self%timestep%new(self%log, self%dom, self%io, self%repo, self%calc, self%state)
-      call self%log%info("swm_timestep_init done")      
+      self%timestep = self%timestep%new(self%dom, self%io, self%repo, self%calc, self%state)
+      call log%info("swm_timestep_init done")      
     end subroutine init_timestep
 
     subroutine init_damping(self)
       class(Swm), intent(inout) :: self
-      self%damping = self%damping%new(self%log, self%dom, self%repo, self%io, self%state)
-      call self%log%info("swm_damping_init done")
+      self%damping = self%damping%new(self%dom, self%repo, self%io, self%state)
+      call log%info("swm_damping_init done")
     end subroutine init_damping
 
     subroutine init_forcing(self)
       class(Swm), intent(inout) :: self
-      self%forcing = self%forcing%new(self%dom, self%log, self%io, self%calc, self%state)
-      call self%log%info("swm_forcing_init done")
+      self%forcing = self%forcing%new(self%dom, self%io, self%calc, self%state)
+      call log%info("swm_forcing_init done")
     end subroutine init_forcing
 
     subroutine register_state_variables(self)
@@ -166,7 +163,6 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE finalize(self)
       class(swm), intent(inout) :: self
-      nullify(self%log)
     END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

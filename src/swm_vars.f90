@@ -7,14 +7,14 @@
 !! model.h
 !! @par Uses:
 !! types \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! grid_module, only: grid_t \n
 !! init_vars \n
 !------------------------------------------------------------------
 module swm_vars
 #include "model.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use grid_module, only: grid_t
   use init_vars
   implicit none
@@ -65,9 +65,7 @@ module swm_vars
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialises the free variables of the shallow water model
     !------------------------------------------------------------------
-    function new(log, Ns, u_grid, v_grid, eta_grid, H_grid) result(state)
-      class(Logger), pointer, intent(in) :: log  !< Pointer to Logger component
-      ! integer(KINT), intent(in) :: N0  !< Index of the present time step in the time dimension of the state variables
+    function new(Ns, u_grid, v_grid, eta_grid, H_grid) result(state)
       integer(KSHORT), intent(in) :: Ns  !< Length of time dimension of the state variables
       type(grid_t), pointer, intent(in) :: u_grid, v_grid, eta_grid, H_grid  !< Pointer to grids on which variables will be defined
       type(SwmState)  :: state

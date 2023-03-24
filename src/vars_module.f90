@@ -11,7 +11,7 @@
 !! types \n
 !! app, only: Component \n
 !! domain_module, only: Domain \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! generic_list \n
 !! grid_module, only : t_grid_lagrange, grid_t \n
 !! str \n
@@ -21,7 +21,7 @@ MODULE vars_module
   use types
   use app, only: Component
   use domain_module, only: Domain
-  use logging, only: Logger
+  use logging, only: log
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
   use str
@@ -37,7 +37,6 @@ MODULE vars_module
 
   type, extends(Component) :: VariableRepository
     ! dependencies
-    class(Logger), pointer :: log => null()
     class(Domain), pointer :: dom => null()
 
     ! Constants (default parameters), contained in model_nl
@@ -101,12 +100,10 @@ MODULE vars_module
 
   CONTAINS
 
-    function make_variable_register(dom, log) result(var_reg)
+    function make_variable_register(dom) result(var_reg)
       class(Domain), pointer, intent(in) :: dom
-      class(Logger), pointer, intent(in) :: log
       class(VariableRepository), pointer :: var_reg
       allocate(var_reg)
-      var_reg%log => log
       var_reg%dom => dom
     end function make_variable_register
 
@@ -160,7 +157,6 @@ MODULE vars_module
     subroutine finishVars(self)
       class(VariableRepository), intent(inout) :: self
       nullify(self%dom)
-      nullify(self%log)
     end subroutine finishVars
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -179,7 +175,7 @@ MODULE vars_module
 
       !< Check for duplicate
       IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
-        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+        call log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -195,7 +191,7 @@ MODULE vars_module
 
       !< add to register
       CALL addVarPtrToRegister(self, dat_ptr)
-      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
+      call log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add3dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -214,7 +210,7 @@ MODULE vars_module
 
       !< Check for duplicate
       IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
-        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+        call log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -228,7 +224,7 @@ MODULE vars_module
       END IF
 
       CALL addVarPtrToRegister(self, dat_ptr)
-      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
+      call log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add2dToRegister
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -247,7 +243,7 @@ MODULE vars_module
 
       !< Check for duplicate
       IF (ASSOCIATED(getVarPtrFromRegister(self, varname))) &
-        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+        call log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
 
       !< create variable object
       ALLOCATE(dat_ptr%var)
@@ -260,7 +256,7 @@ MODULE vars_module
       END IF
 
       CALL addVarPtrToRegister(self, dat_ptr)
-      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
+      call log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     END SUBROUTINE add1dToRegister
 
 
@@ -280,7 +276,7 @@ MODULE vars_module
 
       !< check for duplicate
       if(associated(getVarPtrFromRegister(self, varname))) &
-        call self%log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
+        call log%fatal("Tried to add variable with name that already exists: "//TRIM(varname))
       !< create variable object
       allocate(dat_ptr%var)
       dat_ptr%var%data1d => var
@@ -289,7 +285,7 @@ MODULE vars_module
 
       !< add to register
       call addVarPtrToRegister(self, dat_ptr)
-      call self%log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
+      call log%debug("Variable "//TRIM(dat_ptr%var%nam)//" registered.")
     end subroutine addLagrangeToRegister
 
 

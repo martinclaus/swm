@@ -72,7 +72,7 @@ PROGRAM main_program
 
     function make_app() result(application)
       use app, only: new_default_app_builder, AbstractAppBuilder
-      use logging, only: Logger, make_file_logger
+      use logging, only: Logger, make_logger
       use io_module, only: Io
       use io_netcdf, only: make_netcdf_io
       use domain_module, only: make_domain_component, Domain
@@ -94,42 +94,42 @@ PROGRAM main_program
       
       app_factory => new_default_app_builder()
 
-      log => make_file_logger()
+      log => make_logger()
 
-      io_comp => make_netcdf_io(log)
+      io_comp => make_netcdf_io()
       call app_factory%add_component(io_comp)
 
-      domain_comp => make_domain_component(io_comp, log)
+      domain_comp => make_domain_component(io_comp)
       call app_factory%add_component(domain_comp)
 
-      repo => make_variable_register(domain_comp, log)
+      repo => make_variable_register(domain_comp)
       call app_factory%add_component(repo)
 
-      calc_comp => make_calc_component(log, domain_comp)
+      calc_comp => make_calc_component(domain_comp)
       call app_factory%add_component(calc_comp)
 
       call app_factory%add_component(make_time_integration_component(repo))
 
 #ifdef SWM
       call app_factory%add_component( &
-          make_swm_component(log, domain_comp, repo, io_comp, calc_comp)  &
+          make_swm_component(domain_comp, repo, io_comp, calc_comp)  &
       )
 #endif
 
 #ifdef DYNFROMFILE
       call app_factory%add_component(  &
-        make_dynFromIo_component(log, domain_comp, repo, io_comp, calc_comp)
+        make_dynFromIo_component(domain_comp, repo, io_comp, calc_comp)
       )
 #endif
 
 #ifdef TRACER
       cal app_factory%add_component( &
-        make_tracer_component(log, domain_comp, repo, io_comp)
+        make_tracer_component(domain_comp, repo, io_comp)
       )
 #endif
 
       call app_factory%add_component(  &
-        make_diag_component(log, domain_comp, repo, io_comp, calc_comp)  &
+        make_diag_component(domain_comp, repo, io_comp, calc_comp)  &
       )
 
       application => app_factory%build()

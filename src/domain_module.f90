@@ -2,11 +2,11 @@ MODULE domain_module
 #include "io.h"
 #include "model.h"
   use types
+  use logging, only: log
   USE grid_module
   use init_vars
   use app, only: Component
   use io_module, only: Io, HandleArgs, Reader
-  use logging, only: Logger
   implicit none
   private
 
@@ -44,7 +44,6 @@ MODULE domain_module
     type(grid_t), pointer    :: H_grid, u_grid, v_grid, eta_grid
 
     class(Io), pointer     :: io
-    class(logger), pointer :: log
 
     contains
     procedure :: initialize => initDomain
@@ -53,22 +52,21 @@ MODULE domain_module
 
   CONTAINS
   
-  function make_domain_component(io_comp, log) result(dom_comp)
+  function make_domain_component(io_comp) result(dom_comp)
     !! Create domain component
     !!
     !! Note that io_comp need to support a reading from file, i.e. a reader that
     !! can be initialized with `filename` and `varname` arguments.
     class(Io), pointer     :: io_comp
-    class(Logger), pointer :: log
     class(Domain), pointer :: dom_comp
     allocate(dom_comp)
     dom_comp%io => io_comp
-    dom_comp%log => log
   end function make_domain_component
 
   SUBROUTINE initDomain(self)
     class(Domain), intent(inout) :: self
     integer(KINT)                :: i,j
+    integer                      :: alloc_stat
     real(KDOUBLE)                :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
     real(KDOUBLE)                :: A = 6371000         !< Earth radius \f$[m]\f$
     real(KDOUBLE)                :: OMEGA = 7.272205e-5 !< angular speed of Earth \f$=2\pi(24h)^{-1}\f$
@@ -118,28 +116,41 @@ MODULE domain_module
     self%lbc = lbc
     self%coriolis_approx = coriolis_approx
 
-    allocate(lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny))
-    allocate(lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx))
-    allocate(land_H(1:Nx,1:Ny), land_u(1:Nx,1:Ny), land_v(1:Nx,1:Ny), land_eta(1:Nx,1:Ny))
+    allocate( &
+      lat_H(1:Ny), lat_u(1:Ny), lat_v(1:Ny), lat_eta(1:Ny), &
+      lon_H(1:Nx), lon_u(1:Nx), lon_v(1:Nx), lon_eta(1:Nx), &
+      land_H(1:Nx,1:Ny), land_u(1:Nx,1:Ny), land_v(1:Nx,1:Ny), land_eta(1:Nx,1:Ny), &
+      stat=alloc_stat &
+    )
+    if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
+
     call initVar(land_u, 0_KSHORT)
     call initVar(land_v, 0_KSHORT)
     call initVar(land_eta, 0_KSHORT)
     call initVar(land_H, 0_KSHORT)
 
-    allocate(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny))
+    allocate(ocean_H(1:Nx,1:Ny), ocean_u(1:Nx,1:Ny), ocean_v(1:Nx,1:Ny), ocean_eta(1:Nx,1:Ny), stat=alloc_stat)
+    if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
     call initVar(ocean_u, 0_KSHORT)
     call initVar(ocean_v, 0_KSHORT)
     call initVar(ocean_eta, 0_KSHORT)
     call initVar(ocean_H, 0_KSHORT)
 
-    allocate(H(1:Nx,1:Ny), H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny))
+    allocate(H(1:Nx,1:Ny), H_u(1:Nx,1:Ny), H_v(1:Nx,1:Ny), H_eta(1:Nx,1:Ny), stat=alloc_stat)
+    if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
     call initVar(H_u, 0._KDOUBLE)
     call initVar(H_v, 0._KDOUBLE)
     call initVar(H_eta, 0._KDOUBLE)
     call initVar(H, 0._KDOUBLE)
 
-    allocate(self%ip0(1:Nx), self%ip1(1:Nx), self%im1(1:Nx), self%jp0(1:Ny), self%jp1(1:Ny), self%jm1(1:Ny))
-    allocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
+    allocate(  &
+      self%ip0(1:Nx), self%ip1(1:Nx), self%im1(1:Nx), &
+      self%jp0(1:Ny), self%jp1(1:Ny), self%jm1(1:Ny), &
+      stat=alloc_stat &
+    )
+    if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
+    allocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid, stat=alloc_stat)
+    if (alloc_stat .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
 
     dLambda = D2R * (lon_e-lon_s)/(Nx-1)
     dTheta = D2R * (lat_e-lat_s)/(Ny-1)
@@ -287,6 +298,5 @@ MODULE domain_module
     deallocate(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
     nullify(self%H_grid, self%u_grid, self%v_grid, self%eta_grid)
     nullify(self%io)
-    nullify(self%log)
   end subroutine finishDomain
 END MODULE domain_module

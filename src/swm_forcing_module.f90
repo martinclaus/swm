@@ -17,7 +17,7 @@
 !! model.h, swm_module.h, io.h
 !! @par Uses:
 !! types \n
-!! logging, only: Logger \n
+!! logging, only: log \n
 !! domain_module, only: Domain \n
 !! swm_vars, only: SwmState \n
 !! vars_module, only: VariableRepository \n
@@ -32,7 +32,7 @@ MODULE swm_forcing_module
 #include "swm_module.h"
 #include "io.h"
   use types
-  use logging, only: Logger
+  use logging, only: log
   use domain_module, only: Domain
   use swm_vars, only: SwmState
   use vars_module, only: VariableRepository
@@ -66,7 +66,6 @@ MODULE swm_forcing_module
 
   type :: SwmForcing
     private
-    class(Logger), pointer                     :: log => null()
     class(Domain), pointer                     :: domain => null()
     class(SwmState), pointer                   :: state => null()
     class(VariableRepository), pointer         :: repo => null()
@@ -100,9 +99,8 @@ MODULE swm_forcing_module
     !! objects from it and process the constant ones to compute the constant
     !! forcing fields.
     !------------------------------------------------------------------
-    function new(dom, log, io_comp, calc_comp, state) result(self)
+    function new(dom, io_comp, calc_comp, state) result(self)
       class(Domain), target   :: dom
-      class(Logger), target   :: log
       class(Io), target       :: io_comp
       class(Calc), target     :: calc_comp
       class(SwmState), target :: state
@@ -115,7 +113,6 @@ MODULE swm_forcing_module
       NAMELIST / swm_forcing_nl / &
         filename, filename2, varname, varname2, forcingtype, component, chunksize, omega
 
-      self%log => log
       self%domain => dom
       self%calc => calc_comp
       self%state => state
@@ -227,7 +224,7 @@ MODULE swm_forcing_module
 
       IF (.NOT. ASSOCIATED(streamlist)) THEN
           WRITE (log_msg,*) "Error in accessing SWM_forcing_iStream linked list in line", __LINE__
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END IF
       DO WHILE (ASSOCIATED(streamlist))
         IF (ASSOCIATED(list_get(streamlist))) THEN
@@ -272,7 +269,7 @@ MODULE swm_forcing_module
         CASE DEFAULT
           WRITE(log_msg,'("ERROR Unkown forcing type:",X,A,/,"Dataset:",X,A,/,"Component :",X,A,/)') &
             TRIM(iStream%forcingtype), TRIM(iStream%memChunk%display()), TRIM(iStream%component)
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
     END SUBROUTINE SWM_forcing_processInputStream
 
@@ -332,7 +329,7 @@ MODULE swm_forcing_module
         CASE DEFAULT
           WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"forcingType :",X,A,/)') &
             TRIM(iStream%component), TRIM(iStream%memChunk%display()), TRIM(iStream%forcingtype)
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
       ! Do the calculation
       WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + (&
@@ -377,7 +374,7 @@ MODULE swm_forcing_module
         CASE DEFAULT
           WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"Variable:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component),TRIM(iStream%memChunk%display()), TRIM(iStream%forcingtype)
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
       ! get the data
       time = self%repo%elapsed_time()
@@ -448,7 +445,7 @@ MODULE swm_forcing_module
         CASE DEFAULT
           WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,/,"forcingType :",X,A,/)') &
            TRIM(iStream%component), TRIM(iStream%memChunk%display()), TRIM(iStream%forcingtype)
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
       WHERE (oceanMask .eq. 1) forcingTerm = forcingTerm + iStream%memChunk%get(self%repo%elapsed_time())
     END SUBROUTINE SWM_forcing_processCustomForcing
@@ -546,7 +543,7 @@ MODULE swm_forcing_module
         CASE DEFAULT
           WRITE(log_msg,'("ERROR Unkown component:",X,A,/,"Dataset:",X,A,"forcingType :",X,A,/)') &
            trim(iStream%component), trim(iStream%memChunk%display()), trim(iStream%forcingtype)
-          call self%log%fatal(log_msg)
+          call log%fatal(log_msg)
       END SELECT
     END SUBROUTINE SWM_forcing_processEMF
 
@@ -586,7 +583,7 @@ MODULE swm_forcing_module
         self%F_x_const, self%F_y_const, self%F_eta_const,  &
         stat=alloc_error  &
       )
-      IF(alloc_error.NE.0) call self%log%error("Deallocation failed in "//__FILE__//":__LINE__")
+      IF(alloc_error.NE.0) call log%error("Deallocation failed in "//__FILE__//":__LINE__")
 
       !! TODO: finalize forcing stream linked list
     END SUBROUTINE SWM_forcing_finish
