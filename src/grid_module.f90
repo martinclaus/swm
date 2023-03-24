@@ -161,7 +161,7 @@ MODULE grid_module
           case (CORIOLIS_NOF)
             f = 0.
           case default
-            ! call log_fatal("Invalid value of coriolis_approx in domain_nl.")
+            call log%fatal("Invalid value of coriolis_approx in domain_nl.")
         end select
 
         gr%f => f
@@ -182,7 +182,7 @@ MODULE grid_module
       end if
       !< allocate memory
       allocate(grid%id(1:Nparticle),grid%valid(1:Nparticle),stat=alloc_error)
-      ! if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
       grid%id = (/ (i,i=1,Nparticle) /)
       grid%valid = 1_KSHORT
      end subroutine setGridLagrange
@@ -195,7 +195,7 @@ MODULE grid_module
       integer(KSHORT), DIMENSION(:,:), POINTER, INTENT(in) :: land, ocean
       real(KDOUBLE), intent(in), optional                   :: bc_fac
       real(KDOUBLE) :: lbc_fac
-      integer(KINT) :: i, j, alloc_error
+      integer(KINT) :: alloc_error
 
       if (present(bc_fac)) then
         lbc_fac = bc_fac
@@ -209,7 +209,7 @@ MODULE grid_module
       CALL setOcean(gr, ocean)
       call setTopo(gr, H)
       allocate(gr%bc(lbound(ocean, 1):ubound(ocean, 1), lbound(ocean, 2):ubound(ocean, 2)), stat=alloc_error)
-      ! if (alloc_error .ne. 0) call log_alloc_fatal(__FILE__, __LINE__)
+      if (alloc_error .ne. 0) call log%fatal_alloc(__FILE__, __LINE__)
       where (ocean .eq. 1_KSHORT)
         gr%bc = 1._KDOUBLE
       elsewhere

@@ -50,7 +50,6 @@ MODULE swm_module
     type(SwmTimeStep) :: timestep
   contains
     procedure :: initialize
-    procedure :: finalize
     procedure :: step
     procedure :: advance
     procedure, private :: init_state, init_timestep, init_damping, init_forcing, &
@@ -157,13 +156,6 @@ MODULE swm_module
         CALL self%repo%add(self%state%zeta_bs(:,:,1), "ZETA_BS", self%dom%H_grid)
       end if      
     end subroutine register_state_variables
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Release memory of shallow water module
-    !------------------------------------------------------------------
-    SUBROUTINE finalize(self)
-      class(swm), intent(inout) :: self
-    END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Timestep routine
