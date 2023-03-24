@@ -98,7 +98,7 @@ contains
                                  impl(size(G, 1), size(G, 2))
     INTEGER(KINT)             :: tstep, i, j, ti
     integer(KINT), intent(in) :: order     !< order of the integration scheme
-    real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2)), weight_inc
+    real(KDOUBLE)             :: A_NP1(size(G, 1), size(G, 2))
     integer(KINT)             :: Nx, Ny
     real(KDOUBLE)             :: dt
     real(KDOUBLE)             :: coeffs(MAX_ORDER)
