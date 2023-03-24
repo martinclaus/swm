@@ -35,19 +35,31 @@ module io_netcdf
                                                                 !< (the default) for the native endianness of the platform.
   end type nc_file_parameter
 
+  type, extends(Io), private :: NetCDFIo
+    ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
+    type(nc_file_parameter) :: nc_par  !< Parameters for creating NetCDF files
+    character(CHARLEN) :: oprefix = '' !< prefix of output file names. Prepended to the file name by io_module::getFname
+    character(CHARLEN) :: osuffix=''   !< suffix of output filenames. Appended to the file name by io_module::getFname
+  contains
+    procedure :: init => init_netcdf_io
+    procedure :: finish => do_nothing_netcdf_io
+    procedure :: get_reader => get_reader_netcdf
+    procedure :: get_writer => get_writer_netcdf
+  end type NetCDFIo
+
   type, private :: NetCDFFile
     private
-    class(Io), pointer     :: io_comp => null()
-    character(len=CHARLEN) :: filename=''           !< Path of file. Absolute and relative path will work.
-    character(len=CHARLEN) :: varname=''            !< Name of variable.
-    type(Calendar)         :: calendar              !< Calendar of time data
-    integer(KINT_NF90)     :: ncid=DEF_NCID         !< NetCDF file ID.
-    integer(KINT_NF90)     :: varid=DEF_VARID       !< NetCDF variable ID
-    integer(KINT_NF90)     :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
-    integer(KINT_NF90)     :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
-    integer(KINT)          :: nrec=DEF_NREC         !< Length of record variable
-    real(KDOUBLE)          :: missval=MISS_VAL_DEF  !< Value to flag missing data
-    logical                :: isopen                !< wether the dataset is currently opened by the netCDF library
+    Type(NetCDFIo), pointer :: io => null()
+    character(len=CHARLEN)  :: filename=''           !< Path of file. Absolute and relative path will work.
+    character(len=CHARLEN)  :: varname=''            !< Name of variable.
+    type(Calendar)          :: calendar              !< Calendar of time data
+    integer(KINT_NF90)      :: ncid=DEF_NCID         !< NetCDF file ID.
+    integer(KINT_NF90)      :: varid=DEF_VARID       !< NetCDF variable ID
+    integer(KINT_NF90)      :: timedid=DEF_TIMEDID   !< NetCDF dimension ID of time dimension
+    integer(KINT_NF90)      :: timevid=DEF_TIMEVID   !< NetCDF variable ID of time dimension variable
+    integer(KINT)           :: nrec=DEF_NREC         !< Length of record variable
+    real(KDOUBLE)           :: missval=MISS_VAL_DEF  !< Value to flag missing data
+    logical                 :: isopen                !< wether the dataset is currently opened by the netCDF library
   contains
     procedure, private :: touch, open, close
     procedure, private :: get_Nrec, is_set, get_filename, get_varname, get_time_dim_id, get_time_var_id
@@ -93,18 +105,6 @@ module io_netcdf
     procedure :: display => display_netcdfwriter
   end type NetCDFFileWriter
 
-  type, extends(Io), private :: NetCDFIo
-    ! netCDF output Variables, only default values given, they are overwritten when namelist is read in initDiag
-    type(nc_file_parameter) :: nc_par  !< Parameters for creating NetCDF files
-    character(CHARLEN) :: oprefix = '' !< prefix of output file names. Prepended to the file name by io_module::getFname
-    character(CHARLEN) :: osuffix=''   !< suffix of output filenames. Appended to the file name by io_module::getFname
-  contains
-    procedure :: init => init_netcdf_io
-    procedure :: finish => do_nothing_netcdf_io
-    procedure :: get_reader => get_reader_netcdf
-    procedure :: get_writer => get_writer_netcdf
-  end type NetCDFIo
-
   contains
   function make_netcdf_io(logger_ptr) result(io_comp)
     class(Logger), pointer, intent(in) :: logger_ptr
@@ -119,6 +119,7 @@ module io_netcdf
   !------------------------------------------------------------------
   subroutine do_nothing_netcdf_io(self)
     class(NetCDFIo), intent(inout) :: self
+    nullify(self%log)
   end subroutine do_nothing_netcdf_io
 
   subroutine init_netcdf_io(self)
@@ -496,10 +497,10 @@ module io_netcdf
     type(NetCDFFile)                 :: time_handle   !< FileHandle of time axis for temporary use.
     character(CHARLEN)               :: t_string  !< String of time unit
     if ( self%isopen ) return
-    call check(self%io_comp, nf90_open(trim(self%filename), NF90_WRITE, self%ncid), __LINE__, self%filename)
+    call check(self%io, nf90_open(trim(self%filename), NF90_WRITE, self%ncid), __LINE__, self%filename)
     self%isopen = .TRUE.
 
-    if (self%varid.EQ.DEF_VARID) call check(self%io_comp, nf90_inq_varid(self%ncid,trim(self%varname),self%varid),&
+    if (self%varid.EQ.DEF_VARID) call check(self%io, nf90_inq_varid(self%ncid,trim(self%varname),self%varid),&
                                           __LINE__,self%filename)
     ! get time dimension id
     call self%get_time_dim_id()
@@ -514,12 +515,12 @@ module io_netcdf
         ! time_reader%io_comp => self%io_comp
         call time_handle%getAtt(NUG_ATT_UNITS, t_string)
         if (LEN_trim(t_string).EQ.0) then
-          t_string = self%io_comp%modelCalendar%time_unit
-          call self%io_comp%log%warn("Input dataset "//trim(self%filename)//" has no time axis. Assumed time axis: "//trim(t_string))
+          t_string = self%io%modelCalendar%time_unit
+          call self%io%log%warn("Input dataset "//trim(self%filename)//" has no time axis. Assumed time axis: "//trim(t_string))
         end if
-        self%calendar = self%calendar%new(self%io_comp%log, t_string)
+        self%calendar = self%calendar%new(self%io%log, t_string)
       ELSE ! datset has no non-singleton time axis
-        self%calendar = self%calendar%new(self%io_comp%log, self%io_comp%modelCalendar%time_unit)
+        self%calendar = self%calendar%new(self%io%log, self%io%modelCalendar%time_unit)
       end if
     end if
   end subroutine open
@@ -532,7 +533,7 @@ module io_netcdf
   subroutine close(self)
     class(NetCDFFile), intent(inout) :: self     !< File handle pointing to an existing dataset.
     if ( .not. self%isOpen ) return
-    call check(self%io_comp, nf90_close(self%ncid), &
+    call check(self%io, nf90_close(self%ncid), &
                __LINE__, trim(self%filename))
     self%isOpen = .false.
   end subroutine close
@@ -712,15 +713,15 @@ module io_netcdf
     integer(KINT), intent(in), optional       :: tstart       !< Index to start reading
     type(NetCDFFileReader)                    :: time_reader  !< Temporarily used file handle of time coordinate variable
     time_reader%file_handle = getTimeFH(self)
-    time_reader%io_comp => self%io_comp
+    time_reader%io_comp => self%io
     if (present(tstart)) then
       call time_reader%getVar(time, tstart)
     ELSE
       call time_reader%getVar(time)
     end if
     ! convert to model time unit
-    call self%io_comp%log%debug("Convert time for input "//self%get_filename())
-    call self%calendar%convertTime(self%calendar, self%io_comp%modelCalendar, time)
+    call self%io%log%debug("Convert time for input "//self%get_filename())
+    call self%calendar%convertTime(self%calendar, self%io%modelCalendar, time)
   end subroutine getTimeVar
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -735,7 +736,7 @@ module io_netcdf
     timeFH = FH
     timeFH%varid = timeFH%timevid
     timeFH%timevid = DEF_TIMEVID
-    timeFH%io_comp => FH%io_comp
+    timeFH%io => FH%io
   end FUNCTION
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -811,14 +812,14 @@ module io_netcdf
 
     handle%filename = filename
     handle%varname = varname
-    handle%io_comp => self
+    handle%io => self
     call handle%touch()
   end function construct_netcdffile
 
   subroutine finalize_netcdf_file(self)
     type(NetCDFFile) :: self
     call close(self)
-    nullify(self%io_comp)
+    nullify(self%io)
   end subroutine finalize_netcdf_file
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -985,22 +986,22 @@ module io_netcdf
     if (self%timedid .ne. DEF_TIMEDID) then
       return
     end if
-    call check(self%io_comp, nf90_inquire(self%ncid, unlimitedDimId=self%timedid), __LINE__, self%filename) !< get dimid by record dimension
+    call check(self%io, nf90_inquire(self%ncid, unlimitedDimId=self%timedid), __LINE__, self%filename) !< get dimid by record dimension
     if (self%timedid .ne. NF90_NOTIMEDIM) then
-      call check(self%io_comp, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+      call check(self%io, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
       self%nrec = len
       return
     end if
-    call check(self%io_comp, nf90_inquire_variable(self%ncid, self%varid, ndims=nDims))
+    call check(self%io, nf90_inquire_variable(self%ncid, self%varid, ndims=nDims))
     if (nDims .lt. 3) then                                                              !< no time dimension
       self%nrec = 1
       return
     end if
     if (nf90_inq_dimid(self%ncid, TAXISNAME, dimid=self%timedid) .ne. nf90_noerr) then         !< get dimid by name
       if (nf90_inq_dimid(self%ncid, to_upper(TAXISNAME), dimid=self%timedid) .ne. nf90_noerr) &
-        call check(self%io_comp, nf90_inq_dimid(self%ncid, to_lower(TAXISNAME), dimid=self%timedid), __LINE__, self%filename)
+        call check(self%io, nf90_inq_dimid(self%ncid, to_lower(TAXISNAME), dimid=self%timedid), __LINE__, self%filename)
     end if
-    call check(self%io_comp, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
+    call check(self%io, nf90_inquire_dimension(self%ncid, self%timedid, len=len), __LINE__, self%filename)
     self%nrec = len
   end subroutine get_time_dim_id
 
@@ -1018,7 +1019,7 @@ module io_netcdf
     if (self%timevid .ne. DEF_TIMEVID) return
     if (nf90_inq_varid(self%ncid, TAXISNAME, self%timevid) .ne. nf90_noerr) then
       if (nf90_inq_varid(self%ncid, to_upper(TAXISNAME), self%timevid) .ne. nf90_noerr) &
-        call check(self%io_comp, nf90_inq_varid(self%ncid, to_lower(TAXISNAME), self%timevid), __LINE__, self%filename)
+        call check(self%io, nf90_inq_varid(self%ncid, to_lower(TAXISNAME), self%timevid), __LINE__, self%filename)
     end if
   end subroutine get_time_var_id
 

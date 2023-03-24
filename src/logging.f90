@@ -35,8 +35,6 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
   contains
     procedure :: initialize => initLogging
     procedure :: finalize => finishLogging
-    procedure :: step => do_nothing
-    procedure :: advance => do_nothing
     procedure :: fatal_alloc=>log_alloc_fatal, fatal=>log_fatal, error=>log_error, warn=>log_warn, info=> log_info, debug=>log_debug
   end type Logger
 
@@ -49,13 +47,6 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
       allocate(log_ptr)
       if (present(level)) log_ptr%log_level = level
     end function make_file_logger
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Does nothing
-    !------------------------------------------------------------------
-    subroutine do_nothing(self)
-      class(Logger), intent(inout) :: self
-    end subroutine do_nothing
 
     subroutine initLogging(self)      
       class(Logger), intent(inout) :: self

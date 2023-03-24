@@ -10,11 +10,11 @@
 !!      io.h
 !------------------------------------------------------------------
 MODULE calendar_module
-    use logging, only: Logger
+#include "io.h"
     use types
+    use logging, only: Logger
     use f_udunits_2
     implicit none
-#include "io.h"
     private
     public :: calendar, OpenCal, CloseCal
 

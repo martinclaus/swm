@@ -166,6 +166,7 @@ MODULE swm_module
     !------------------------------------------------------------------
     SUBROUTINE finalize(self)
       class(swm), intent(inout) :: self
+      nullify(self%log)
     END SUBROUTINE finalize
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

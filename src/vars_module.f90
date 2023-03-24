@@ -61,8 +61,6 @@ MODULE vars_module
     contains
     procedure :: initialize => initVars
     procedure :: finalize => finishVars
-    procedure :: step => do_nothing
-    procedure :: advance => do_nothing
     procedure :: elapsed_time
     procedure, private :: add3dToRegister, add2dToRegister, add1dToRegister  !< Subroutines to add variables with different dimensions to the register
     generic :: add => add1dToRegister, add2dToRegister, add3dToRegister  !< Adds variables to the register
@@ -111,14 +109,6 @@ MODULE vars_module
       var_reg%log => log
       var_reg%dom => dom
     end function make_variable_register
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Does nothing
-    !------------------------------------------------------------------
-    subroutine do_nothing(self)
-      class(VariableRepository), intent(inout) :: self
-    end subroutine do_nothing
-
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief Initialise vars_module

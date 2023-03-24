@@ -31,7 +31,7 @@ module diag_module
   implicit none
   private
 
-  public :: Diag, make_diag_component
+  public :: make_diag_component
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  A diagnostic variable
@@ -114,7 +114,7 @@ module diag_module
     type(TaskList), pointer :: tasks => null()
     type(DiagVarList), pointer :: diag_vars => null()
   contains
-    procedure :: advance=>advance, finalize, step, initialize
+    procedure :: advance, finalize, step, initialize
     procedure, private :: init_tasks, make_task_from_namelist, &
                           make_DiagTask, get_writer_handle
   end type

@@ -25,8 +25,8 @@ module app
     contains
         procedure(call_on_component), private, deferred, pass :: initialize
         procedure(call_on_component), private, deferred, pass :: finalize
-        procedure(call_on_component), private, deferred, pass :: step
-        procedure(call_on_component), private, deferred, pass :: advance
+        procedure, private, pass :: step => do_nothing
+        procedure, private, pass :: advance => do_nothing
     end type Component
 
     abstract interface
@@ -201,4 +201,8 @@ contains
         end select
     end subroutine advance
 
+    subroutine do_nothing(self)
+        class(Component), intent(inout) :: self
+        ! do nothing
+    end subroutine do_nothing
 end module app

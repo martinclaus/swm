@@ -33,7 +33,7 @@ MODULE time_integration_module
 
   type, extends(Component) :: TimeIntegration
   contains
-    procedure :: initialize => time_integration_init, finalize => finish_time_integration_component, step => do_nothing, advance => do_nothing
+    procedure :: initialize => time_integration_init, finalize => finish_time_integration_component
   end type TimeIntegration
 
 interface integrate_AB
@@ -49,10 +49,6 @@ contains
     allocate(tint_comp)
     repo => repository
   end function make_time_integration_component
-
-  subroutine do_nothing(self)
-    class(TimeIntegration), intent(inout) :: self
-  end subroutine
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !> @brief  Intialise time integration module

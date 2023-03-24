@@ -83,7 +83,7 @@ MODULE calc_lib
                                   v2eta_noland, v2H_noland, &
                                   H2u_noland, H2v_noland
   contains
-    procedure :: initialize => initCalcLib, finalize => finishCalcLib, step => do_nothing, advance => advanceCalcLib
+    procedure :: initialize => initCalcLib, finalize => finishCalcLib, advance => advanceCalcLib
     procedure :: computeVelocityPotential, computeNonDivergentFlowField, computeStreamfunction
     procedure, private :: pder_meridional3D, pder_meridional2D, pder2_meridional3D, pder2_meridional2D
     procedure, private :: pder_zonal2D, pder_zonal3D, pder2_zonal2D, pder2_zonal3D
@@ -109,13 +109,6 @@ MODULE calc_lib
       calc_comp%dom => dom
     end function make_calc_component
   
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Does nothing
-    !------------------------------------------------------------------
-    subroutine do_nothing(self)
-      class(Calc), intent(inout) :: self
-    end subroutine do_nothing
-
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise calc_lib module
     !!

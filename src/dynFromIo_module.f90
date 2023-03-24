@@ -84,8 +84,7 @@ MODULE dynFromIo_module
   contains
     procedure :: initialize, &
                  finalize, &
-                 step => timestep, &
-                 advance
+                 step => timestep
     procedure, private :: init_psi_input, init_uveta_input, &
                           allocate_buffer, register_variables, &
                           get_data
@@ -250,14 +249,6 @@ MODULE dynFromIo_module
       class(DynFromIo), intent(inout) :: self
       call self%get_data(self%repo%elapsed_time())
     END SUBROUTINE timestep
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Read data from input
-    !------------------------------------------------------------------
-    SUBROUTINE advance(self)
-      class(DynFromIo), intent(inout) :: self
-      ! do nothing while advancing the application to the next time step
-    END SUBROUTINE advance
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Read data from input

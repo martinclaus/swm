@@ -42,8 +42,6 @@ MODULE io_module
   contains
     procedure :: initialize => initIO
     procedure :: finalize => finishIO
-    procedure :: step => do_nothing_io
-    procedure :: advance => do_nothing_io
     procedure(iGetReader), deferred :: get_reader
     procedure(iGetWriter), deferred :: get_writer
     procedure(iNoArg), deferred :: init, finish
@@ -204,13 +202,6 @@ MODULE io_module
   end interface
 
   CONTAINS
-
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !> @brief  Does nothing
-    !------------------------------------------------------------------
-    subroutine do_nothing_io(self)
-      class(Io), intent(inout) :: self
-    end subroutine do_nothing_io
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief  Initialise io_module

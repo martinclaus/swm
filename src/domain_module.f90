@@ -7,8 +7,10 @@ MODULE domain_module
   use app, only: Component
   use io_module, only: Io, HandleArgs, Reader
   use logging, only: Logger
-  
   implicit none
+  private
+
+  public :: Domain, make_domain_component
 
   type, extends(Component) :: Domain
     real(KDOUBLE)               :: lbc = 2._KDOUBLE          !< lateral boundary condition (2.=no-slip, 0.=free-slip)
@@ -47,8 +49,6 @@ MODULE domain_module
     contains
     procedure :: initialize => initDomain
     procedure :: finalize => finishDomain
-    procedure :: step => do_nothing
-    procedure :: advance => do_nothing
   end type Domain
 
   CONTAINS
@@ -65,10 +65,6 @@ MODULE domain_module
     dom_comp%io => io_comp
     dom_comp%log => log
   end function make_domain_component
-
-  subroutine do_nothing(self)
-    class(Domain), intent(inout) :: self
-  end subroutine do_nothing
 
   SUBROUTINE initDomain(self)
     class(Domain), intent(inout) :: self
