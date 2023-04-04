@@ -39,6 +39,7 @@ PROGRAM main_program
 
     function make_app() result(application)
       use app, only: new_default_app_builder, AbstractAppBuilder
+      use counter_module, only: make_iteration_counter_component, IterationCounterConfig, IterationCounter
       use io_module, only: Io
       use io_netcdf, only: make_netcdf_io
       use domain_module, only: make_domain_component, Domain
@@ -54,10 +55,16 @@ PROGRAM main_program
       class(AbstractAppBuilder), pointer :: app_factory
       class(Io), pointer :: io_comp
       class(Domain), pointer :: domain_comp
+      class(IterationCounter), pointer :: iter_counter
       class(VariableRepository), pointer :: repo
       class(Calc), pointer :: calc_comp
       
       app_factory => new_default_app_builder()
+
+      iter_counter => make_iteration_counter_component( &
+        IterationCounterConfig(max_iter=100) &
+      )
+      call app_factory%add_component(iter_counter)
 
       io_comp => make_netcdf_io()
       call app_factory%add_component(io_comp)
@@ -65,7 +72,7 @@ PROGRAM main_program
       domain_comp => make_domain_component(io_comp)
       call app_factory%add_component(domain_comp)
 
-      repo => make_variable_register(domain_comp)
+      repo => make_variable_register(domain_comp, iter_counter)
       call app_factory%add_component(repo)
 
       calc_comp => make_calc_component(domain_comp)

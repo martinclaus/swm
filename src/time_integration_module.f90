@@ -90,7 +90,7 @@ contains
     integer(KINT)             :: tstep
     integer(KINT)             :: order     !< order of the integration scheme
     real(KDOUBLE)             :: coeffs(MAX_ORDER)
-    tstep = min(order, repo%itt)
+    tstep = min(order, repo%iter_counter%get_itt())
     coeffs = get_AB_coeffs(tstep, ab_chi)
     A_NP1 = (A_N + repo%dt * dot_product(coeffs(1:tstep), G(1:tstep))) / impl
   END FUNCTION integrate_AB_scalar
@@ -110,7 +110,7 @@ contains
     Ny = size(G, 2)
     dt = repo%dt
 
-    tstep = min(order, repo%itt)
+    tstep = min(order, repo%iter_counter%get_itt())
     coeffs = get_AB_coeffs(tstep, ab_chi)
 
 !$OMP parallel private(ti, tstep)

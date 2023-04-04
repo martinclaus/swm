@@ -74,7 +74,7 @@ $(bindir):
 model$(EXEEXT)   : $(modules:%=%.$(OBJEXT)) main_module.$(OBJEXT) $(bindir)
 	$(FC) $(FFLAGS) -o$(bindir)$@ $(objects) $(LDFLAGS) $(libcu)
 
-main_module.$(OBJEXT) : main_module.f90 app.$(OBJEXT) io_module.$(OBJEXT) io_netcdf.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromIo_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
+main_module.$(OBJEXT) : main_module.f90 app.$(OBJEXT) counter_module.$(OBJEXT) io_module.$(OBJEXT) io_netcdf.$(OBJEXT) vars_module.$(OBJEXT) domain_module.$(OBJEXT) calc_lib.$(OBJEXT) diag_module.$(OBJEXT) dynFromIo_module.$(OBJEXT) swm_module.$(OBJEXT) tracer_module.$(OBJEXT) model.h io.h
 	$(COMPILE)
 
 types.$(OBJEXT) : types.f90 types.h
@@ -83,7 +83,7 @@ types.$(OBJEXT) : types.f90 types.h
 init_vars.$(OBJEXT) : init_vars.f90 types.$(OBJEXT) model.h
 	$(COMPILE)
 
-vars_module.$(OBJEXT) : vars_module.f90 io.h types.$(OBJEXT) component_module.$(OBJEXT) domain_module.$(OBJEXT) logging.$(OBJEXT) generic_list.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT)
+vars_module.$(OBJEXT) : vars_module.f90 io.h types.$(OBJEXT) component_module.$(OBJEXT) domain_module.$(OBJEXT) counter_module.$(OBJEXT) logging.$(OBJEXT) generic_list.$(OBJEXT) grid_module.$(OBJEXT) str.$(OBJEXT)
 	$(COMPILE)
 
 time_integration_module.$(OBJEXT) : time_integration_module.f90 component_module.$(OBJEXT) vars_module.$(OBJEXT) io.h model.h types.$(OBJEXT)
@@ -150,6 +150,9 @@ app.$(OBJEXT) : app.f90 types.$(OBJEXT) list_mod.$(OBJEXT) component_module.$(OB
 	$(COMPILE)
 
 component_module.$(OBJEXT) : component_module.f90
+	$(COMPILE)
+
+counter_module.$(OBJEXT) : counter_module.f90 types.$(OBJEXT) component_module.$(OBJEXT)
 	$(COMPILE)
 
 %.$(OBJEXT) : %.f90

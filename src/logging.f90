@@ -61,6 +61,7 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
     procedure :: write => write_FileLogger
   end type FileLogger
 
+  !> Singleton logger component
   class(Logger), pointer :: log => null()
 
   contains
@@ -71,18 +72,21 @@ use, intrinsic :: iso_fortran_env, only : stdin=>input_unit, &
       character(CHARLEN) :: log_type
       namelist / logging_nl / log_type
 
-      open(UNIT_LOGGING_NL, file=LOGGING_NL, iostat=stat)
-      if (stat .ne. 0) then
-        log_ptr => make_std_logger()
-        call log_ptr%fatal("Cannot open logging namelist file.")
-      end if
+      ! open(UNIT_LOGGING_NL, file=LOGGING_NL, iostat=stat)
+      ! if (stat .ne. 0) then
+      !   log_ptr => make_std_logger()
+      !   call log_ptr%fatal("Cannot open logging namelist file.")
+      ! end if
 
-      read(UNIT_LOGGING_NL, nml=logging_nl, iostat=stat)
-      if (stat .ne. 0) then
-        log_ptr => make_std_logger()
-        call log_ptr%fatal("Cannot read logging namelist")
-      end if
+      ! read(UNIT_LOGGING_NL, nml=logging_nl, iostat=stat)
+      ! if (stat .ne. 0) then
+      !   log_ptr => make_std_logger()
+      !   call log_ptr%fatal("Cannot read logging namelist")
+      ! end if
+
       close(UNIT_LOGGING_NL)
+
+      log_type = "std"
 
       select case(log_type)
       case ("std")

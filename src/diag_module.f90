@@ -217,7 +217,7 @@ module diag_module
     !------------------------------------------------------------------
     SUBROUTINE step(self)
       class(Diag), intent(inout) :: self
-      if (self%repo%itt .lt. self%repo%diag_start_ind) return
+      if (self%repo%iter_counter%get_itt() .lt. self%repo%diag_start_ind) return
       call self%tasks%map(process_task)
     END SUBROUTINE step
 
@@ -413,6 +413,7 @@ module diag_module
     subroutine process_task_impl(self)
       class(diagTask), INTENT(inout) :: self   !< Task to process
       real(KDOUBLE)                  :: deltaT !< residual length of time interval
+      integer(KINT_ITT)              :: itt    !< Iteration counter
 
       if (.not. self%should_process()) return !< check if task have to be processed
 
@@ -420,10 +421,12 @@ module diag_module
         IF (.NOT.(self%diagVar%computed)) CALL self%diagVar%compute()
       END IF
 
+      itt = self%repo%iter_counter%get_itt()
+
       select case (self%type(1:1))
         ! Initial output
         case ("I","i")
-          if (self%repo%itt .eq. 0) call self%write(self%repo%elapsed_time())
+          if (itt .eq. 0) call self%write(self%repo%elapsed_time())
         
         ! Snapshot output
         case ("S","s") 
@@ -432,10 +435,10 @@ module diag_module
         ! Averaging output
         case ("A","a")
             deltaT=MIN(  &
-              mod(self%repo%dt * (self%repo%itt - self%repo%diag_start_ind), self%period),  &
+              mod(self%repo%dt * (itt - self%repo%diag_start_ind), self%period),  &
               self%repo%dt  &
             )
-          if (deltaT .lt. self%repo%dt .and. (self%repo%itt - self%repo%diag_start_ind) .ne. 0) THEN
+          if (deltaT .lt. self%repo%dt .and. (itt - self%repo%diag_start_ind) .ne. 0) THEN
             call self%add_data_to_averaging_buffer(self%repo%dt - deltaT)
             self%buffer = self%buffer / self%bufferCount
             call self%write(self%repo%elapsed_time() - deltaT)
@@ -454,7 +457,7 @@ module diag_module
     !------------------------------------------------------------------
     logical function should_process(self)
       class(DiagTask), intent(in) :: self
-      should_process = (mod(self%repo%itt - self%repo%diag_start_ind, self%nstep) .eq. 0)
+      should_process = (mod(self%repo%iter_counter%get_itt() - self%repo%diag_start_ind, self%nstep) .eq. 0)
     end function should_process
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

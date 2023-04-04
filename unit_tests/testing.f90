@@ -10,7 +10,7 @@ module testing
         else
             result_string = "FAIL"
         end if
-        write (*, '("Test",X,A,X,A)') adj(test_name, 50), trim(result_string)
+        write (*, '("Test",X,A,X,A)') adj(test_name, 60), trim(result_string)
     end subroutine print_test_result
 
     function adj(string, length) result(r)

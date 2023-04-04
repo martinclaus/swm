@@ -11,6 +11,7 @@
 !! types \n
 !! component_module, only: Component \n
 !! domain_module, only: Domain \n
+!! counter_module, only: IterationCounter \n
 !! logging, only: log \n
 !! generic_list \n
 !! grid_module, only : t_grid_lagrange, grid_t \n
@@ -21,6 +22,7 @@ MODULE vars_module
   use types
   use component_module, only: Component
   use domain_module, only: Domain
+  use counter_module, only: IterationCounter
   use logging, only: log
   USE generic_list
   use grid_module, only : t_grid_lagrange, grid_t
@@ -38,6 +40,7 @@ MODULE vars_module
   type, extends(Component) :: VariableRepository
     ! dependencies
     class(Domain), pointer :: dom => null()
+    class(IterationCounter), pointer :: iter_counter => null()
 
     ! Constants (default parameters), contained in model_nl
     real(KDOUBLE)                :: G = 9.80665                      !< gravitational acceleration \f$[ms^{-2}]\f$
@@ -51,17 +54,12 @@ MODULE vars_module
     real(KDOUBLE)               :: diag_start
     integer(KINT)               :: diag_start_ind
 
-    ! runtime variables
-    INTEGER(KINT_ITT) :: itt                                     !< time step index
-
     !< Register for variables
     TYPE(list_node_t), POINTER :: register => null() !< Linked list to register variables
 
     contains
     procedure :: initialize => initVars
     procedure :: finalize => finishVars
-    procedure :: advance
-    procedure :: keep_going
     procedure :: elapsed_time
     procedure, private :: add3dToRegister, add2dToRegister, add1dToRegister  !< Subroutines to add variables with different dimensions to the register
     generic :: add => add1dToRegister, add2dToRegister, add3dToRegister  !< Adds variables to the register
@@ -102,11 +100,13 @@ MODULE vars_module
 
   CONTAINS
 
-    function make_variable_register(dom) result(var_reg)
+    function make_variable_register(dom, iter_counter) result(var_reg)
       class(Domain), pointer, intent(in) :: dom
+      class(IterationCounter), pointer, intent(in) :: iter_counter
       class(VariableRepository), pointer :: var_reg
       allocate(var_reg)
       var_reg%dom => dom
+      var_reg%iter_counter => iter_counter
     end function make_variable_register
 
     !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -146,9 +146,6 @@ MODULE vars_module
       ! set time index of diagnostics start
       self%diag_start_ind = int(diag_start / dt)
 
-      ! start time loop
-      self%itt = 0
-
       ! add data from domain module to register  
       CALL self%add(self%dom%H_grid%H, "H", self%dom%H_grid)
       CALL self%add(self%dom%u_grid%H, "H_u", self%dom%u_grid)
@@ -160,17 +157,6 @@ MODULE vars_module
       class(VariableRepository), intent(inout) :: self
       nullify(self%dom)
     end subroutine finishVars
-
-    subroutine advance(self)
-      class(VariableRepository), intent(inout) :: self
-      self%itt = self%itt + 1
-    end subroutine advance
-
-    logical function keep_going(self)
-      class(VariableRepository), intent(in) :: self
-      keep_going = (self%itt .le. self%Nt)
-    end function keep_going
-
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 3-dimensional variables to the register
@@ -429,7 +415,7 @@ MODULE vars_module
     function elapsed_time(self) result(time)
       class(VariableRepository), intent(in) :: self
       real(KDOUBLE) :: time
-      time = self%itt * self%dt      
+      time = self%iter_counter%get_itt() * self%dt      
     end function elapsed_time
 
 END MODULE vars_module
