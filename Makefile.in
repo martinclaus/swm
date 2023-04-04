@@ -146,7 +146,7 @@ grid_module.$(OBJEXT) : grid_module.f90 model.h types.$(OBJEXT) logging.$(OBJEXT
 logging.$(OBJEXT) : logging.f90 io.h component_module.$(OBJEXT) str.$(OBJEXT) types.$(OBJEXT)
 	$(COMPILE)
 
-app.$(OBJEXT) : app.f90 list_mod.$(OBJEXT) component_module.$(OBJEXT) logging.$(OBJEXT)
+app.$(OBJEXT) : app.f90 types.$(OBJEXT) list_mod.$(OBJEXT) component_module.$(OBJEXT) logging.$(OBJEXT)
 	$(COMPILE)
 
 component_module.$(OBJEXT) : component_module.f90

@@ -32,7 +32,7 @@ PROGRAM main_program
       class(AbstractApp), pointer :: application
 
       application => make_app()
-      call application%run(100)
+      call application%run()
       
       deallocate(application)
     end subroutine main

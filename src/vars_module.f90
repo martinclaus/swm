@@ -44,7 +44,7 @@ MODULE vars_module
     real(KDOUBLE)                :: Ah=0.                            !< horizontal eddy viscosity coefficient \f$[m^2s^{-1}]\f$
 
     real(KDOUBLE)                :: run_length = 100000         !< Length of model run \f$[s]\f$
-    integer(KINT)                :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
+    integer(KINT_ITT)            :: Nt = int(1e5)                    !< Number of time steps. Set in vars_module::initVars to INT(run_length/dt)
     real(KDOUBLE)                :: dt = 10.                    !< stepsize in time \f$[s]\f$.
     real(KDOUBLE)                :: meant_out = 2.628e6         !< Length of averaging period for mean and "variance" calculation. Default is 1/12 of 365 days
 
@@ -60,6 +60,8 @@ MODULE vars_module
     contains
     procedure :: initialize => initVars
     procedure :: finalize => finishVars
+    procedure :: advance
+    procedure :: keep_going
     procedure :: elapsed_time
     procedure, private :: add3dToRegister, add2dToRegister, add1dToRegister  !< Subroutines to add variables with different dimensions to the register
     generic :: add => add1dToRegister, add2dToRegister, add3dToRegister  !< Adds variables to the register
@@ -158,6 +160,17 @@ MODULE vars_module
       class(VariableRepository), intent(inout) :: self
       nullify(self%dom)
     end subroutine finishVars
+
+    subroutine advance(self)
+      class(VariableRepository), intent(inout) :: self
+      self%itt = self%itt + 1
+    end subroutine advance
+
+    logical function keep_going(self)
+      class(VariableRepository), intent(in) :: self
+      keep_going = (self%itt .le. self%Nt)
+    end function keep_going
+
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     !> @brief adds 3-dimensional variables to the register

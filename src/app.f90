@@ -5,6 +5,7 @@
 !! This module provides abstract interfaces for the app and an app builder.
 !------------------------------------------------------------------
 module app
+    use types
     use list_mod, only: list, ListIterator, apply_to_list_value
     use component_module, only: Component
     use logging, only: make_logger, Logger
@@ -23,10 +24,9 @@ module app
     end type AbstractApp
 
     abstract interface
-        subroutine run_app(self, steps)
+        subroutine run_app(self)
             import AbstractApp
             class(AbstractApp), intent(inout) :: self
-            integer, intent(in) :: steps
         end subroutine run_app
 
         subroutine call_on_app(self)
@@ -53,12 +53,14 @@ module app
 
     type, extends(AbstractApp) :: DefaultApp
         class(ComponentList), pointer, private :: components => null()
+        integer(KINT_ITT) :: steps
     contains
         procedure, pass :: run => run_default_app
         procedure, private, pass :: initialize => initialize_default_app
         procedure, private, pass :: finalize => finalize_default_app
         procedure, private, pass :: step => step_default_app
         procedure, private, pass :: advance => advance_default_app
+        procedure, private, pass :: keep_going
     end type DefaultApp
 
     type, extends(AbstractAppBuilder) :: DefaultAppBuilder
@@ -72,17 +74,30 @@ module app
     end type ComponentList
 
 contains
-    subroutine run_default_app(self, steps)
+    subroutine run_default_app(self)
         class(DefaultApp), intent(inout) :: self
-        integer, intent(in) :: steps
-        integer :: nt
         call self%initialize()
-        do nt = 1, steps
+        do while (self%keep_going())
             call self%step()
             call self%advance()
         end do
         call self%finalize()
     end subroutine run_default_app
+
+    logical function keep_going(self)   
+        class(DefaultApp), intent(in) :: self
+        type(ListIterator) :: iterator
+        class(*), pointer :: comp
+        keep_going = .True.
+        iterator = self%components%iter()
+        do while (iterator%has_more())
+            comp => iterator%next()
+            select type(comp)
+            class is (Component)
+                keep_going = comp%keep_going()
+            end select
+        end do
+    end function keep_going
 
     subroutine apply_to_app_components(self, routine)
         class(DefaultApp), intent(inout) :: self

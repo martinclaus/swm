@@ -23,6 +23,7 @@ module component_module
         procedure, pass :: finalize => do_nothing
         procedure, pass :: step => do_nothing
         procedure, pass :: advance => do_nothing
+        procedure, pass :: keep_going
     end type Component
 
 contains
@@ -30,4 +31,12 @@ contains
             class(Component), intent(inout) :: self
             ! do nothing
         end subroutine do_nothing
+
+        !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        !> @brief Shall the application keep iterating?
+        !------------------------------------------------------------------
+        logical function keep_going(self)
+            class(Component), intent(inout) :: self
+            keep_going = .True.
+        end function keep_going
 end module component_module
